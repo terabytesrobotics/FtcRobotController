@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
+import android.annotation.SuppressLint;
+
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -84,12 +86,17 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
     private float phoneYRotate    = 0;
     private float phoneZRotate    = 0;
 
-    /**
-     * {@link #tfod} is the variable we will use to store our instance of the TensorFlow Object
+    /*
+     * tfod is the variable we will use to store our instance of the TensorFlow Object
      * Detection engine.
      */
     private TFObjectDetector tfod;
 
+    private static final String TFOD_MODEL_ASSET = "UltimateGoal.tflite";
+    private static final String LABEL_FIRST_ELEMENT = "Quad";
+    private static final String LABEL_SECOND_ELEMENT = "Single";
+
+    @SuppressLint("DefaultLocale")
     @Override public void runOpMode() {
         //imu = hardwareMap.get(Gyroscope.class, "imu");
         flDcMotor = hardwareMap.get(DcMotor.class, "flMotor");
@@ -130,7 +137,7 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
             double ServoMap;
 
             targetsUltimateGoal.activate();
-            /**
+            /*
              * Activate TensorFlow Object Detection before we wait for the start command.
              * Do it here so that the Camera Stream window will have the TensorFlow annotations visible.
              **/
@@ -266,7 +273,7 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
         frontWallTarget.setName("Front Wall Target");
 
         // For convenience, gather together all the trackable objects in one easily-iterable collection */
-        allTrackables = new ArrayList<VuforiaTrackable>();
+        allTrackables = new ArrayList<>();
         allTrackables.addAll(targetsUltimateGoal);
 
         /*
