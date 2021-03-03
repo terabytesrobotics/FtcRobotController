@@ -30,7 +30,7 @@ import static org.firstinspires.ftc.robotcore.external.navigation.AxesOrder.YZX;
 import static org.firstinspires.ftc.robotcore.external.navigation.AxesReference.EXTRINSIC;
 import static org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer.CameraDirection.BACK;
 
-
+//*i made a change
 @TeleOp(name="Terabytes Robotics Tele-Op", group ="Real")
 
 public class MyFIRSTJavaOpMode extends LinearOpMode {
@@ -192,9 +192,7 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                 TButtonlock = false;
             boolean Trigger_yes;
             boolean Collector_Up;
-                Collector_Up = true;
-            boolean Collector_Down;
-                Collector_Down = false;
+
             boolean Left;
             boolean Right;
             double LRYes;
@@ -206,12 +204,12 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
 
             float AngleX;
             float AngleY;
-            Double TArad;
-            Double ServoControlAngle;
+            double TArad;
+            double ServoControlAngle;
             ServoControlAngle = 4.01426;
-            Double ServoCenter;
+            double ServoCenter;
             ServoCenter = 0.5;
-            Double TargetAngleSERVO;
+            double TargetAngleSERVO;
                 TargetAngleSERVO = 0.5;
 
             // Vars for ArcadeMode
@@ -263,7 +261,7 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                 ColorAverage = REVColor.red() + REVColor.green() + REVColor.blue();
                 //*ColorAverage1 = REVColor1.red() + REVColor1.green() + REVColor1.blue();
 
-                /**
+                /*
                  OLD Holo drive code
                  */
 /*
@@ -281,12 +279,7 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
 
 
                 //* deciding if Arcade mode is active and setting "ArcadeMode"
-                if (gamepad1.right_bumper){
-                    ArcadeMode = true;
-                }
-                else{
-                    ArcadeMode = false;
-                }
+                ArcadeMode = gamepad1.right_bumper;
 
                 //* Choosing the speed that the robot should be going based on the color sensor values setting that to fakespeed
                 if(ColorAverage >= ColorOffsetStop + MattColor || ColorAverage1  >= ColorOffsetStop + MattColor ){
@@ -513,9 +506,9 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                         for (Recognition recognition : updatedRecognitions) {
                             //*telemetry.addData(String.format("label (%d)", i), recognition.getLabel());
                             //*telemetry.addData(String.format("  left,top (%d)", i), "%.03f , %.03f",
-                                    recognition.getLeft(), recognition.getTop());
+                            //*        recognition.getLeft(), recognition.getTop());
                             //*telemetry.addData(String.format("  right,bottom (%d)", i), "%.03f , %.03f",
-                                    recognition.getRight(), recognition.getBottom());
+                            //*        recognition.getRight(), recognition.getBottom());
                         }
                         telemetry.update();
                     }
@@ -543,7 +536,7 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                     // express position (translation) of robot in inches.
                     VectorF translation = lastLocation.getTranslation();
                    //* telemetry.addData("Pos (in)", "{X, Y, Z} = %.1f, %.1f, %.1f",
-                            translation.get(0) / mmPerInch, translation.get(1) / mmPerInch, translation.get(2) / mmPerInch);
+                   //*         translation.get(0) / mmPerInch, translation.get(1) / mmPerInch, translation.get(2) / mmPerInch);
 
 
                             // express the rotation of the robot in degrees.
