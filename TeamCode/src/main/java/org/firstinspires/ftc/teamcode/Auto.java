@@ -2,10 +2,9 @@ package org.firstinspires.ftc.teamcode;
 
 import android.annotation.SuppressLint;
 
-import com.qualcomm.hardware.rev.RevColorSensorV3;
 import com.qualcomm.hardware.rev.RevTouchSensor;
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
-import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
 
@@ -31,13 +30,13 @@ import static org.firstinspires.ftc.robotcore.external.navigation.AxesReference.
 import static org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer.CameraDirection.BACK;
 
 
-@TeleOp(name="Terabytes Robotics Tele-Op", group ="Real")
 
-public class MyFIRSTJavaOpMode extends LinearOpMode {
+@Autonomous(name="Terabytes Robotics Auto", group ="Real")
+
+public class Auto extends LinearOpMode {
     private static final int secondsPermissionTimeout = Integer.MAX_VALUE;
     private static final String TAG = "Webcam Sample";
-  //  private Gyroscope imu;
-    private RevColorSensorV3 REVColor;
+    //  private Gyroscope imu;
     private DcMotor flDcMotor;
     private DcMotor frDcMotor;
     private DcMotor blDcMotor;
@@ -76,8 +75,8 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
     private static final float mmTargetHeight   = (6) * mmPerInch;          // the height of the center of the target image above the floor
 
     // Constants for perimeter targets
-    private static final float halfField = 71 * mmPerInch;
-    private static final float quadField  = 35.5f * mmPerInch;
+    private static final float halfField = 72 * mmPerInch;
+    private static final float quadField  = 36 * mmPerInch;
 
     // Class Members
     private OpenGLMatrix lastLocation = null;
@@ -95,9 +94,7 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
     private float phoneXRotate    = 0;
     private float phoneYRotate    = 0;
     private float phoneZRotate    = 0;
-    private float RX;
-    private float RY;
-    private float RZ;
+
     /*
      * tfod is the variable we will use to store our instance of the TensorFlow Object
      * Detection engine.
@@ -107,27 +104,14 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
     private static final String TFOD_MODEL_ASSET = "UltimateGoal.tflite";
     private static final String LABEL_FIRST_ELEMENT = "Quad";
     private static final String LABEL_SECOND_ELEMENT = "Single";
-    private static float Blue_Top_Goal_Lservo_Setpos = .864f;
-    private static float Blue_Top_Goal_Rservo_Setpos = .136f;
-    private static float Blue_Top_Goal_LRAngle_Setpos = .5f;
-
-
-
 
     @SuppressLint("DefaultLocale")
     @Override public void runOpMode() {
-    //    imu = hardwareMap.get(Gyroscope.class, "IMU");
-        //*REVColor1 =
-        REVColor = hardwareMap.get(RevColorSensorV3.class, "REVColor");
+        //imu = hardwareMap.get(Gyroscope.class, "imu");
         flDcMotor = hardwareMap.get(DcMotor.class, "flMotor");
-        flDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         frDcMotor = hardwareMap.get(DcMotor.class, "frMotor");
-        frDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         blDcMotor = hardwareMap.get(DcMotor.class, "blMotor");
-        blDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         brDcMotor = hardwareMap.get(DcMotor.class, "brMotor");
-        brDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-
         Shooter = hardwareMap.get(DcMotor.class, "Shooter");
         Shooter.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         Collector = hardwareMap.get(DcMotor.class, "Collector");
@@ -170,76 +154,6 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
             telemetry.update();
 
 
-            double XtgtPower;
-            double LYtgtPower;
-            double RYtgtPower;
-            double PlatformPositionX;
-            double PlatformMap;
-            boolean Shoot;
-            double ShootYes;
-            boolean Up;
-            double UpYes;
-            boolean Down;
-            boolean ToggleCollector;
-            boolean CButtonlock;
-                CButtonlock = false;
-            double CollectorStatus;
-            CollectorStatus = 0;
-            boolean ToggleTrigger;
-            double TriggerStatus;
-            TriggerStatus = .5;
-            boolean TButtonlock;
-                TButtonlock = false;
-            boolean Trigger_yes;
-            boolean Collector_Up;
-                Collector_Up = true;
-            boolean Collector_Down;
-                Collector_Down = false;
-            boolean Left;
-            boolean Right;
-            double LRYes;
-            double ShooterStatus;
-            boolean SButtonlock;
-            SButtonlock = false;
-            boolean ToggleShooter;
-            ShooterStatus = 0;
-
-            float AngleX;
-            float AngleY;
-            Double TArad;
-            Double ServoControlAngle;
-            ServoControlAngle = 4.01426;
-            Double ServoCenter;
-            ServoCenter = 0.5;
-            Double TargetAngleSERVO;
-                TargetAngleSERVO = 0.5;
-
-            // Vars for ArcadeMode
-            double ColorAverage = 0;
-            double ColorAverage1 = 0;
-            double ColorOffset = 40;
-            double MattColor = 100;
-            double ColorOffsetSlow = 50;
-            double ColorOffsetStop = 100;
-            double fakeR = 0;
-            double fakeY;
-                fakeY = 0;
-            boolean ArcadeMode;
-                ArcadeMode = false;
-            boolean color0;
-                color0 = false;
-            boolean color1;
-                color1 = false;
-            double fakespeed;
-                fakespeed = 0;
-            double ColorDifference = 0;
-            double ColorRotateTrim =60;
-            double ColorRotate = 0;
-
-            double FL = 0;
-            double FR = 0;
-            double BL = 0;
-            double BR = 0;
             targetsUltimateGoal.activate();
             /*
              * Activate TensorFlow Object Detection before we wait for the start command.
@@ -256,251 +170,8 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                 // (typically 16/9).
                 tfod.setZoom(2.5, 16.0/9.0);
             }
-            PlatformPositionX = 0.5;
+
             while (opModeIsActive()) {
-
-                //* taking the average of Red Green and BLue for both sensors
-                ColorAverage = REVColor.red() + REVColor.green() + REVColor.blue();
-                //*ColorAverage1 = REVColor1.red() + REVColor1.green() + REVColor1.blue();
-
-                /**
-                 OLD Holo drive code
-                 */
-/*
-                double r = Math.hypot(-gamepad1.left_stick_x, gamepad1.left_stick_y);
-                double robotAngle = Math.atan2(gamepad1.left_stick_y, -gamepad1.left_stick_x) - Math.PI / 4;
-                double rightX = gamepad1.right_stick_x * -1;
-                final double v1 = r * Math.cos(robotAngle) + rightX;
-                final double v2 = r * Math.sin(robotAngle) - rightX;
-                final double v3 = r * Math.sin(robotAngle) + rightX;
-                final double v4 = r * Math.cos(robotAngle) - rightX;
-   */
-
-                //* New Drive Code
-
-
-
-                //* deciding if Arcade mode is active and setting "ArcadeMode"
-                if (gamepad1.right_bumper){
-                    ArcadeMode = true;
-                }
-                else{
-                    ArcadeMode = false;
-                }
-
-                //* Choosing the speed that the robot should be going based on the color sensor values setting that to fakespeed
-                if(ColorAverage >= ColorOffsetStop + MattColor || ColorAverage1  >= ColorOffsetStop + MattColor ){
-                    fakespeed = 0;
-                }
-                else if(ColorAverage >= ColorOffsetSlow + MattColor|| ColorAverage1  >= ColorOffsetSlow + MattColor ){
-                    fakespeed = 0.2;
-                }
-                else{
-                    fakespeed = 1;
-                }
-                ColorDifference = ColorAverage -ColorAverage1;
-                //*deciding if the Robot should rotate
-                if (ColorDifference >= ColorRotateTrim){
-                    ColorRotate = 1;
-                }
-                else{
-                    ColorRotate = 0;
-                }
-
-
-
-
-                //Locking the driver out and giving control to fakespeed and fakeRotate
-                if (!ArcadeMode){
-                    fakeY = gamepad1.left_stick_y;
-                    fakeR = gamepad1.right_stick_x;
-                }
-                else {
-                        fakeY = fakespeed;
-                        fakeR = ColorRotate;
-                    }
-
-
-                double r = Math.hypot(-gamepad1.left_stick_x, fakeY);
-                double robotAngle = Math.atan2(gamepad1.left_stick_y, -gamepad1.left_stick_x) - Math.PI / 4;
-                double rightX = fakeR * -1;
-                final double v1 = r * Math.cos(robotAngle) + rightX;
-                final double v2 = r * Math.sin(robotAngle) - rightX;
-                final double v3 = r * Math.sin(robotAngle) + rightX;
-                final double v4 = r * Math.cos(robotAngle) - rightX;
-
-                FL = -v1;
-                FR = -v2;
-                BL = v3;
-                BR = -v4;
-
-                if(gamepad1.left_bumper){
-                    FL /= 2;
-                    FR /= 2;
-                    BL /= 2;
-                    BR /= 2;
-                }
-
-                flDcMotor.setPower(FL);
-                frDcMotor.setPower(FR);
-                blDcMotor.setPower(BL);
-                brDcMotor.setPower(BR);
-
-
-             //   telemetry.addData("Switchtest", BottomLimit.getValue());
-             //   telemetry.addData("Switchtest2", TopLimit.getValue());
-
-             /*   XtgtPower = -this.gamepad1.left_stick_x;
-                LYtgtPower = -this.gamepad1.left_stick_y;
-                RYtgtPower = this.gamepad1.left_stick_y;
-                PlatformPositionX = this.gamepad2.right_stick_x;
-                if (PlatformPositionX < -0.3) {
-                    PlatformPositionX = -0.3;
-                }
-                if (PlatformPositionX > 0.3) {
-                    PlatformPositionX = 0.3;
-                }
-                PlatformMap = (-PlatformPositionX + 0.5); */
-             /*   flDcMotor.setPower(-(XtgtPower - LYtgtPower));
-                blDcMotor.setPower(XtgtPower - LYtgtPower);
-                frDcMotor.setPower(XtgtPower - RYtgtPower);
-                brDcMotor.setPower(XtgtPower - RYtgtPower);
-                telemetry.addData("X Target Power", XtgtPower);
-                telemetry.addData("flMotor Power", flDcMotor.getPower());
-                telemetry.addData("frMotor Power", frDcMotor.getPower());
-                telemetry.addData("blMotor Power", blDcMotor.getPower());
-                telemetry.addData("brMotor Power", blDcMotor.getPower());
-             */   //while(ServoMap<1) {
-                 //   Platform.setPosition(PlatformMap);
-                //}
-                telemetry.addData("PlatformPos", Platform.getPosition());
-                telemetry.addData("PlatformPosLR", lServopos);
-               // telemetry.addData("PlatformMap", PlatformMap);
-                telemetry.addData("CollectorPos", CollectorStatus);
-/*
-
-*/
-
-
-
-                if(gamepad2.left_bumper){
-                    PlatformPositionX = Blue_Top_Goal_LRAngle_Setpos;
-                    lServopos = Blue_Top_Goal_Lservo_Setpos;
-                    rServopos = Blue_Top_Goal_Rservo_Setpos;
-                }
-
-                ToggleShooter = this.gamepad2.b;
-                if (SButtonlock && !ToggleShooter){
-                    SButtonlock = false;
-                }
-                if (ToggleShooter && !SButtonlock) {
-                    ShooterStatus += .8;
-                    SButtonlock = true;
-                }
-                if (ShooterStatus > .8 && ! SButtonlock) {
-                    ShooterStatus = 0;
-                    SButtonlock = true;
-                }
-                Shooter.setPower(ShooterStatus);
-                //Platform "Left Right" code
-
-                Left = this.gamepad2.dpad_left;
-                Right = this.gamepad2.dpad_right;
-                if (Left) {
-                    PlatformPositionX += .008;
-                }
-                if (Right) {
-                    PlatformPositionX -= .008;
-                }
-
-
-
-                if (PlatformPositionX > 0.7) {
-                    PlatformPositionX = 0.7;
-                }
-                if (PlatformPositionX < 0.3) {
-                    PlatformPositionX = 0.3;
-                }
-
-
-                Platform.setPosition(PlatformPositionX);
-
-                //Platform "Up Down" code
-                UpYes = 0;
-                Down = this.gamepad2.dpad_up;
-                Up = this.gamepad2.dpad_down;
-                if (Up) {
-                    UpYes = .004;
-                }
-                if (Down) {
-                    UpYes = -.004;
-                }
-
-                lServopos += UpYes;
-                rServopos -= UpYes;
-                if (lServopos > 0.98) {
-                    lServopos = 0.98;
-                }
-                if (lServopos < 0) {
-                    lServopos = 0;
-                }
-                if (rServopos > .98) {
-                    rServopos = .98;
-                }
-                if (rServopos < 0) {
-                    rServopos = 0;
-                }
-                lLift.setPosition(lServopos);
-                rLift.setPosition(rServopos);
-
-                //Collector code
-
-
-                Collector.setPower(CollectorStatus);
-                ToggleCollector = this.gamepad1.x;
-                if (CButtonlock && !ToggleCollector){
-                    CButtonlock = false;
-                }
-                if (ToggleCollector && !CButtonlock) {
-                    CollectorStatus += 1;
-                    CButtonlock = true;
-                }
-                if (CollectorStatus > 1 && ! CButtonlock) {
-                    CollectorStatus = 0;
-                    CButtonlock = true;
-                }
-
-                //Trigger code
-                Trigger.setPosition(TriggerStatus);
-                ToggleTrigger = this.gamepad2.y;
-                if (TButtonlock && !ToggleTrigger){
-                    TButtonlock = false;
-                }
-                if (TriggerStatus == 0.5 && ToggleTrigger && !TButtonlock) {
-                    TriggerStatus = 0;
-                    TButtonlock = true;
-                }
-                if (TriggerStatus == 0 && ! TButtonlock && ToggleTrigger) {
-                    TriggerStatus = 0.5;
-                    TButtonlock = true;
-                }
-
-                //* Collector Up and Down Code
-
-
-                if (gamepad1.right_bumper && TopLimit.getValue() ==0){
-                    cLift.setPower(-1);
-                }
-                else if (gamepad1.right_bumper && TopLimit.getValue() ==1){
-                    cLift.setPower(0);
-                }
-                else if (BottomLimit.getValue() ==0) {
-                    cLift.setPower(1);
-                }
-                else{
-                    cLift.setPower(0);
-                }
-
 
                 if (tfod != null) {
                     // getUpdatedRecognitions() will return null if no new information is available since
@@ -511,10 +182,10 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                         // step through the list of recognitions and display boundary info.
                         int i = 0;
                         for (Recognition recognition : updatedRecognitions) {
-                            //*telemetry.addData(String.format("label (%d)", i), recognition.getLabel());
-                            //*telemetry.addData(String.format("  left,top (%d)", i), "%.03f , %.03f",
+                            telemetry.addData(String.format("label (%d)", i), recognition.getLabel());
+                            telemetry.addData(String.format("  left,top (%d)", i), "%.03f , %.03f",
                                     recognition.getLeft(), recognition.getTop());
-                            //*telemetry.addData(String.format("  right,bottom (%d)", i), "%.03f , %.03f",
+                            telemetry.addData(String.format("  right,bottom (%d)", i), "%.03f , %.03f",
                                     recognition.getRight(), recognition.getBottom());
                         }
                         telemetry.update();
@@ -542,50 +213,17 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                 if (targetVisible) {
                     // express position (translation) of robot in inches.
                     VectorF translation = lastLocation.getTranslation();
-                   //* telemetry.addData("Pos (in)", "{X, Y, Z} = %.1f, %.1f, %.1f",
+                    telemetry.addData("Pos (in)", "{X, Y, Z} = %.1f, %.1f, %.1f",
                             translation.get(0) / mmPerInch, translation.get(1) / mmPerInch, translation.get(2) / mmPerInch);
 
-
-                            // express the rotation of the robot in degrees.
+                    // express the rotation of the robot in degrees.
                     Orientation rotation = Orientation.getOrientation(lastLocation, EXTRINSIC, XYZ, DEGREES);
-                   //* telemetry.addData("Rot (deg)", "{Roll, Pitch, Heading} = %.0f, %.0f, %.0f", rotation.firstAngle, rotation.secondAngle, rotation.thirdAngle);
-                    RX = translation.get(0) /mmPerInch;
-                    RY = translation.get(1) /mmPerInch;
-                    RZ = translation.get(2) /mmPerInch;
-
-
-
-
+                    telemetry.addData("Rot (deg)", "{Roll, Pitch, Heading} = %.0f, %.0f, %.0f", rotation.firstAngle, rotation.secondAngle, rotation.thirdAngle);
                 } else {
                     telemetry.addData("Visible Target", "none");
                 }
                 telemetry.addData("Status", "Running");
                 telemetry.update();
-                telemetry.addData("RX =",RX);
-                telemetry.addData("RY =",RY);
-                telemetry.addData("RZ =",RZ);
-
-
-
-
-
-                //* Auto aim Code
-             /*   if (gamepad2.x){
-
-                    AngleX = 72 - RX;
-                    AngleY = 36 - RY;
-
-                    TArad = (atan(AngleY/AngleX));
-                    TargetAngleSERVO = TArad / ServoControlAngle + ServoCenter;
-                    Platform.setPosition(TargetAngleSERVO);
-
-
-                }
-                telemetry.addData("shooter angle",TargetAngleSERVO);
-*/
-
-
-
             }
         } finally {
             // Disable Tracking when we are done;
@@ -613,7 +251,7 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
         webcamName = hardwareMap.get(WebcamName.class, "webcam");
         parameters.vuforiaLicenseKey = VUFORIA_KEY;
         parameters.cameraName = webcamName;
-        parameters.useExtendedTracking = true;
+        parameters.useExtendedTracking = false;
 
         //  Instantiate the Vuforia engine
         vuforia = ClassFactory.getInstance().createVuforia(parameters);
@@ -694,19 +332,17 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
         } else {
             phoneYRotate = 90;
         }
-        //phoneYRotate = 0;
 
         // Rotate the phone vertical about the X axis if it's in portrait mode
         if (PHONE_IS_PORTRAIT) {
             phoneXRotate = 90;
         }
-        //phoneXRotate = 0;
 
         // Next, translate the camera lens to where it is on the robot.
         // In this example, it is centered (left to right), but forward of the middle of the robot, and above ground level.
-        final float CAMERA_FORWARD_DISPLACEMENT = 8.5f * mmPerInch;   // eg: Camera is 4 Inches in front of robot-center
-        final float CAMERA_VERTICAL_DISPLACEMENT = 6.0f * mmPerInch;   // eg: Camera is 8 Inches above ground
-        final float CAMERA_LEFT_DISPLACEMENT = 0.0f;     // eg: Camera is ON the robot's center line
+        final float CAMERA_FORWARD_DISPLACEMENT = 4.0f * mmPerInch;   // eg: Camera is 4 Inches in front of robot-center
+        final float CAMERA_VERTICAL_DISPLACEMENT = 8.0f * mmPerInch;   // eg: Camera is 8 Inches above ground
+        final float CAMERA_LEFT_DISPLACEMENT = 0;     // eg: Camera is ON the robot's center line
 
         OpenGLMatrix robotFromCamera = OpenGLMatrix
                 .translation(CAMERA_FORWARD_DISPLACEMENT, CAMERA_LEFT_DISPLACEMENT, CAMERA_VERTICAL_DISPLACEMENT)
