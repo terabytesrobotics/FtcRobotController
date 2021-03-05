@@ -220,21 +220,31 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
             double ColorAverage1;
             double ColorZero = REVColor.blue() + REVColor.red() + REVColor.green();
             double ColorZero1 = REVColor1.blue() + REVColor1.red() + REVColor1.green();
-            double ColorOffsetSlow = 50;
-            double ColorOffsetStop = 100;
+            double ColorOffsetSlow;
+            double ColorOffsetStop;
             double fakeR = 0;
             double fakeY;
             boolean ArcadeMode;
             double fakespeed;
             double ColorDifference;
-            double ColorRotateTrim = 100;
+            double ColorRotateTrim;
             double ColorRotate;
             double FL;
             double FR;
             double BL;
             double BR;
 
+            //vars for jump
+            boolean JumpLock = false;
             targetsUltimateGoal.activate();
+            double Epos;
+            double MoveCounts;
+            double MoveAmount = 0;
+            double fakeX = 0;
+            boolean Juke = false;
+            double OGPos = 0;
+            boolean JumpLock1 = false;
+            boolean Juke1 = false;
             /*
              * Activate TensorFlow Object Detection before we wait for the start command.
              * Do it here so that the Camera Stream window will have the TensorFlow annotations visible.
@@ -275,6 +285,10 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
 
 
                 //* deciding if Arcade mode is active and setting "ArcadeMode"
+                // Tune-able Values
+                ColorOffsetSlow = 50;
+                ColorOffsetStop = 100;
+                ColorRotateTrim = 50;
 
                 ColorAverage1 = REVColor1.blue() + REVColor1.red() + REVColor1.green() - ColorZero1;
                 ColorAverage = REVColor.blue() + REVColor.red() + REVColor.green() - ColorZero;
@@ -289,26 +303,27 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                 //* Choosing the speed that the robot should be going based on the color sensor values setting that to fakespeed
 
                 //Stop
-
                 if(ColorAverage >= ColorOffsetStop   || ColorAverage1  >= ColorOffsetStop   ){
                     fakespeed = 0;
                 }
                 //Slow
                 else if(ColorAverage >= ColorOffsetSlow  || ColorAverage1  >= ColorOffsetSlow   ){
-                    fakespeed = 0.2;
+                    fakespeed = 0.1;
                 }
                 //Go
                 else{
-                    fakespeed = 1;
+                    fakespeed = 0.4;
                 }
-                //*deciding if the Robot should rotate
-                ColorDifference = ColorAverage -ColorAverage1;
 
-                if (ColorDifference > ColorRotateTrim){
+                //*deciding if the Robot should rotate
+                if (ColorAverage > ColorAverage1 + ColorRotateTrim){
+                    ColorRotate = -0.3;
+                }
+                else if (ColorAverage1 > ColorAverage + ColorRotateTrim){
                     ColorRotate = 0.3;
                 }
                 else{
-                    ColorRotate = 0.3;
+                    ColorRotate = 0;
                 }
 
 
@@ -324,9 +339,82 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                     fakeR = ColorRotate;
                 }
 
+                // jump right
 
-                double r = Math.hypot(-gamepad1.left_stick_x, fakeY);
-                double robotAngle = Math.atan2(fakeY, -gamepad1.left_stick_x) - Math.PI / 4;
+                MoveCounts = 30;
+
+                Epos = flDcMotor.getCurrentPosition();
+
+                if (gamepad1.dpad_left){
+                    Juke1 = true;
+                    if (!JumpLock1){
+                        MoveAmount = Epos - MoveCounts;
+                        OGPos = Epos;
+                        JumpLock1 = true;
+                    }
+                    if (Epos > MoveAmount){
+                        fakeX = 1;
+
+                    }
+                    else fakeX = 0;
+                }
+                else if (Juke1) {
+                    if (Epos < OGPos){
+                        fakeX = -1;
+
+                    }
+                    else {
+                        fakeX = 0;
+                        Juke1 = false;
+                        JumpLock1 = false;
+                    }
+
+                }
+                else{
+                    fakeX = gamepad1.left_stick_x;
+                }
+
+
+
+                // jump left
+
+
+                Epos = flDcMotor.getCurrentPosition();
+
+
+                if (gamepad1.dpad_left){
+                    Juke = true;
+                    if (!JumpLock){
+                        MoveAmount = Epos + MoveCounts;
+                        OGPos = Epos;
+                        JumpLock = true;
+                    }
+                    if (Epos < MoveAmount){
+                        fakeX = -1;
+
+                    }
+                    else fakeX = 0;
+                }
+                else if (Juke) {
+                    if (Epos > OGPos){
+                        fakeX = 1;
+
+                    }
+                    else {
+                        fakeX = 0;
+                        Juke = false;
+                        JumpLock = false;
+                    }
+
+                }
+                else{
+                    fakeX = gamepad1.left_stick_x;
+                }
+
+
+
+                double r = Math.hypot(-fakeX, fakeY);
+                double robotAngle = Math.atan2(fakeY, -fakeX) - Math.PI / 4;
                 double rightX = fakeR * -1;
                 final double v1 = r * Math.cos(robotAngle) + rightX;
                 final double v2 = r * Math.sin(robotAngle) - rightX;
