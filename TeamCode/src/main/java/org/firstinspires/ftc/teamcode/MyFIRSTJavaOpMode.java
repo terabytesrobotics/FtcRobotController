@@ -216,33 +216,24 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
             TargetAngleSERVO = 0.5;
 
             // Vars for ArcadeMode
-            double ColorAverage = 0;
-            double ColorAverage1 = 0;
-            double ColorOffset = 40;
-            double MattColor = REVColor.blue() + REVColor.red() + REVColor.green();
-            double MattColor1 = REVColor1.blue() + REVColor1.red() + REVColor1.green();
-            double Calabration = (REVColor.blue() + REVColor.red() + REVColor.green()) -( REVColor1.blue() + REVColor1.red() + REVColor1.green();)
+            double ColorAverage;
+            double ColorAverage1;
+            double ColorZero = REVColor.blue() + REVColor.red() + REVColor.green();
+            double ColorZero1 = REVColor1.blue() + REVColor1.red() + REVColor1.green();
             double ColorOffsetSlow = 50;
             double ColorOffsetStop = 100;
             double fakeR = 0;
             double fakeY;
-            fakeY = 0;
             boolean ArcadeMode;
-            ArcadeMode = false;
-            boolean color0;
-            color0 = false;
-            boolean color1;
-            color1 = false;
             double fakespeed;
-            fakespeed = 0;
-            double ColorDifference = 0;
-            double ColorRotateTrim =60;
-            double ColorRotate = 0;
+            double ColorDifference;
+            double ColorRotateTrim = 100;
+            double ColorRotate;
+            double FL;
+            double FR;
+            double BL;
+            double BR;
 
-            double FL = 0;
-            double FR = 0;
-            double BL = 0;
-            double BR = 0;
             targetsUltimateGoal.activate();
             /*
              * Activate TensorFlow Object Detection before we wait for the start command.
@@ -285,8 +276,8 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
 
                 //* deciding if Arcade mode is active and setting "ArcadeMode"
 
-                ColorAverage1 = REVColor1.blue() + REVColor1.red() + REVColor1.green();
-                ColorAverage = REVColor.blue() + REVColor.red() + REVColor.green();
+                ColorAverage1 = REVColor1.blue() + REVColor1.red() + REVColor1.green() - ColorZero1;
+                ColorAverage = REVColor.blue() + REVColor.red() + REVColor.green() - ColorZero;
 
                 if (gamepad1.back){
                     ArcadeMode = true;
@@ -296,22 +287,28 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                 }
 
                 //* Choosing the speed that the robot should be going based on the color sensor values setting that to fakespeed
-                if(ColorAverage >= ColorOffsetStop + MattColor || ColorAverage1  >= ColorOffsetStop + MattColor1 ){
+
+                //Stop
+
+                if(ColorAverage >= ColorOffsetStop   || ColorAverage1  >= ColorOffsetStop   ){
                     fakespeed = 0;
                 }
-                else if(ColorAverage >= ColorOffsetSlow + MattColor|| ColorAverage1  >= ColorOffsetSlow + MattColor1 ){
+                //Slow
+                else if(ColorAverage >= ColorOffsetSlow  || ColorAverage1  >= ColorOffsetSlow   ){
                     fakespeed = 0.2;
                 }
+                //Go
                 else{
                     fakespeed = 1;
                 }
-                ColorDifference = ColorAverage -ColorAverage1;
                 //*deciding if the Robot should rotate
-                if (ColorDifference >= ColorRotateTrim){
-                    ColorRotate = 1;
+                ColorDifference = ColorAverage -ColorAverage1;
+
+                if (ColorDifference > ColorRotateTrim){
+                    ColorRotate = 0.3;
                 }
                 else{
-                    ColorRotate = 0;
+                    ColorRotate = 0.3;
                 }
 
 
