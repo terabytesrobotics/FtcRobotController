@@ -2,22 +2,22 @@ package org.firstinspires.ftc.teamcode;
 
 import android.annotation.SuppressLint;
 
+import com.qualcomm.hardware.rev.RevColorSensorV3;
 import com.qualcomm.hardware.rev.RevTouchSensor;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.matrices.OpenGLMatrix;
-import org.firstinspires.ftc.robotcore.external.matrices.VectorF;
 import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackable;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackableDefaultListener;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackables;
-import org.firstinspires.ftc.robotcore.external.tfod.Recognition;
 import org.firstinspires.ftc.robotcore.external.tfod.TFObjectDetector;
 
 import java.util.ArrayList;
@@ -37,6 +37,8 @@ public class Auto extends LinearOpMode {
     private static final int secondsPermissionTimeout = Integer.MAX_VALUE;
     private static final String TAG = "Webcam Sample";
     //  private Gyroscope imu;
+    private ColorSensor REVColor1;
+    private RevColorSensorV3 REVColor;
     private DcMotor flDcMotor;
     private DcMotor frDcMotor;
     private DcMotor blDcMotor;
@@ -104,10 +106,16 @@ public class Auto extends LinearOpMode {
     private static final String TFOD_MODEL_ASSET = "UltimateGoal.tflite";
     private static final String LABEL_FIRST_ELEMENT = "Quad";
     private static final String LABEL_SECOND_ELEMENT = "Single";
+    private double PlatformPositionX;
+    private boolean Left;
+    private boolean Right;
+    private double UpYes;
 
     @SuppressLint("DefaultLocale")
     @Override public void runOpMode() {
         //imu = hardwareMap.get(Gyroscope.class, "imu");
+        REVColor1 =hardwareMap.get(ColorSensor.class,"REVColor1");
+        REVColor = hardwareMap.get(RevColorSensorV3.class, "REVColor");
         flDcMotor = hardwareMap.get(DcMotor.class, "flMotor");
         frDcMotor = hardwareMap.get(DcMotor.class, "frMotor");
         blDcMotor = hardwareMap.get(DcMotor.class, "blMotor");
@@ -152,6 +160,8 @@ public class Auto extends LinearOpMode {
             telemetry.clear();
             telemetry.addData(">", "Started...Press 'A' to capture frame");
             telemetry.update();
+            double ColorAverage = 0;
+            double ColorAverage1 = 0;
 
 
             targetsUltimateGoal.activate();
@@ -173,6 +183,9 @@ public class Auto extends LinearOpMode {
 
             while (opModeIsActive()) {
 
+                telemetry.addLine("op mode active");
+                telemetry.update();
+/*
                 if (tfod != null) {
                     // getUpdatedRecognitions() will return null if no new information is available since
                     // the last time that call was made.
@@ -224,6 +237,94 @@ public class Auto extends LinearOpMode {
                 }
                 telemetry.addData("Status", "Running");
                 telemetry.update();
+*/
+                //Platform "Left Right" code
+
+
+                while (opModeIsActive()&& ColorAverage + ColorAverage1 < 2800){
+                    frDcMotor.setPower(.5);
+                    flDcMotor.setPower(.5);
+                   brDcMotor.setPower(.5);
+                   blDcMotor.setPower(-.5);
+
+                    ColorAverage1 = REVColor1.blue() + REVColor1.red() + REVColor1.green();
+                    ColorAverage = REVColor.blue() + REVColor.red() + REVColor.green();
+                    telemetry.addLine("not on line");
+                    telemetry.addData("color add",REVColor1.blue() + REVColor1.red() + REVColor1.green() + REVColor.blue() + REVColor.red() + REVColor.green());
+                    telemetry.update();
+                }
+
+
+                frDcMotor.setPower(-0.2);
+                flDcMotor.setPower(-0.2);
+                brDcMotor.setPower(-0.2);
+                blDcMotor.setPower(0.2);
+                sleep(1000);
+                frDcMotor.setPower(0);
+                flDcMotor.setPower(0);
+                brDcMotor.setPower(0);
+                blDcMotor.setPower(0);
+                Shooter.setPower(.8);
+                telemetry.addLine("on line");
+                telemetry.update();
+
+                Platform.setPosition(.404);
+                lLift.setPosition(0.916);
+                rLift.setPosition(0.916 - 0.98);
+
+                sleep(1000);
+
+
+
+
+
+                Trigger.setPosition(0);
+                while (BottomLimit.getValue() == 0){
+                    cLift.setPower(1);
+                    telemetry.addLine("collector up");
+                }
+
+
+
+                Trigger.setPosition(.5);
+
+                sleep(1000);
+
+                Platform.setPosition(.385);
+                lLift.setPosition(0.916);
+                rLift.setPosition(0.916 - 0.98);
+
+                sleep(1000);
+
+                Trigger.setPosition(0);
+
+
+                sleep(1000);
+
+                Trigger.setPosition(.5);
+                Collector.setPower(-1);
+                Platform.setPosition(.379);
+                lLift.setPosition(0.916);
+                rLift.setPosition(0.916 - 0.98);
+
+                sleep(2000);
+
+                Trigger.setPosition(0);
+                sleep(1000);
+
+                while (opModeIsActive()&& ColorAverage + ColorAverage1 < 2800){
+                    frDcMotor.setPower(.2);
+                    flDcMotor.setPower(.2);
+                    brDcMotor.setPower(.2);
+                    blDcMotor.setPower(-.2);
+
+                    ColorAverage1 = REVColor1.blue() + REVColor1.red() + REVColor1.green();
+                    ColorAverage = REVColor.blue() + REVColor.red() + REVColor.green();
+                    telemetry.addLine("not on line");
+                    telemetry.addData("color add",REVColor1.blue() + REVColor1.red() + REVColor1.green() + REVColor.blue() + REVColor.red() + REVColor.green());
+                    telemetry.update();
+                }
+                break;
             }
         } finally {
             // Disable Tracking when we are done;
