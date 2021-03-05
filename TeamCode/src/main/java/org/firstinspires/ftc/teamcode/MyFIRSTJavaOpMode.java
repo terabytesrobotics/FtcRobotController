@@ -6,19 +6,18 @@ import com.qualcomm.hardware.rev.RevColorSensorV3;
 import com.qualcomm.hardware.rev.RevTouchSensor;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.matrices.OpenGLMatrix;
-import org.firstinspires.ftc.robotcore.external.matrices.VectorF;
 import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackable;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackableDefaultListener;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackables;
-import org.firstinspires.ftc.robotcore.external.tfod.Recognition;
 import org.firstinspires.ftc.robotcore.external.tfod.TFObjectDetector;
 
 import java.util.ArrayList;
@@ -36,7 +35,8 @@ import static org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocaliz
 public class MyFIRSTJavaOpMode extends LinearOpMode {
     private static final int secondsPermissionTimeout = Integer.MAX_VALUE;
     private static final String TAG = "Webcam Sample";
-  //  private Gyroscope imu;
+    //  private Gyroscope imu;
+    private ColorSensor REVColor1;
     private RevColorSensorV3 REVColor;
     private DcMotor flDcMotor;
     private DcMotor frDcMotor;
@@ -116,8 +116,8 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
 
     @SuppressLint("DefaultLocale")
     @Override public void runOpMode() {
-    //    imu = hardwareMap.get(Gyroscope.class, "IMU");
-        //*REVColor1 =
+        //    imu = hardwareMap.get(Gyroscope.class, "IMU");
+        REVColor1 =hardwareMap.get(ColorSensor.class,"REVColor1");
         REVColor = hardwareMap.get(RevColorSensorV3.class, "REVColor");
         flDcMotor = hardwareMap.get(DcMotor.class, "flMotor");
         flDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
@@ -182,19 +182,19 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
             boolean Down;
             boolean ToggleCollector;
             boolean CButtonlock;
-                CButtonlock = false;
+            CButtonlock = false;
             double CollectorStatus;
             CollectorStatus = 0;
             boolean ToggleTrigger;
             double TriggerStatus;
             TriggerStatus = .5;
             boolean TButtonlock;
-                TButtonlock = false;
+            TButtonlock = false;
             boolean Trigger_yes;
             boolean Collector_Up;
-                Collector_Up = true;
+            Collector_Up = true;
             boolean Collector_Down;
-                Collector_Down = false;
+            Collector_Down = false;
             boolean Left;
             boolean Right;
             double LRYes;
@@ -203,6 +203,7 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
             SButtonlock = false;
             boolean ToggleShooter;
             ShooterStatus = 0;
+            double PowershotSetpointStatus;
 
             float AngleX;
             float AngleY;
@@ -212,26 +213,28 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
             Double ServoCenter;
             ServoCenter = 0.5;
             Double TargetAngleSERVO;
-                TargetAngleSERVO = 0.5;
+            TargetAngleSERVO = 0.5;
 
             // Vars for ArcadeMode
             double ColorAverage = 0;
             double ColorAverage1 = 0;
             double ColorOffset = 40;
-            double MattColor = 100;
+            double MattColor = REVColor.blue() + REVColor.red() + REVColor.green();
+            double MattColor1 = REVColor1.blue() + REVColor1.red() + REVColor1.green();
+            double Calabration = (REVColor.blue() + REVColor.red() + REVColor.green()) -( REVColor1.blue() + REVColor1.red() + REVColor1.green();)
             double ColorOffsetSlow = 50;
             double ColorOffsetStop = 100;
             double fakeR = 0;
             double fakeY;
-                fakeY = 0;
+            fakeY = 0;
             boolean ArcadeMode;
-                ArcadeMode = false;
+            ArcadeMode = false;
             boolean color0;
-                color0 = false;
+            color0 = false;
             boolean color1;
-                color1 = false;
+            color1 = false;
             double fakespeed;
-                fakespeed = 0;
+            fakespeed = 0;
             double ColorDifference = 0;
             double ColorRotateTrim =60;
             double ColorRotate = 0;
@@ -281,7 +284,11 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
 
 
                 //* deciding if Arcade mode is active and setting "ArcadeMode"
-                if (gamepad1.right_bumper){
+
+                ColorAverage1 = REVColor1.blue() + REVColor1.red() + REVColor1.green();
+                ColorAverage = REVColor.blue() + REVColor.red() + REVColor.green();
+
+                if (gamepad1.back){
                     ArcadeMode = true;
                 }
                 else{
@@ -289,10 +296,10 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                 }
 
                 //* Choosing the speed that the robot should be going based on the color sensor values setting that to fakespeed
-                if(ColorAverage >= ColorOffsetStop + MattColor || ColorAverage1  >= ColorOffsetStop + MattColor ){
+                if(ColorAverage >= ColorOffsetStop + MattColor || ColorAverage1  >= ColorOffsetStop + MattColor1 ){
                     fakespeed = 0;
                 }
-                else if(ColorAverage >= ColorOffsetSlow + MattColor|| ColorAverage1  >= ColorOffsetSlow + MattColor ){
+                else if(ColorAverage >= ColorOffsetSlow + MattColor|| ColorAverage1  >= ColorOffsetSlow + MattColor1 ){
                     fakespeed = 0.2;
                 }
                 else{
@@ -316,13 +323,13 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                     fakeR = gamepad1.right_stick_x;
                 }
                 else {
-                        fakeY = fakespeed;
-                        fakeR = ColorRotate;
-                    }
+                    fakeY = fakespeed;
+                    fakeR = ColorRotate;
+                }
 
 
                 double r = Math.hypot(-gamepad1.left_stick_x, fakeY);
-                double robotAngle = Math.atan2(gamepad1.left_stick_y, -gamepad1.left_stick_x) - Math.PI / 4;
+                double robotAngle = Math.atan2(fakeY, -gamepad1.left_stick_x) - Math.PI / 4;
                 double rightX = fakeR * -1;
                 final double v1 = r * Math.cos(robotAngle) + rightX;
                 final double v2 = r * Math.sin(robotAngle) - rightX;
@@ -347,8 +354,8 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                 brDcMotor.setPower(BR);
 
 
-             //   telemetry.addData("Switchtest", BottomLimit.getValue());
-             //   telemetry.addData("Switchtest2", TopLimit.getValue());
+                //   telemetry.addData("Switchtest", BottomLimit.getValue());
+                //   telemetry.addData("Switchtest2", TopLimit.getValue());
 
              /*   XtgtPower = -this.gamepad1.left_stick_x;
                 LYtgtPower = -this.gamepad1.left_stick_y;
@@ -371,24 +378,30 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                 telemetry.addData("blMotor Power", blDcMotor.getPower());
                 telemetry.addData("brMotor Power", blDcMotor.getPower());
              */   //while(ServoMap<1) {
-                 //   Platform.setPosition(PlatformMap);
+                //   Platform.setPosition(PlatformMap);
                 //}
                 telemetry.addData("PlatformPos", Platform.getPosition());
                 telemetry.addData("PlatformPosLR", lServopos);
-               // telemetry.addData("PlatformMap", PlatformMap);
+                // telemetry.addData("PlatformMap", PlatformMap);
                 telemetry.addData("CollectorPos", CollectorStatus);
-/*
+                telemetry.update();
+                /*
 
-*/
+                 */
 
 
-
+                //Set Points
                 if(gamepad2.left_bumper){
                     PlatformPositionX = Blue_Top_Goal_LRAngle_Setpos;
                     lServopos = Blue_Top_Goal_Lservo_Setpos;
                     rServopos = Blue_Top_Goal_Rservo_Setpos;
                 }
 
+                if(gamepad2.right_bumper){
+
+                }
+
+                //shooter code
                 ToggleShooter = this.gamepad2.b;
                 if (SButtonlock && !ToggleShooter){
                     SButtonlock = false;
@@ -402,6 +415,7 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                     SButtonlock = true;
                 }
                 Shooter.setPower(ShooterStatus);
+
                 //Platform "Left Right" code
 
                 Left = this.gamepad2.dpad_left;
@@ -490,17 +504,22 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
 
                 if (gamepad1.right_bumper && TopLimit.getValue() ==0){
                     cLift.setPower(-1);
+                    telemetry.addLine("TopLimit.getValue() ==0");
                 }
                 else if (gamepad1.right_bumper && TopLimit.getValue() ==1){
                     cLift.setPower(0);
+                    telemetry.addLine("TopLimit.getValue() ==1");
                 }
                 else if (BottomLimit.getValue() ==0) {
                     cLift.setPower(1);
+                    telemetry.addLine("BottomLimit.getValue() ==0");
                 }
                 else{
                     cLift.setPower(0);
+                    telemetry.addLine("none");
                 }
-
+                telemetry.update();
+/*
 
                 if (tfod != null) {
                     // getUpdatedRecognitions() will return null if no new information is available since
