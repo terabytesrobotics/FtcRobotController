@@ -6,7 +6,6 @@ import com.qualcomm.hardware.rev.RevColorSensorV3;
 import com.qualcomm.hardware.rev.RevTouchSensor;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
-import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
 
@@ -37,7 +36,7 @@ public class Auto extends LinearOpMode {
     private static final int secondsPermissionTimeout = Integer.MAX_VALUE;
     private static final String TAG = "Webcam Sample";
     //  private Gyroscope imu;
-    private ColorSensor REVColor1;
+    private RevColorSensorV3 REVColor1;
     private RevColorSensorV3 REVColor;
     private DcMotor flDcMotor;
     private DcMotor frDcMotor;
@@ -114,12 +113,16 @@ public class Auto extends LinearOpMode {
     @SuppressLint("DefaultLocale")
     @Override public void runOpMode() {
         //imu = hardwareMap.get(Gyroscope.class, "imu");
-        REVColor1 =hardwareMap.get(ColorSensor.class,"REVColor1");
+        REVColor1 =hardwareMap.get(RevColorSensorV3.class,"REVColor1");
         REVColor = hardwareMap.get(RevColorSensorV3.class, "REVColor");
         flDcMotor = hardwareMap.get(DcMotor.class, "flMotor");
+            flDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         frDcMotor = hardwareMap.get(DcMotor.class, "frMotor");
+            frDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         blDcMotor = hardwareMap.get(DcMotor.class, "blMotor");
+            blDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         brDcMotor = hardwareMap.get(DcMotor.class, "brMotor");
+            brDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         Shooter = hardwareMap.get(DcMotor.class, "Shooter");
         Shooter.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         Collector = hardwareMap.get(DcMotor.class, "Collector");
@@ -136,8 +139,23 @@ public class Auto extends LinearOpMode {
         double rServopos = 0;
         lLift.setPosition(lServopos);
         rLift.setPosition(rServopos);
+        double LastLoop;
+        double ColorZero = 0;
+        double ColorZero1 = 0;
+        for (int i = 0; i < 100; i++){
+            ColorZero += REVColor.blue() + REVColor.red() + REVColor.green();
+            ColorZero1 += REVColor1.blue() + REVColor1.red() + REVColor1.green();
+
+        }
+        ColorZero /= 100;
+        ColorZero1 /= 100;
 
 
+
+
+        telemetry.addLine("not on line");
+        telemetry.addData("color add",REVColor1.blue() + REVColor1.red() + REVColor1.green() + REVColor.blue() + REVColor.red() + REVColor.green()- ColorZero - ColorZero1);
+        telemetry.update();
 
         initVuforia();
         initTfod();
@@ -160,8 +178,8 @@ public class Auto extends LinearOpMode {
             telemetry.clear();
             telemetry.addData(">", "Started...Press 'A' to capture frame");
             telemetry.update();
-            double ColorAverage = 0;
-            double ColorAverage1 = 0;
+            double ColorAverage;
+            double ColorAverage1;
 
 
             targetsUltimateGoal.activate();
@@ -239,91 +257,123 @@ public class Auto extends LinearOpMode {
                 telemetry.update();
 */
                 //Platform "Left Right" code
+                for(int i = 0;i < 4;i++) {
+                    frDcMotor.setPower(i / 10f);
+                    flDcMotor.setPower(i / 10f);
+                    brDcMotor.setPower(i / 10f);
+                    blDcMotor.setPower(-i / 10f);
+                    sleep(500);
+                }
+                ColorAverage = ColorZero;
+
+                ColorAverage1 = ColorZero1;
+                LastLoop = 0;
+
+                while (opModeIsActive()){
+                    frDcMotor.setPower(.4);
+                    flDcMotor.setPower(.4);
+                   brDcMotor.setPower(.4);
+                   blDcMotor.setPower(-.4);
+
+                   ColorAverage = REVColor.blue() + REVColor.red() + REVColor.green();
+                   if (ColorAverage > LastLoop + 1000 && LastLoop != 0){
+                       break;
+                   }
+                   LastLoop = REVColor.blue() + REVColor.red() + REVColor.green();
 
 
-                while (opModeIsActive()&& ColorAverage + ColorAverage1 < 2800){
-                    frDcMotor.setPower(.5);
-                    flDcMotor.setPower(.5);
-                   brDcMotor.setPower(.5);
-                   blDcMotor.setPower(-.5);
 
-                    ColorAverage1 = REVColor1.blue() + REVColor1.red() + REVColor1.green();
-                    ColorAverage = REVColor.blue() + REVColor.red() + REVColor.green();
+
                     telemetry.addLine("not on line");
-                    telemetry.addData("color add",REVColor1.blue() + REVColor1.red() + REVColor1.green() + REVColor.blue() + REVColor.red() + REVColor.green());
+                    telemetry.addData("color add",ColorAverage - LastLoop);
                     telemetry.update();
                 }
+                telemetry.addLine("Found Line!!!!");
+                telemetry.update();
 
-
-                frDcMotor.setPower(-0.2);
-                flDcMotor.setPower(-0.2);
-                brDcMotor.setPower(-0.2);
-                blDcMotor.setPower(0.2);
-                sleep(1000);
+                frDcMotor.setPower(0.2);
+                flDcMotor.setPower(0.2);
+                brDcMotor.setPower(0.2);
+                blDcMotor.setPower(-0.2);
+                sleep(500);
                 frDcMotor.setPower(0);
                 flDcMotor.setPower(0);
                 brDcMotor.setPower(0);
                 blDcMotor.setPower(0);
+                sleep(500);
+                frDcMotor.setPower(-0.2);
+                flDcMotor.setPower(-0.2);
+                brDcMotor.setPower(-0.2);
+                blDcMotor.setPower(0.2);
+                sleep(1500);
+                frDcMotor.setPower(0);
+                flDcMotor.setPower(0);
+                brDcMotor.setPower(0);
+                blDcMotor.setPower(0);
+                sleep(500);
                 Shooter.setPower(.8);
                 telemetry.addLine("on line");
                 telemetry.update();
 
-                Platform.setPosition(.404);
-                lLift.setPosition(0.916);
-                rLift.setPosition(0.916 - 0.98);
+                Platform.setPosition(.44);
+                lLift.setPosition(0.885);
+                rLift.setPosition(.98 - .885);
 
                 sleep(1000);
 
+                Trigger.setPosition(0);
+                sleep(1000);
 
+                Trigger.setPosition(.5);
+                cLift.setPower(1);
+                sleep(100);
+                cLift.setPower(0);
 
+                sleep(1000);
 
+                Platform.setPosition(.403);
+                lLift.setPosition(0.885);
+                rLift.setPosition(.98 - .885);
+
+                sleep(1000);
 
                 Trigger.setPosition(0);
+
+
+                sleep(1000);
+
+                Trigger.setPosition(.5);
+
+               sleep(1000);
+                Platform.setPosition(.379);
+                lLift.setPosition(0.95);
+                rLift.setPosition(.98 - .95);
                 while (BottomLimit.getValue() == 0){
                     cLift.setPower(1);
                     telemetry.addLine("collector up");
-                }
-
-
-
-                Trigger.setPosition(.5);
-
-                sleep(1000);
-
-                Platform.setPosition(.385);
-                lLift.setPosition(0.916);
-                rLift.setPosition(0.916 - 0.98);
-
-                sleep(1000);
-
-                Trigger.setPosition(0);
-
-
-                sleep(1000);
-
-                Trigger.setPosition(.5);
-                Collector.setPower(-1);
-                Platform.setPosition(.379);
-                lLift.setPosition(0.916);
-                rLift.setPosition(0.916 - 0.98);
-
-                sleep(2000);
-
-                Trigger.setPosition(0);
-                sleep(1000);
-
-                while (opModeIsActive()&& ColorAverage + ColorAverage1 < 2800){
-                    frDcMotor.setPower(.2);
-                    flDcMotor.setPower(.2);
-                    brDcMotor.setPower(.2);
-                    blDcMotor.setPower(-.2);
-
-                    ColorAverage1 = REVColor1.blue() + REVColor1.red() + REVColor1.green();
-                    ColorAverage = REVColor.blue() + REVColor.red() + REVColor.green();
-                    telemetry.addLine("not on line");
-                    telemetry.addData("color add",REVColor1.blue() + REVColor1.red() + REVColor1.green() + REVColor.blue() + REVColor.red() + REVColor.green());
                     telemetry.update();
                 }
+                cLift.setPower(0);
+                telemetry.addLine("Collector stop");
+                telemetry.addData("collector power",cLift.getPower());
+                telemetry.update();
+                sleep(2000);
+                Trigger.setPosition(0);
+                sleep(2000);
+                Collector.setPower(-0.5);
+
+
+                sleep(3000);
+                frDcMotor.setPower(0.2);
+                flDcMotor.setPower(0.2);
+                brDcMotor.setPower(0.2);
+                blDcMotor.setPower(-0.2);
+                sleep(300);
+                frDcMotor.setPower(0);
+                flDcMotor.setPower(0);
+                brDcMotor.setPower(0);
+                blDcMotor.setPower(0);
+
                 break;
             }
         } finally {

@@ -6,7 +6,6 @@ import com.qualcomm.hardware.rev.RevColorSensorV3;
 import com.qualcomm.hardware.rev.RevTouchSensor;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
 
@@ -36,7 +35,7 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
     private static final int secondsPermissionTimeout = Integer.MAX_VALUE;
     private static final String TAG = "Webcam Sample";
     //  private Gyroscope imu;
-    private ColorSensor REVColor1;
+    private RevColorSensorV3 REVColor1;
     private RevColorSensorV3 REVColor;
     private DcMotor flDcMotor;
     private DcMotor frDcMotor;
@@ -107,8 +106,8 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
     private static final String TFOD_MODEL_ASSET = "UltimateGoal.tflite";
     private static final String LABEL_FIRST_ELEMENT = "Quad";
     private static final String LABEL_SECOND_ELEMENT = "Single";
-    private static float Blue_Top_Goal_Lservo_Setpos = .864f;
-    private static float Blue_Top_Goal_Rservo_Setpos = .136f;
+    private static float Blue_Top_Goal_Lservo_Setpos = .876f;
+    private static float Blue_Top_Goal_Rservo_Setpos = .104f;
     private static float Blue_Top_Goal_LRAngle_Setpos = .5f;
 
 
@@ -117,7 +116,7 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
     @SuppressLint("DefaultLocale")
     @Override public void runOpMode() {
         //    imu = hardwareMap.get(Gyroscope.class, "IMU");
-        REVColor1 =hardwareMap.get(ColorSensor.class,"REVColor1");
+        REVColor1 =hardwareMap.get(RevColorSensorV3.class,"REVColor1");
         REVColor = hardwareMap.get(RevColorSensorV3.class, "REVColor");
         flDcMotor = hardwareMap.get(DcMotor.class, "flMotor");
         flDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
@@ -204,15 +203,19 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
             boolean ToggleShooter;
             ShooterStatus = 0;
             double PowershotSetpointStatus;
+            boolean TogglePowerSet;
+            boolean SetpointButtonlock;
+            SetpointButtonlock = false;
+            PowershotSetpointStatus = 0;
 
             float AngleX;
             float AngleY;
-            Double TArad;
-            Double ServoControlAngle;
+            double TArad;
+            double ServoControlAngle;
             ServoControlAngle = 4.01426;
-            Double ServoCenter;
+            double ServoCenter;
             ServoCenter = 0.5;
-            Double TargetAngleSERVO;
+            double TargetAngleSERVO;
             TargetAngleSERVO = 0.5;
 
             // Vars for ArcadeMode
@@ -233,6 +236,7 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
             double FR;
             double BL;
             double BR;
+
 
             //vars for jump
             boolean JumpLock = false;
@@ -270,7 +274,8 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                 /**
                  OLD Holo drive code
                  */
-/*
+                telemetry.addData("BottomLimit",BottomLimit.getValue());
+                telemetry.update();
                 double r = Math.hypot(-gamepad1.left_stick_x, gamepad1.left_stick_y);
                 double robotAngle = Math.atan2(gamepad1.left_stick_y, -gamepad1.left_stick_x) - Math.PI / 4;
                 double rightX = gamepad1.right_stick_x * -1;
@@ -278,17 +283,17 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                 final double v2 = r * Math.sin(robotAngle) - rightX;
                 final double v3 = r * Math.sin(robotAngle) + rightX;
                 final double v4 = r * Math.cos(robotAngle) - rightX;
-   */
+
 
                 //* New Drive Code
 
-
+/*
 
                 //* deciding if Arcade mode is active and setting "ArcadeMode"
                 // Tune-able Values
                 ColorOffsetSlow = 50;
                 ColorOffsetStop = 100;
-                ColorRotateTrim = 50;
+                ColorRotateTrim = 60;
 
                 ColorAverage1 = REVColor1.blue() + REVColor1.red() + REVColor1.green() - ColorZero1;
                 ColorAverage = REVColor.blue() + REVColor.red() + REVColor.green() - ColorZero;
@@ -335,12 +340,12 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                     fakeR = gamepad1.right_stick_x;
                 }
                 else {
-                    fakeY = fakespeed;
-                    fakeR = ColorRotate;
+                    fakeY = -fakespeed;
+                   // fakeR = ColorRotate;
                 }
 
                 // jump right
-
+/*
                 MoveCounts = 30;
 
                 Epos = flDcMotor.getCurrentPosition();
@@ -411,7 +416,10 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                     fakeX = gamepad1.left_stick_x;
                 }
 
+                fakeY = gamepad1.left_stick_y;
+                fakeR = gamepad1.right_stick_x;
 
+                fakeR = gamepad1.right_stick_x;
 
                 double r = Math.hypot(-fakeX, fakeY);
                 double robotAngle = Math.atan2(fakeY, -fakeX) - Math.PI / 4;
@@ -420,7 +428,7 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                 final double v2 = r * Math.sin(robotAngle) - rightX;
                 final double v3 = r * Math.sin(robotAngle) + rightX;
                 final double v4 = r * Math.cos(robotAngle) - rightX;
-
+*/
                 FL = -v1;
                 FR = -v2;
                 BL = v3;
@@ -476,15 +484,45 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
 
 
                 //Set Points
+
+                // Powershots
+                TogglePowerSet = gamepad2.right_bumper;
+                if(SetpointButtonlock && !TogglePowerSet){
+                    SetpointButtonlock = false;
+                }
+                if(TogglePowerSet && !SetpointButtonlock){
+                    PowershotSetpointStatus += 1;
+                    SetpointButtonlock = true;
+                }
+                if(PowershotSetpointStatus>3){
+                    PowershotSetpointStatus = 0;
+                }
+                if(PowershotSetpointStatus == 1){
+                    PlatformPositionX = (.44);
+                    lServopos = (0.885);
+                    rServopos = (.98 - .885);
+                }
+                if(PowershotSetpointStatus == 2){
+                    PlatformPositionX =(.403);
+                    lServopos = (0.885);
+                    rServopos = (.98 - .885);
+                }
+                if(PowershotSetpointStatus == 3){
+                    PlatformPositionX = (.379);
+                    lServopos = (0.95);
+                    rServopos = (.98 - .95);
+                }
+                telemetry.addData("Platform Position", PowershotSetpointStatus);
+
+                // Top Goal
                 if(gamepad2.left_bumper){
                     PlatformPositionX = Blue_Top_Goal_LRAngle_Setpos;
                     lServopos = Blue_Top_Goal_Lservo_Setpos;
                     rServopos = Blue_Top_Goal_Rservo_Setpos;
+                    PowershotSetpointStatus = 0;
                 }
 
-                if(gamepad2.right_bumper){
 
-                }
 
                 //shooter code
                 ToggleShooter = this.gamepad2.b;
@@ -507,9 +545,11 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                 Right = this.gamepad2.dpad_right;
                 if (Left) {
                     PlatformPositionX += .008;
+                    PowershotSetpointStatus = 0;
                 }
                 if (Right) {
                     PlatformPositionX -= .008;
+                    PowershotSetpointStatus = 0;
                 }
 
 
@@ -530,9 +570,11 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                 Up = this.gamepad2.dpad_down;
                 if (Up) {
                     UpYes = .004;
+                    PowershotSetpointStatus = 0;
                 }
                 if (Down) {
                     UpYes = -.004;
+                    PowershotSetpointStatus = 0;
                 }
 
                 lServopos += UpYes;
@@ -554,8 +596,12 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
 
                 //Collector code
 
-
-                Collector.setPower(CollectorStatus);
+                if (gamepad1.b) {
+                    Collector.setPower(1);
+                }
+                else {
+                    Collector.setPower(-CollectorStatus);
+                }
                 ToggleCollector = this.gamepad1.x;
                 if (CButtonlock && !ToggleCollector){
                     CButtonlock = false;
@@ -568,6 +614,7 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                     CollectorStatus = 0;
                     CButtonlock = true;
                 }
+
 
                 //Trigger code
                 Trigger.setPosition(TriggerStatus);
@@ -601,7 +648,7 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                 }
                 else{
                     cLift.setPower(0);
-                    telemetry.addLine("none");
+                    //telemetry.addLine("none");
                 }
                 telemetry.update();
 /*
