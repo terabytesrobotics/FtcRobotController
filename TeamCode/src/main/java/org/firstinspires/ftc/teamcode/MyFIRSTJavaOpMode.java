@@ -12,20 +12,14 @@ import com.qualcomm.robotcore.hardware.Servo;
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.matrices.OpenGLMatrix;
-import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackable;
-import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackableDefaultListener;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackables;
+import org.firstinspires.ftc.robotcore.external.tfod.Recognition;
 import org.firstinspires.ftc.robotcore.external.tfod.TFObjectDetector;
 
-import java.util.ArrayList;
 import java.util.List;
 
-import static org.firstinspires.ftc.robotcore.external.navigation.AngleUnit.DEGREES;
-import static org.firstinspires.ftc.robotcore.external.navigation.AxesOrder.XYZ;
-import static org.firstinspires.ftc.robotcore.external.navigation.AxesOrder.YZX;
-import static org.firstinspires.ftc.robotcore.external.navigation.AxesReference.EXTRINSIC;
 import static org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer.CameraDirection.BACK;
 
 
@@ -50,6 +44,8 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
     private Servo Trigger;
     private RevTouchSensor TopLimit;
     private RevTouchSensor BottomLimit;
+    private Servo LFinger;
+    private Servo RFinger;
     // IMPORTANT: If you are using a USB WebCam, you must select CAMERA_CHOICE = BACK; and PHONE_IS_PORTRAIT = false;
     private static final VuforiaLocalizer.CameraDirection CAMERA_CHOICE = BACK;
     private static final boolean PHONE_IS_PORTRAIT = false  ;
@@ -135,6 +131,8 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
         lLift = hardwareMap.get(Servo.class, "lLift");
         rLift = hardwareMap.get(Servo.class, "rLift");
         Trigger = hardwareMap.get(Servo.class, "Trigger");
+        LFinger = hardwareMap.get(Servo.class, "Finger");
+        RFinger = hardwareMap.get(Servo.class, "Finger2");
         TopLimit = hardwareMap.get(RevTouchSensor.class, "TopLimit");
         BottomLimit = hardwareMap.get(RevTouchSensor.class, "BottomLimit");
         //   digitalTouch = hardwareMap.get(DigitalChannel.class, "digitalTouch");
@@ -207,6 +205,11 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
             boolean SetpointButtonlock;
             SetpointButtonlock = false;
             PowershotSetpointStatus = 0;
+            boolean TriggersOn;
+            TriggersOn = false;
+            double FingerPos = 0.4;
+
+
 
             float AngleX;
             float AngleY;
@@ -240,7 +243,7 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
 
             //vars for jump
             boolean JumpLock = false;
-            targetsUltimateGoal.activate();
+            //targetsUltimateGoal.activate();
             double Epos;
             double MoveCounts;
             double MoveAmount = 0;
@@ -274,8 +277,8 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                 /**
                  OLD Holo drive code
                  */
-                telemetry.addData("BottomLimit",BottomLimit.getValue());
-                telemetry.update();
+                //telemetry.addData("BottomLimit",BottomLimit.getValue());
+                //telemetry.update();
                 double r = Math.hypot(-gamepad1.left_stick_x, gamepad1.left_stick_y);
                 double robotAngle = Math.atan2(gamepad1.left_stick_y, -gamepad1.left_stick_x) - Math.PI / 4;
                 double rightX = gamepad1.right_stick_x * -1;
@@ -476,8 +479,8 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                 telemetry.addData("PlatformPos", Platform.getPosition());
                 telemetry.addData("PlatformPosLR", lServopos);
                 // telemetry.addData("PlatformMap", PlatformMap);
-                telemetry.addData("CollectorPos", CollectorStatus);
-                telemetry.update();
+               // telemetry.addData("CollectorPos", CollectorStatus);
+               // telemetry.update();
                 /*
 
                  */
@@ -503,16 +506,16 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                     rServopos = (.98 - .885);
                 }
                 if(PowershotSetpointStatus == 2){
-                    PlatformPositionX =(.403);
-                    lServopos = (0.885);
+                    PlatformPositionX =(.404);
+                    lServopos = (0.89);
                     rServopos = (.98 - .885);
                 }
                 if(PowershotSetpointStatus == 3){
                     PlatformPositionX = (.379);
-                    lServopos = (0.95);
-                    rServopos = (.98 - .95);
+                    lServopos = (0.9);
+                    rServopos = (.98 - .895);
                 }
-                telemetry.addData("Platform Position", PowershotSetpointStatus);
+               // telemetry.addData("Platform Position", PowershotSetpointStatus);
 
                 // Top Goal
                 if(gamepad2.left_bumper){
@@ -608,15 +611,29 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                 }
                 if (ToggleCollector && !CButtonlock) {
                     CollectorStatus += 1;
+                    Trigger.setPosition(0);
                     CButtonlock = true;
                 }
                 if (CollectorStatus > 1 && ! CButtonlock) {
+                    Trigger.setPosition(.5);
                     CollectorStatus = 0;
                     CButtonlock = true;
                 }
 
 
-                //Trigger code
+                RFinger.setPosition(FingerPos);
+                LFinger.setPosition(.3 - FingerPos);
+                TriggersOn = this.gamepad2.y;
+                if (TriggersOn){
+                    FingerPos = 0;
+                }else{
+                    FingerPos = 0.26;
+                }
+
+
+
+
+                /*Trigger code
                 Trigger.setPosition(TriggerStatus);
                 ToggleTrigger = this.gamepad2.y;
                 if (TButtonlock && !ToggleTrigger){
@@ -630,28 +647,28 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                     TriggerStatus = 0.5;
                     TButtonlock = true;
                 }
-
+*/
                 //* Collector Up and Down Code
 
 
                 if (gamepad1.right_bumper && TopLimit.getValue() ==0){
                     cLift.setPower(-1);
-                    telemetry.addLine("TopLimit.getValue() ==0");
+                  //  telemetry.addLine("TopLimit.getValue() ==0");
                 }
                 else if (gamepad1.right_bumper && TopLimit.getValue() ==1){
                     cLift.setPower(0);
-                    telemetry.addLine("TopLimit.getValue() ==1");
+                  //  telemetry.addLine("TopLimit.getValue() ==1");
                 }
                 else if (BottomLimit.getValue() ==0) {
                     cLift.setPower(1);
-                    telemetry.addLine("BottomLimit.getValue() ==0");
+                 //   telemetry.addLine("BottomLimit.getValue() ==0");
                 }
                 else{
                     cLift.setPower(0);
                     //telemetry.addLine("none");
                 }
-                telemetry.update();
-/*
+               // telemetry.update();
+
 
                 if (tfod != null) {
                     // getUpdatedRecognitions() will return null if no new information is available since
@@ -662,10 +679,10 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                         // step through the list of recognitions and display boundary info.
                         int i = 0;
                         for (Recognition recognition : updatedRecognitions) {
-                            //*telemetry.addData(String.format("label (%d)", i), recognition.getLabel());
-                            //*telemetry.addData(String.format("  left,top (%d)", i), "%.03f , %.03f",
+                            telemetry.addData(String.format("label (%d)", i), recognition.getLabel());
+                            telemetry.addData(String.format("  left,top (%d)", i), "%.03f , %.03f",
                                     recognition.getLeft(), recognition.getTop());
-                            //*telemetry.addData(String.format("  right,bottom (%d)", i), "%.03f , %.03f",
+                            telemetry.addData(String.format("  right,bottom (%d)", i), "%.03f , %.03f",
                                     recognition.getRight(), recognition.getBottom());
                         }
                         telemetry.update();
@@ -673,10 +690,10 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                 }
 
                 // check all the trackable targets to see which one (if any) is visible.
-                targetVisible = false;
+             /*   targetVisible = false;
                 for (VuforiaTrackable trackable : allTrackables) {
                     if (((VuforiaTrackableDefaultListener) trackable.getListener()).isVisible()) {
-                        telemetry.addData("Visible Target", trackable.getName());
+                     //   telemetry.addData("Visible Target", trackable.getName());
                         targetVisible = true;
 
                         // getUpdatedRobotLocation() will return null if no new information is available since
@@ -693,8 +710,8 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                 if (targetVisible) {
                     // express position (translation) of robot in inches.
                     VectorF translation = lastLocation.getTranslation();
-                   //* telemetry.addData("Pos (in)", "{X, Y, Z} = %.1f, %.1f, %.1f",
-                            translation.get(0) / mmPerInch, translation.get(1) / mmPerInch, translation.get(2) / mmPerInch);
+                   // telemetry.addData("Pos (in)", "{X, Y, Z} = %.1f, %.1f, %.1f",
+                       //     translation.get(0) / mmPerInch, translation.get(1) / mmPerInch, translation.get(2) / mmPerInch);
 
 
                             // express the rotation of the robot in degrees.
@@ -708,13 +725,15 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
 
 
                 } else {
-                    telemetry.addData("Visible Target", "none");
+                  //  telemetry.addData("Visible Target", "none");
                 }
-                telemetry.addData("Status", "Running");
-                telemetry.update();
-                telemetry.addData("RX =",RX);
-                telemetry.addData("RY =",RY);
-                telemetry.addData("RZ =",RZ);
+
+              */
+                //telemetry.addData("Status", "Running");
+               // telemetry.update();
+               // telemetry.addData("RX =",RX);
+               // telemetry.addData("RY =",RY);
+               // telemetry.addData("RZ =",RZ);
 
 
 
@@ -740,7 +759,7 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
             }
         } finally {
             // Disable Tracking when we are done;
-            targetsUltimateGoal.deactivate();
+            //targetsUltimateGoal.deactivate();
 
             if (tfod != null) {
                 tfod.shutdown();
@@ -771,6 +790,7 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
 
         // Load the data sets for the trackable objects. These particular data
         // sets are stored in the 'assets' part of our application.
+        /*
         targetsUltimateGoal = this.vuforia.loadTrackablesFromAsset("UltimateGoal");
         VuforiaTrackable blueTowerGoalTarget = targetsUltimateGoal.get(0);
         blueTowerGoalTarget.setName("Blue Tower Goal Target");
@@ -783,10 +803,10 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
         VuforiaTrackable frontWallTarget = targetsUltimateGoal.get(4);
         frontWallTarget.setName("Front Wall Target");
 
-        // For convenience, gather together all the trackable objects in one easily-iterable collection */
+        // For convenience, gather together all the trackable objects in one easily-iterable collection
         allTrackables = new ArrayList<>();
         allTrackables.addAll(targetsUltimateGoal);
-
+        */
         /*
          * In order for localization to work, we need to tell the system where each target is on the field, and
          * where the phone resides on the robot.  These specifications are in the form of <em>transformation matrices.</em>
@@ -806,7 +826,7 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
          */
 
         //Set the position of the perimeter targets with relation to origin (center of field)
-        redAllianceTarget.setLocation(OpenGLMatrix
+       /* redAllianceTarget.setLocation(OpenGLMatrix
                 .translation(0, -halfField, mmTargetHeight)
                 .multiplied(Orientation.getRotationMatrix(EXTRINSIC, XYZ, DEGREES, 90, 0, 180)));
 
@@ -824,6 +844,7 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
         redTowerGoalTarget.setLocation(OpenGLMatrix
                 .translation(halfField, -quadField, mmTargetHeight)
                 .multiplied(Orientation.getRotationMatrix(EXTRINSIC, XYZ, DEGREES, 90, 0, -90)));
+                */
 
         //
         // Create a transformation matrix describing where the phone is on the robot.
@@ -840,6 +861,7 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
         // The two examples below assume that the camera is facing forward out the front of the robot.
 
         // We need to rotate the camera around it's long axis to bring the correct camera forward.
+        /*
         if (CAMERA_CHOICE == BACK) {
             phoneYRotate = -90;
         } else {
@@ -863,10 +885,11 @@ public class MyFIRSTJavaOpMode extends LinearOpMode {
                 .translation(CAMERA_FORWARD_DISPLACEMENT, CAMERA_LEFT_DISPLACEMENT, CAMERA_VERTICAL_DISPLACEMENT)
                 .multiplied(Orientation.getRotationMatrix(EXTRINSIC, YZX, DEGREES, phoneYRotate, phoneZRotate, phoneXRotate));
 
-        /*  Let all the trackable listeners know where the phone is.  */
+        //  Let all the trackable listeners know where the phone is.
         for (VuforiaTrackable trackable : allTrackables) {
             ((VuforiaTrackableDefaultListener) trackable.getListener()).setPhoneInformation(robotFromCamera, parameters.cameraDirection);
         }
+        */
     }
 
     /**
