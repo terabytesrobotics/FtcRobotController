@@ -156,85 +156,31 @@ public class Teleop extends LinearOpMode {
             telemetry.clear();
             telemetry.addData(">", "Started...Press 'A' to capture frame");
 
-            double XtgtPower;
-            double LYtgtPower;
-            double RYtgtPower;
-            double PlatformPositionX;
-            boolean Shoot;
-            double ShootYes;
+            double PlatformPositionX = 0.5;
             boolean Up;
             double UpYes;
             boolean Down;
             boolean ToggleCollector;
-            boolean CButtonlock;
-            CButtonlock = false;
-            double CollectorStatus;
-            CollectorStatus = 0;
-            boolean ToggleTrigger;
-            double TriggerStatus;
-            TriggerStatus = .5;
-            boolean TButtonlock;
-            TButtonlock = false;
-            boolean Trigger_yes;
-            boolean Collector_Up;
-            Collector_Up = true;
-            boolean Collector_Down;
-            Collector_Down = false;
+            boolean CButtonlock = false;
+            double CollectorStatus = 0;
+            boolean TButtonlock = false;
             boolean Left;
             boolean Right;
-            double LRYes;
-            double ShooterStatus;
-            boolean SButtonlock;
-            SButtonlock = false;
+            double ShooterStatus = 0;
+            boolean SButtonlock = false;
             boolean ToggleShooter;
-            ShooterStatus = 0;
-            double PowershotSetpointStatus;
+            double PowershotSetpointStatus = 0;
             boolean TogglePowerSet;
-            boolean SetpointButtonlock;
-            SetpointButtonlock = false;
-            PowershotSetpointStatus = 0;
-            boolean TriggersOn;
-            TriggersOn = false;
+            boolean SetpointButtonlock = false;
+            boolean TriggersOn = false;
             double FingerPos = 0.4;
-
-            float AngleX;
-            float AngleY;
-            double TArad;
-            double ServoControlAngle;
-            ServoControlAngle = 4.01426;
-            double ServoCenter;
-            ServoCenter = 0.5;
-            double TargetAngleSERVO;
-            TargetAngleSERVO = 0.5;
 
             // Vars for ArcadeMode
             double ColorAverage;
-            double ColorAverage1;
-            double ColorZero = REVColor.blue() + REVColor.red() + REVColor.green();
-            double ColorZero1 = REVColor1.blue() + REVColor1.red() + REVColor1.green();
-            double ColorOffsetSlow;
-            double ColorOffsetStop;
-            double fakeR = 0;
-            double fakeY;
-            boolean ArcadeMode;
-            double fakespeed;
-            double ColorDifference;
-            double ColorRotateTrim;
-            double ColorRotate;
             double FL;
             double FR;
             double BL;
             double BR;
-
-            boolean JumpLock = false;
-            double Epos;
-            double MoveCounts;
-            double MoveAmount = 0;
-            double fakeX = 0;
-            boolean Juke = false;
-            double OGPos = 0;
-            boolean JumpLock1 = false;
-            boolean Juke1 = false;
 
             /*
              * Activate TensorFlow Object Detection before we wait for the start command.
@@ -251,17 +197,16 @@ public class Teleop extends LinearOpMode {
                 // (typically 16/9).
                 tfod.setZoom(2.5, 16.0/9.0);
             }
-            PlatformPositionX = 0.5;
+
             while (opModeIsActive()) {
 
                 //* taking the average of Red Green and BLue for both sensors
                 ColorAverage = REVColor.red() + REVColor.green() + REVColor.blue();
-                //*ColorAverage1 = REVColor1.red() + REVColor1.green() + REVColor1.blue();
 
                 /**
                  OLD Holo drive code
                  */
-                //telemetry.addData("BottomLimit",BottomLimit.getValue());
+                telemetry.addData("BottomLimit",BottomLimit.getValue());
                 double r = Math.hypot(-gamepad1.left_stick_x, gamepad1.left_stick_y);
                 double robotAngle = Math.atan2(gamepad1.left_stick_y, -gamepad1.left_stick_x) - Math.PI / 4;
                 double rightX = gamepad1.right_stick_x * -1;
@@ -296,7 +241,7 @@ public class Teleop extends LinearOpMode {
                 telemetry.addData("PlatformPosLR", lServopos);
                 telemetry.addData("CollectorPos", CollectorStatus);
 
-                //Set Points
+                // Set Points
 
                 // Powershots
                 TogglePowerSet = gamepad2.right_bumper;
