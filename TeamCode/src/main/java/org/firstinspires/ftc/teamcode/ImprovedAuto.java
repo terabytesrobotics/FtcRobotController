@@ -21,9 +21,10 @@ import java.util.List;
 import static org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer.CameraDirection.BACK;
 
 
-@Autonomous(name="NewTestAuto", group ="Real")
+@Autonomous(name="Auto", group ="Real")
 
-public class NextAuto extends LinearOpMode {
+
+public class ImprovedAuto extends LinearOpMode {
     private static final int secondsPermissionTimeout = Integer.MAX_VALUE;
     private static final String TAG = "Webcam Sample";
     //  private Gyroscope imu;
@@ -43,6 +44,8 @@ public class NextAuto extends LinearOpMode {
     private RevTouchSensor TopLimit;
     private RevTouchSensor BottomLimit;
     private Servo WobbleServo;
+    private Servo LFinger;
+    private Servo RFinger;
     // IMPORTANT: If you are using a USB WebCam, you must select CAMERA_CHOICE = BACK; and PHONE_IS_PORTRAIT = false;
     private static final VuforiaLocalizer.CameraDirection CAMERA_CHOICE = BACK;
     private static final boolean PHONE_IS_PORTRAIT = false  ;
@@ -105,20 +108,22 @@ public class NextAuto extends LinearOpMode {
     @SuppressLint("DefaultLocale")
     @Override public void runOpMode() {
         //imu = hardwareMap.get(Gyroscope.class, "imu");
+        LFinger = hardwareMap.get(Servo.class, "Finger");
+        RFinger = hardwareMap.get(Servo.class, "Finger2");
         REVColor1 =hardwareMap.get(RevColorSensorV3.class,"REVColor1");
         REVColor = hardwareMap.get(RevColorSensorV3.class, "REVColor");
         flDcMotor = hardwareMap.get(DcMotor.class, "flMotor");
-        flDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        flDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+            flDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            flDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         frDcMotor = hardwareMap.get(DcMotor.class, "frMotor");
-        frDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        frDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            frDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+            frDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         blDcMotor = hardwareMap.get(DcMotor.class, "blMotor");
-        blDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        blDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            blDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+            blDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         brDcMotor = hardwareMap.get(DcMotor.class, "brMotor");
-        brDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        brDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            brDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+            brDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         Shooter = hardwareMap.get(DcMotor.class, "Shooter");
         Shooter.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         Collector = hardwareMap.get(DcMotor.class, "Collector");
@@ -148,6 +153,9 @@ public class NextAuto extends LinearOpMode {
         ColorZero1 /= 100;
         double Location;
         Location = 0;
+        double FingerPos = 0.4;
+        RFinger.setPosition(0.26);
+        LFinger.setPosition(0.05);
 
 
 
@@ -180,6 +188,7 @@ public class NextAuto extends LinearOpMode {
             telemetry.update();
             double ColorAverage;
             double ColorAverage1;
+
 
 
 
@@ -307,14 +316,14 @@ public class NextAuto extends LinearOpMode {
                 while (opModeIsActive()){
                     frDcMotor.setPower(.4);
                     flDcMotor.setPower(.4);
-                    brDcMotor.setPower(.4);
-                    blDcMotor.setPower(-.4);
+                   brDcMotor.setPower(.4);
+                   blDcMotor.setPower(-.4);
 
-                    ColorAverage = REVColor.blue() + REVColor.red() + REVColor.green();
-                    if (ColorAverage > LastLoop + 1000 && LastLoop != 0){
-                        break;
-                    }
-                    LastLoop = REVColor.blue() + REVColor.red() + REVColor.green();
+                   ColorAverage = REVColor.blue() + REVColor.red() + REVColor.green();
+                   if (ColorAverage > LastLoop + 1000 && LastLoop != 0){
+                       break;
+                   }
+                   LastLoop = REVColor.blue() + REVColor.red() + REVColor.green();
 
 
 
@@ -349,58 +358,44 @@ public class NextAuto extends LinearOpMode {
                 Shooter.setPower(.8);
                 telemetry.addLine("on line");
                 telemetry.update();
+                sleep(500);
 
-                Platform.setPosition(.395);
+                Platform.setPosition(.36);
                 lLift.setPosition(0.899);
                 rLift.setPosition(.98 - .899);
-
                 sleep(1000);
 
-                Trigger.setPosition(0);
-                sleep(1000);
+                LFinger.setPosition(0.31);
+                RFinger.setPosition(0);
+                sleep(400);
+                RFinger.setPosition(0.26);
+                LFinger.setPosition(0.05);
+                sleep(500);
 
-                Trigger.setPosition(.5);
-                if (BottomLimit.getValue() == 0) {
-                    cLift.setPower(1);
-                    sleep(100);
-                    cLift.setPower(0);
-                }
-                sleep(1000);
-
-                Platform.setPosition(.35);
+                Platform.setPosition(.325);
                 lLift.setPosition(0.899);
                 rLift.setPosition(.98 - .899);
-
                 sleep(1000);
 
-                Trigger.setPosition(0);
-
+                LFinger.setPosition(0.31);
+                RFinger.setPosition(0);
+                sleep(400);
+                RFinger.setPosition(0.26);
+                LFinger.setPosition(0.05);
+                sleep(500);
 
                 sleep(1000);
-
-                Trigger.setPosition(.5);
-
-                sleep(1000);
-                Platform.setPosition(.32);
+                Platform.setPosition(.29);
                 lLift.setPosition(0.91);
                 rLift.setPosition(.98 - .9);
-                while (BottomLimit.getValue() == 0){
-                    cLift.setPower(1);
-                    telemetry.addLine("collector up");
-                    telemetry.update();
-                }
-                cLift.setPower(0);
-                telemetry.addLine("Collector stop");
-                telemetry.addData("collector power",cLift.getPower());
-                telemetry.update();
                 sleep(1000);
-                Trigger.setPosition(0);
-                sleep(100);
-                Collector.setPower(-0.5);
-                sleep(3000);
-                Trigger.setPosition(0.5);
-                Collector.setPower(0);
 
+                LFinger.setPosition(0.31);
+                RFinger.setPosition(0);
+                sleep(400);
+                RFinger.setPosition(0.26);
+                LFinger.setPosition(0.05);
+                sleep(1000);
 
                 if(Location == 0){
                     frDcMotor.setPower(0.5);
@@ -442,20 +437,17 @@ public class NextAuto extends LinearOpMode {
                     brDcMotor.setPower(0);
                     blDcMotor.setPower(0);
                     WobbleServo.setPosition(1);
-                    sleep(1000);
+                    sleep(1200);
                     frDcMotor.setPower(-0.5);
                     flDcMotor.setPower(0.5);
                     brDcMotor.setPower(0.5);
                     blDcMotor.setPower(0.5);
-                    sleep(400);
+                    sleep(800);
                     frDcMotor.setPower(-0.5);
                     flDcMotor.setPower(-0.5);
                     brDcMotor.setPower(-0.5);
                     blDcMotor.setPower(0.5);
-                    sleep(2100);
-                    //Collect Here
-                    //Shoot Here
-                    //Move Forward
+                    sleep(1200);
                     frDcMotor.setPower(0);
                     flDcMotor.setPower(0);
                     brDcMotor.setPower(0);

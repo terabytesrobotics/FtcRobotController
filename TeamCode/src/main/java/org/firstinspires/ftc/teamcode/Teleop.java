@@ -11,10 +11,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
-import org.firstinspires.ftc.robotcore.external.matrices.OpenGLMatrix;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer;
-import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackable;
-import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackables;
 import org.firstinspires.ftc.robotcore.external.tfod.Recognition;
 import org.firstinspires.ftc.robotcore.external.tfod.TFObjectDetector;
 
@@ -23,12 +20,14 @@ import java.util.List;
 import static org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer.CameraDirection.BACK;
 
 
+@SuppressWarnings("ALL")
 @TeleOp(name="Terabytes Robotics Tele-Op", group ="Real")
 public class Teleop extends LinearOpMode {
 
     private static final int secondsPermissionTimeout = Integer.MAX_VALUE;
     private static final String TAG = "Webcam Sample";
 
+    private Click oneClick;
     private RevColorSensorV3 REVColor1;
     private RevColorSensorV3 REVColor;
     private DcMotor flDcMotor;
@@ -41,11 +40,13 @@ public class Teleop extends LinearOpMode {
     private Servo Platform;
     private Servo lLift;
     private Servo rLift;
-    private Servo Trigger;
+    private Servo Roller1;
+    private Servo Roller;
     private RevTouchSensor TopLimit;
     private RevTouchSensor BottomLimit;
     private Servo LFinger;
     private Servo RFinger;
+    private Servo FinalRoller;
 
     // IMPORTANT: If you are using a USB WebCam, you must select CAMERA_CHOICE = BACK; and PHONE_IS_PORTRAIT = false;
     private static final VuforiaLocalizer.CameraDirection CAMERA_CHOICE = BACK;
@@ -66,20 +67,8 @@ public class Teleop extends LinearOpMode {
     private static final String VUFORIA_KEY =
             "AUSc2Kb/////AAABmdTkqFyT9UOrtDrK1zeFQvxTs4OQJgnhM43FLQWLfPnrpWlAkrKgsiMjrteGq85MoK1MKv/ugy48B51DZRiDIyr9ijqcNL8ZRiRgKQzrb064nctGU52JeYg1BKKqjogBv/yuh4qexWOvVjhwEDvYxVL7P/IXs1ERzSLTNoUQEMFV+BUoLD3vzU0z/7cQt9hj4IheiD1Di7Q/JX/0z5PMr5cBBMqeJqd1JxD6p6CzvkqM6KH3Gpok9mteCtSw6z65eQa2sLBPsiOxCUa9oM1IUZ9s1zlexvgO8q5EMkh4GJx/+jyvoVzuSvf9aC+HqUQvALsVcO2wwOvmlXbMuHg8dM4FUkp70zawiP0VHY8/TyJK";
 
-    // Since ImageTarget trackables use mm to specifiy their dimensions, we must use mm for all the physical dimension.
-    // We will define some constants and conversions here
-    private static final float mmPerInch        = 25.4f;
-    private static final float mmTargetHeight   = (6) * mmPerInch;          // the height of the center of the target image above the floor
-
-    // Constants for perimeter targets
-    private static final float halfField = 71 * mmPerInch;
-    private static final float quadField  = 35.5f * mmPerInch;
-
     // Class Members
-    private OpenGLMatrix lastLocation = null;
     private VuforiaLocalizer vuforia = null;
-    private VuforiaTrackables targetsUltimateGoal = null;
-    private List<VuforiaTrackable> allTrackables = null;
 
     /**
      * This is the webcam we are to use. As with other hardware devices such as motors and
@@ -87,13 +76,6 @@ public class Teleop extends LinearOpMode {
      */
     WebcamName webcamName = null;
 
-    private boolean targetVisible = false;
-    private float phoneXRotate    = 0;
-    private float phoneYRotate    = 0;
-    private float phoneZRotate    = 0;
-    private float RX;
-    private float RY;
-    private float RZ;
     /*
      * tfod is the variable we will use to store our instance of the TensorFlow Object
      * Detection engine.
@@ -103,9 +85,9 @@ public class Teleop extends LinearOpMode {
     private static final String TFOD_MODEL_ASSET = "UltimateGoal.tflite";
     private static final String LABEL_FIRST_ELEMENT = "Quad";
     private static final String LABEL_SECOND_ELEMENT = "Single";
-    private static float Blue_Top_Goal_Lservo_Setpos = .876f;
-    private static float Blue_Top_Goal_Rservo_Setpos = .104f;
-    private static float Blue_Top_Goal_LRAngle_Setpos = .5f;
+    private static float Blue_Top_Goal_Lservo_Setpos = .855f;
+    private static float Blue_Top_Goal_Rservo_Setpos = .124f;
+    private static float Blue_Top_Goal_LRAngle_Setpos = .475f;
 
     @SuppressLint("DefaultLocale")
     @Override public void runOpMode() {
@@ -127,7 +109,9 @@ public class Teleop extends LinearOpMode {
         Platform = hardwareMap.get(Servo.class, "Platform");
         lLift = hardwareMap.get(Servo.class, "lLift");
         rLift = hardwareMap.get(Servo.class, "rLift");
-        Trigger = hardwareMap.get(Servo.class, "Trigger");
+        FinalRoller = hardwareMap.get(Servo.class, "FinalRoller");
+        Roller1 = hardwareMap.get(Servo.class, "Trigger");
+        Roller = hardwareMap.get(Servo.class, "Roller");
         LFinger = hardwareMap.get(Servo.class, "Finger");
         RFinger = hardwareMap.get(Servo.class, "Finger2");
         TopLimit = hardwareMap.get(RevTouchSensor.class, "TopLimit");
@@ -162,7 +146,9 @@ public class Teleop extends LinearOpMode {
             boolean Down;
             boolean ToggleCollector;
             boolean CButtonlock = false;
-            double CollectorStatus = 0;
+            int rollerDirectionNonOverride = 0;
+            boolean xPrev = false;
+            boolean xToggled = false;
             boolean TButtonlock = false;
             boolean Left;
             boolean Right;
@@ -217,7 +203,7 @@ public class Teleop extends LinearOpMode {
 
                 FL = -v1;
                 FR = -v2;
-                BL = v3;
+                BL = -v3;
                 BR = -v4;
 
                 if(gamepad1.left_bumper){
@@ -231,6 +217,8 @@ public class Teleop extends LinearOpMode {
                 frDcMotor.setPower(FR);
                 blDcMotor.setPower(BL);
                 brDcMotor.setPower(BR);
+                telemetry.addData("fl",cLift.getCurrentPosition());
+
 
                 // TODO: Factor out telemetry
                 telemetry.addData("flMotor Power", flDcMotor.getPower());
@@ -239,8 +227,9 @@ public class Teleop extends LinearOpMode {
                 telemetry.addData("brMotor Power", blDcMotor.getPower());
                 telemetry.addData("PlatformPos", Platform.getPosition());
                 telemetry.addData("PlatformPosLR", lServopos);
-                telemetry.addData("CollectorPos", CollectorStatus);
-
+                telemetry.addData("CollectorPos", rollerDirectionNonOverride);
+                telemetry.addData("LFinger", LFinger.getPosition());
+                telemetry.addData("RFinger", RFinger.getPosition());
                 // Set Points
 
                 // Powershots
@@ -256,19 +245,19 @@ public class Teleop extends LinearOpMode {
                     PowershotSetpointStatus = 0;
                 }
                 if(PowershotSetpointStatus == 1){
-                    PlatformPositionX = (.44);
-                    lServopos = (0.885);
-                    rServopos = (.98 - .885);
+                    PlatformPositionX = (.416);
+                    lServopos = (0.877);
+                    rServopos = (.98 - .877);
                 }
                 if(PowershotSetpointStatus == 2){
-                    PlatformPositionX =(.404);
+                    PlatformPositionX =(.372);
                     lServopos = (0.89);
                     rServopos = (.98 - .885);
                 }
                 if(PowershotSetpointStatus == 3){
-                    PlatformPositionX = (.379);
-                    lServopos = (0.9);
-                    rServopos = (.98 - .895);
+                    PlatformPositionX = (.332);
+                    lServopos = (0.888);
+                    rServopos = (.98 - .888);
                 }
 
                 telemetry.addData("Platform Position", PowershotSetpointStatus);
@@ -350,29 +339,66 @@ public class Teleop extends LinearOpMode {
 
                 //Collector code
 
-                if (gamepad1.b) {
-                    Collector.setPower(1);
-                }
-                else {
-                    Collector.setPower(-CollectorStatus);
-                }
-                ToggleCollector = this.gamepad1.x;
-                if (CButtonlock && !ToggleCollector){
-                    CButtonlock = false;
-                }
-                if (ToggleCollector && !CButtonlock) {
-                    CollectorStatus += 1;
-                    Trigger.setPosition(0);
-                    CButtonlock = true;
-                }
-                if (CollectorStatus > 1 && ! CButtonlock) {
-                    Trigger.setPosition(.5);
-                    CollectorStatus = 0;
-                    CButtonlock = true;
+                int rollerDirection;
+                boolean bReverseOverride = gamepad1.b;
+                boolean xPressed = gamepad1.x;
+                boolean xChanged = xPressed != xPrev;
+                boolean xNewlyPressed = xPressed && xChanged;
+
+                if (xNewlyPressed && !xToggled) {
+                    xToggled = true;
+                    rollerDirectionNonOverride = 1;
+                } else if (xNewlyPressed && xToggled) {
+                    xToggled = false;
+                    rollerDirectionNonOverride = 0;
                 }
 
+                xPrev = xPressed;
+
+                if (bReverseOverride) {
+                    rollerDirection = -1;
+                } else {
+                    rollerDirection = rollerDirectionNonOverride;
+                }
+
+                Collector.setPower(rollerDirection);
+                FinalRoller.setPosition((-rollerDirection + 0.5)/2);
+                Roller1.setPosition(rollerDirection + 0.5);
+                Roller.setPosition(rollerDirection + 0.5);
+
+//                if (gamepad1.b) {
+//                    Collector.setPower(1);
+//                    FinalRoller.setPosition(0);
+//                    Roller1.setPosition(1);
+//                    Roller.setPosition(1);
+//                }
+//                else {
+//                    Collector.setPower(-CollectorStatus);
+//                    FinalRoller.setPosition(-CollectorStatus);
+//                    Roller1.setPosition(-CollectorStatus);
+//                    Roller.setPosition(-CollectorStatus);
+//                }
+//                ToggleCollector = this.gamepad1.x;
+//                if (CButtonlock && !ToggleCollector){
+//                    CButtonlock = false;
+//                }
+//                if (ToggleCollector && !CButtonlock) {
+//                    CollectorStatus += 1;
+//                    FinalRoller.setPosition(1);
+//                    Roller1.setPosition(1);
+//                    Roller.setPosition(1);
+//                    CButtonlock = true;
+//                }
+//                if (CollectorStatus > 1 && !CButtonlock) {
+//                    Roller1.setPosition(.5);
+//                    FinalRoller.setPosition(.5);
+//                    Roller.setPosition(.5);
+//                    CollectorStatus = 0;
+//                    CButtonlock = true;
+//                }
+
                 RFinger.setPosition(FingerPos);
-                LFinger.setPosition(.3 - FingerPos);
+                LFinger.setPosition(.31 - FingerPos);
                 TriggersOn = this.gamepad2.y;
                 if (TriggersOn){
                     FingerPos = 0;

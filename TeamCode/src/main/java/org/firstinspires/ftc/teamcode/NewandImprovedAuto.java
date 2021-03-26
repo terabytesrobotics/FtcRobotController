@@ -5,7 +5,6 @@ import android.annotation.SuppressLint;
 import com.qualcomm.hardware.rev.RevColorSensorV3;
 import com.qualcomm.hardware.rev.RevTouchSensor;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
-import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
@@ -22,19 +21,20 @@ import java.util.List;
 import static org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer.CameraDirection.BACK;
 
 
+@Autonomous(name="More Points Auto", group ="Real")
 
-@Autonomous(name="Auto OLD", group ="Real")
-@Disabled
-public class Auto extends LinearOpMode {
+
+public class NewandImprovedAuto extends LinearOpMode {
     private static final int secondsPermissionTimeout = Integer.MAX_VALUE;
     private static final String TAG = "Webcam Sample";
     //  private Gyroscope imu;
     private RevColorSensorV3 REVColor1;
     private RevColorSensorV3 REVColor;
-    private DcMotor flDcMotor;
-    private DcMotor frDcMotor;
-    private DcMotor blDcMotor;
-    private DcMotor brDcMotor;
+
+    private Timer timer;
+    private ShooterCommands shooterCommands;
+    private CLift CollectorMove;
+    private DriveMotors driveMotors;
     private DcMotor Shooter;
     private DcMotor Collector;
     private DcMotor cLift;
@@ -44,6 +44,12 @@ public class Auto extends LinearOpMode {
     private Servo Trigger;
     private RevTouchSensor TopLimit;
     private RevTouchSensor BottomLimit;
+    private Servo WobbleServo;
+    private Servo LFinger;
+    private Servo RFinger;
+    private Servo Roller1;
+    private Servo Roller;
+    private Servo FinalRoller;
     // IMPORTANT: If you are using a USB WebCam, you must select CAMERA_CHOICE = BACK; and PHONE_IS_PORTRAIT = false;
     private static final VuforiaLocalizer.CameraDirection CAMERA_CHOICE = BACK;
     private static final boolean PHONE_IS_PORTRAIT = false  ;
@@ -106,19 +112,36 @@ public class Auto extends LinearOpMode {
     @SuppressLint("DefaultLocale")
     @Override public void runOpMode() {
         //imu = hardwareMap.get(Gyroscope.class, "imu");
+        LFinger = hardwareMap.get(Servo.class, "Finger");
+        RFinger = hardwareMap.get(Servo.class, "Finger2");
         REVColor1 =hardwareMap.get(RevColorSensorV3.class,"REVColor1");
         REVColor = hardwareMap.get(RevColorSensorV3.class, "REVColor");
-        flDcMotor = hardwareMap.get(DcMotor.class, "flMotor");
-            flDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        frDcMotor = hardwareMap.get(DcMotor.class, "frMotor");
-            frDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        blDcMotor = hardwareMap.get(DcMotor.class, "blMotor");
-            blDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        brDcMotor = hardwareMap.get(DcMotor.class, "brMotor");
-            brDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
+        driveMotors = new DriveMotors(
+                hardwareMap.get(DcMotor.class, "flMotor"),
+                hardwareMap.get(DcMotor.class, "frMotor"),
+                hardwareMap.get(DcMotor.class, "blMotor"),
+                hardwareMap.get(DcMotor.class, "brMotor")
+        );
+
+        CollectorMove = new CLift(
+                hardwareMap.get(DcMotor.class, "cLift")
+        );
+        shooterCommands = new ShooterCommands(
+                hardwareMap.get(DcMotor.class, "Shooter"),
+                hardwareMap.get(Servo.class, "Platform"),
+                hardwareMap.get(Servo.class, "lLift"),
+                hardwareMap.get(Servo.class, "rLift"),
+                hardwareMap.get(Servo.class, "Finger"),
+                hardwareMap.get(Servo.class, "Finger2")
+        );
+
         Shooter = hardwareMap.get(DcMotor.class, "Shooter");
         Shooter.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         Collector = hardwareMap.get(DcMotor.class, "Collector");
+        FinalRoller = hardwareMap.get(Servo.class, "FinalRoller");
+        Roller1 = hardwareMap.get(Servo.class, "Trigger");
+        Roller = hardwareMap.get(Servo.class, "Roller");
         cLift = hardwareMap.get(DcMotor.class, "cLift");
         Platform = hardwareMap.get(Servo.class, "Platform");
         lLift = hardwareMap.get(Servo.class, "lLift");
@@ -126,6 +149,7 @@ public class Auto extends LinearOpMode {
         Trigger = hardwareMap.get(Servo.class, "Trigger");
         TopLimit = hardwareMap.get(RevTouchSensor.class, "TopLimit");
         BottomLimit = hardwareMap.get(RevTouchSensor.class, "BottomLimit");
+        WobbleServo = hardwareMap.get(Servo.class, "WobbleServo");
         //   digitalTouch = hardwareMap.get(DigitalChannel.class, "digitalTouch");
         //   sensorColorRange = hardwareMap.get(DistanceSensor.class, "sensorColorRange");
         double lServopos = .98;
@@ -135,21 +159,26 @@ public class Auto extends LinearOpMode {
         double LastLoop;
         double ColorZero = 0;
         double ColorZero1 = 0;
-        for (int i = 0; i < 100; i++){
+        for (int i = 0; i < 1; i++){
             ColorZero += REVColor.blue() + REVColor.red() + REVColor.green();
             ColorZero1 += REVColor1.blue() + REVColor1.red() + REVColor1.green();
 
         }
         ColorZero /= 100;
         ColorZero1 /= 100;
-        int Location = 0;
-
+        double Location;
+        Location = 0;
+        double FingerPos = 0.4;
+        RFinger.setPosition(0.26);
+        LFinger.setPosition(0.05);
+        double EncoderTarget;
 
 
 
         telemetry.addLine("not on line");
         telemetry.addData("color add",REVColor1.blue() + REVColor1.red() + REVColor1.green() + REVColor.blue() + REVColor.red() + REVColor.green()- ColorZero - ColorZero1);
         telemetry.update();
+        WobbleServo.setPosition(0);
 
         initVuforia();
         initTfod();
@@ -176,6 +205,8 @@ public class Auto extends LinearOpMode {
             double ColorAverage1;
 
 
+
+
             //targetsUltimateGoal.activate();
             /*
              * Activate TensorFlow Object Detection before we wait for the start command.
@@ -198,43 +229,57 @@ public class Auto extends LinearOpMode {
                 telemetry.addLine("op mode active");
                 telemetry.update();
 
-                if (tfod != null) {
-                    // getUpdatedRecognitions() will return null if no new information is available since
-                    // the last time that call was made.
-                    List<Recognition> updatedRecognitions = tfod.getUpdatedRecognitions();
-                    if (updatedRecognitions != null) {
-                        telemetry.addData("# Object Detected", updatedRecognitions.size());
-                        if (updatedRecognitions.size() == 0 ) {
-                            // empty list.  no objects recognized.
-                            telemetry.addData("TFOD", "No items detected.");
-                            telemetry.addData("Target Zone", "A");
-                            Location = 0;
-                        } else {
-                            // list is not empty.
-                            // step through the list of recognitions and display boundary info.
-                            int i = 0;
-                            for (Recognition recognition : updatedRecognitions) {
-                                telemetry.addData(String.format("label (%d)", i), recognition.getLabel());
-                                telemetry.addData(String.format("  left,top (%d)", i), "%.03f , %.03f",
-                                        recognition.getLeft(), recognition.getTop());
-                                telemetry.addData(String.format("  right,bottom (%d)", i), "%.03f , %.03f",
-                                        recognition.getRight(), recognition.getBottom());
+                for (int j = 0;j <4000;j++) {
 
-                                // check label to see which target zone to go after.
-                                if (recognition.getLabel().equals("Single")) {
-                                    telemetry.addData("Target Zone", "B");
-                                    Location = 1;
-                                } else if (recognition.getLabel().equals("Quad")) {
-                                    telemetry.addData("Target Zone", "C");
-                                    Location = 2;
-                                } else {
-                                    telemetry.addData("Target Zone", "UNKNOWN");
+
+                    if (tfod != null) {
+                        // getUpdatedRecognitions() will return null if no new information is available since
+                        // the last time that call was made.
+                        List<Recognition> updatedRecognitions = tfod.getUpdatedRecognitions();
+                        if (updatedRecognitions != null) {
+                            telemetry.addData("# Object Detected", updatedRecognitions.size());
+                            if (updatedRecognitions.size() == 0) {
+                                // empty list.  no objects recognized.
+                                telemetry.addData("TFOD", "No items detected.");
+                                telemetry.addData("Target Zone", "A");
+                                Location = 0;
+                            } else {
+                                // list is not empty.
+                                // step through the list of recognitions and display boundary info.
+                                int i = 0;
+                                for (Recognition recognition : updatedRecognitions) {
+                                    telemetry.addData(String.format("label (%d)", i), recognition.getLabel());
+                                    telemetry.addData(String.format("  left,top (%d)", i), "%.03f , %.03f",
+                                            recognition.getLeft(), recognition.getTop());
+                                    telemetry.addData(String.format("  right,bottom (%d)", i), "%.03f , %.03f",
+                                            recognition.getRight(), recognition.getBottom());
+
+                                    // check label to see which target zone to go after.
+                                    if (recognition.getLabel().equals("Single")) {
+                                        telemetry.addData("Target Zone", "B");
+                                        Location = 1;
+                                    } else if (recognition.getLabel().equals("Quad")) {
+                                        telemetry.addData("Target Zone", "C");
+                                        Location = 2;
+                                    } else {
+                                        telemetry.addData("Target Zone", "UNKNOWN");
+                                    }
                                 }
                             }
+                            telemetry.addData("j", j);
+                            telemetry.update();
                         }
-                        telemetry.update();
+                        sleep(1);
                     }
+                    if (Location == 1 || Location == 2){
+                        telemetry.addLine("LOL");
+                        telemetry.update();
+                        break;
+                    }
+
+
                 }
+
 
                 // check all the trackable targets to see which one (if any) is visible.
               /*  targetVisible = false;
@@ -270,112 +315,133 @@ public class Auto extends LinearOpMode {
                 telemetry.update();
 */
                 //Platform "Left Right" code
-                for(int i = 0;i < 4;i++) {
-                    frDcMotor.setPower(i / 10f);
-                    flDcMotor.setPower(i / 10f);
-                    brDcMotor.setPower(i / 10f);
-                    blDcMotor.setPower(-i / 10f);
-                    sleep(500);
+
+
+
+//                while (opModeIsActive()){
+//
+//                    driveMotors.forward(.4);
+//
+//                   ColorAverage = REVColor.blue() + REVColor.red() + REVColor.green();
+//                   if (ColorAverage > LastLoop + 1000 && LastLoop != 0){
+//                       break;
+//                   }
+//                   LastLoop = REVColor.blue() + REVColor.red() + REVColor.green();
+//
+//                    telemetry.addLine("not on line");
+//                    telemetry.addData("color add",ColorAverage - LastLoop);
+//                    telemetry.update();
+//                }
+
+//                Platform.setPosition(.36);
+//                lLift.setPosition(0.899);
+//                rLift.setPosition(.98 - .899);
+//                sleep(1000);
+//
+//                LFinger.setPosition(0.31);
+//                RFinger.setPosition(0);
+//                sleep(400);
+//                RFinger.setPosition(0.26);
+//                LFinger.setPosition(0.05);
+//                sleep(500);
+//
+//                Platform.setPosition(.325);
+//                lLift.setPosition(0.899);
+//                rLift.setPosition(.98 - .899);
+//                sleep(1000);
+//
+//                LFinger.setPosition(0.31);
+//                RFinger.setPosition(0);
+//                sleep(400);
+//                RFinger.setPosition(0.26);
+//                LFinger.setPosition(0.05);
+//                sleep(500);
+//
+//                sleep(1000);
+//                Platform.setPosition(.29);
+//                lLift.setPosition(0.91);
+//                rLift.setPosition(.98 - .9);
+//                sleep(1000);
+//
+//                LFinger.setPosition(0.31);
+//                RFinger.setPosition(0);
+//                sleep(400);
+//                RFinger.setPosition(0.26);
+//                LFinger.setPosition(0.05);
+//                sleep(1000);
+
+
+
+                if(Location == 0) {
+                    CollectorMove.down(740, 0.4);
+                    Collector.setPower(.95);
+                    FinalRoller.setPosition(0.5);
+                    Roller1.setPosition(0.5);
+                    Roller.setPosition(0.5);
+                    driveMotors.forward(20);
+                    Shooter.setPower(.95);
+                    sleep(1500);
+                    shooterCommands.pos1();
+                    shooterCommands.shoot();
+                    shooterCommands.pos2();
+                    shooterCommands.shoot();
+                    shooterCommands.pos3();
+                    shooterCommands.shoot();
+                    shooterCommands.pos4();
+                    shooterCommands.shoot();
+                    driveMotors.forward(10);
+                    driveMotors.left(5);
+                    WobbleServo.setPosition(1);
+                    sleep(1000);
+                    driveMotors.right(20);
                 }
-                ColorAverage = ColorZero;
-
-                ColorAverage1 = ColorZero1;
-                LastLoop = 0;
-
-                while (opModeIsActive()){
-                    frDcMotor.setPower(.4);
-                    flDcMotor.setPower(.4);
-                   brDcMotor.setPower(.4);
-                   blDcMotor.setPower(-.4);
-
-                   ColorAverage = REVColor.blue() + REVColor.red() + REVColor.green();
-                   if (ColorAverage > LastLoop + 1000 && LastLoop != 0){
-                       break;
-                   }
-                   LastLoop = REVColor.blue() + REVColor.red() + REVColor.green();
-
-
-
-
-                    telemetry.addLine("not on line");
-                    telemetry.addData("color add",ColorAverage - LastLoop);
-                    telemetry.update();
+                if(Location == 1){
+                    CollectorMove.down(740, 0.4);
+                    Collector.setPower(.95);
+                    FinalRoller.setPosition(0.5);
+                    Roller1.setPosition(0.5);
+                    Roller.setPosition(0.5);
+                    driveMotors.forward(20);
+                    Shooter.setPower(.95);
+                    sleep(1500);
+                    shooterCommands.pos1();
+                    shooterCommands.shoot();
+                    shooterCommands.pos2();
+                    shooterCommands.shoot();
+                    shooterCommands.pos3();
+                    shooterCommands.shoot();
+                    shooterCommands.pos4();
+                    shooterCommands.shoot();
+                    driveMotors.forward(10);
+                    driveMotors.left(5);
+                    WobbleServo.setPosition(1);
+                    sleep(1000);
+                    driveMotors.right(20);
                 }
-                telemetry.addLine("Found Line!!!!");
-                telemetry.update();
-
-                frDcMotor.setPower(0.2);
-                flDcMotor.setPower(0.2);
-                brDcMotor.setPower(0.2);
-                blDcMotor.setPower(-0.2);
-                sleep(500);
-                frDcMotor.setPower(0);
-                flDcMotor.setPower(0);
-                brDcMotor.setPower(0);
-                blDcMotor.setPower(0);
-                sleep(500);
-                frDcMotor.setPower(-0.2);
-                flDcMotor.setPower(-0.2);
-                brDcMotor.setPower(-0.2);
-                blDcMotor.setPower(0.2);
-                sleep(1500);
-                frDcMotor.setPower(0);
-                flDcMotor.setPower(0);
-                brDcMotor.setPower(0);
-                blDcMotor.setPower(0);
-                sleep(500);
-                Shooter.setPower(.8);
-                telemetry.addLine("on line");
-                telemetry.update();
-
-                Platform.setPosition(.396);
-                lLift.setPosition(0.899);
-                rLift.setPosition(.98 - .899);
-
-                sleep(1000);
-
-                Trigger.setPosition(0);
-                sleep(1000);
-
-                Trigger.setPosition(.5);
-                cLift.setPower(1);
-                sleep(100);
-                cLift.setPower(0);
-
-                sleep(1000);
-
-                Platform.setPosition(.357);
-                lLift.setPosition(0.899);
-                rLift.setPosition(.98 - .899);
-
-                sleep(1000);
-
-                Trigger.setPosition(0);
-
-
-                sleep(1000);
-
-                Trigger.setPosition(.5);
-
-               sleep(1000);
-                Platform.setPosition(.322);
-                lLift.setPosition(0.9);
-                rLift.setPosition(.98 - .9);
-                while (BottomLimit.getValue() == 0){
-                    cLift.setPower(1);
-                    telemetry.addLine("collector up");
-                    telemetry.update();
+                if(Location == 2) {
+                    CollectorMove.down(740, 0.4);
+                    Collector.setPower(.95);
+                    FinalRoller.setPosition(0.5);
+                    Roller1.setPosition(0.5);
+                    Roller.setPosition(0.5);
+                    driveMotors.forward(20);
+                    Shooter.setPower(.95);
+                    sleep(1500);
+                    shooterCommands.pos1();
+                    shooterCommands.shoot();
+                    shooterCommands.pos2();
+                    shooterCommands.shoot();
+                    shooterCommands.pos3();
+                    shooterCommands.shoot();
+                    shooterCommands.pos4();
+                    shooterCommands.shoot();
+                    driveMotors.forward(10);
+                    driveMotors.left(5);
+                    WobbleServo.setPosition(1);
+                    sleep(1000);
+                    driveMotors.right(20);
                 }
-                cLift.setPower(0);
-                telemetry.addLine("Collector stop");
-                telemetry.addData("collector power",cLift.getPower());
-                telemetry.update();
-                sleep(2000);
-                Trigger.setPosition(0);
-                sleep(2000);
-                Collector.setPower(-0.5);
-
-
+/*
                 sleep(3000);
                 frDcMotor.setPower(0.2);
                 flDcMotor.setPower(0.2);
@@ -386,7 +452,8 @@ public class Auto extends LinearOpMode {
                 flDcMotor.setPower(0);
                 brDcMotor.setPower(0);
                 blDcMotor.setPower(0);
-
+*/
+                sleep(10000);
                 break;
             }
         } finally {
@@ -398,6 +465,8 @@ public class Auto extends LinearOpMode {
             }
         }
     }
+
+
 
     /**
      * Initialize the Vuforia localization engine.
