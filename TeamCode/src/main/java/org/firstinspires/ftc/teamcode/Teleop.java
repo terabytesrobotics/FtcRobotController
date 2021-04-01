@@ -7,6 +7,7 @@ import com.qualcomm.hardware.rev.RevTouchSensor;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
@@ -30,11 +31,11 @@ public class Teleop extends LinearOpMode {
     private Click oneClick;
     private RevColorSensorV3 REVColor1;
     private RevColorSensorV3 REVColor;
-    private DcMotor flDcMotor;
+    private DcMotorEx flDcMotor;
     private DcMotor frDcMotor;
     private DcMotor blDcMotor;
     private DcMotor brDcMotor;
-    private DcMotor Shooter;
+    private DcMotorEx Shooter;
     private DcMotor Collector;
     private DcMotor cLift;
     private Servo Platform;
@@ -93,7 +94,7 @@ public class Teleop extends LinearOpMode {
     @Override public void runOpMode() {
         REVColor1 = hardwareMap.get(RevColorSensorV3.class,"REVColor1");
         REVColor = hardwareMap.get(RevColorSensorV3.class, "REVColor");
-        flDcMotor = hardwareMap.get(DcMotor.class, "flMotor");
+        flDcMotor = hardwareMap.get(DcMotorEx.class, "flMotor");
         flDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         frDcMotor = hardwareMap.get(DcMotor.class, "frMotor");
         frDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
@@ -102,10 +103,11 @@ public class Teleop extends LinearOpMode {
         brDcMotor = hardwareMap.get(DcMotor.class, "brMotor");
         brDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
-        Shooter = hardwareMap.get(DcMotor.class, "Shooter");
+        Shooter = hardwareMap.get(DcMotorEx.class, "Shooter");
         Shooter.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         Collector = hardwareMap.get(DcMotor.class, "Collector");
         cLift = hardwareMap.get(DcMotor.class, "cLift");
+
         Platform = hardwareMap.get(Servo.class, "Platform");
         lLift = hardwareMap.get(Servo.class, "lLift");
         rLift = hardwareMap.get(Servo.class, "rLift");
@@ -192,7 +194,17 @@ public class Teleop extends LinearOpMode {
                 /**
                  OLD Holo drive code
                  */
-                telemetry.addData("BottomLimit",BottomLimit.getValue());
+
+                telemetry.addData("flDcMotor",flDcMotor.getCurrentPosition());
+                telemetry.addData("frDcMotor",frDcMotor.getCurrentPosition());
+                telemetry.addData("blDcMotor",blDcMotor.getCurrentPosition());
+                telemetry.addData("brDcMotor",brDcMotor.getCurrentPosition());
+
+
+                telemetry.addData("flmotor speed", flDcMotor.getVelocity());
+                telemetry.addData("shooter speed", Shooter.getVelocity());
+                telemetry.addData("shooter position",Shooter.getCurrentPosition());
+
                 double r = Math.hypot(-gamepad1.left_stick_x, gamepad1.left_stick_y);
                 double robotAngle = Math.atan2(gamepad1.left_stick_y, -gamepad1.left_stick_x) - Math.PI / 4;
                 double rightX = gamepad1.right_stick_x * -1;
@@ -203,7 +215,7 @@ public class Teleop extends LinearOpMode {
 
                 FL = -v1;
                 FR = -v2;
-                BL = -v3;
+                BL = v3;
                 BR = -v4;
 
                 if(gamepad1.left_bumper){
@@ -270,16 +282,17 @@ public class Teleop extends LinearOpMode {
                     PowershotSetpointStatus = 0;
                 }
 
-                //shooter code
+                //
+                // er code
                 ToggleShooter = this.gamepad2.b;
                 if (SButtonlock && !ToggleShooter){
                     SButtonlock = false;
                 }
                 if (ToggleShooter && !SButtonlock) {
-                    ShooterStatus += .8;
+                    ShooterStatus += .85;
                     SButtonlock = true;
                 }
-                if (ShooterStatus > .8 && ! SButtonlock) {
+                if (ShooterStatus > .85 && ! SButtonlock) {
                     ShooterStatus = 0;
                     SButtonlock = true;
                 }
@@ -301,8 +314,8 @@ public class Teleop extends LinearOpMode {
                 if (PlatformPositionX > 0.7) {
                     PlatformPositionX = 0.7;
                 }
-                if (PlatformPositionX < 0.3) {
-                    PlatformPositionX = 0.3;
+                if (PlatformPositionX < 0.2) {
+                    PlatformPositionX = 0.2;
                 }
 
                 Platform.setPosition(PlatformPositionX);
@@ -336,7 +349,6 @@ public class Teleop extends LinearOpMode {
                 }
                 lLift.setPosition(lServopos);
                 rLift.setPosition(rServopos);
-
                 //Collector code
 
                 int rollerDirection;
@@ -362,7 +374,7 @@ public class Teleop extends LinearOpMode {
                 }
 
                 Collector.setPower(rollerDirection);
-                FinalRoller.setPosition((-rollerDirection + 0.5)/2);
+                FinalRoller.setPosition(-rollerDirection + 0.5);
                 Roller1.setPosition(rollerDirection + 0.5);
                 Roller.setPosition(rollerDirection + 0.5);
 
@@ -398,7 +410,7 @@ public class Teleop extends LinearOpMode {
 //                }
 
                 RFinger.setPosition(FingerPos);
-                LFinger.setPosition(.31 - FingerPos);
+                LFinger.setPosition(.3 - FingerPos);
                 TriggersOn = this.gamepad2.y;
                 if (TriggersOn){
                     FingerPos = 0;
@@ -407,8 +419,9 @@ public class Teleop extends LinearOpMode {
                 }
 
                 //* Collector Up and Down Code
+
                 if (gamepad1.right_bumper && TopLimit.getValue() ==0){
-                    cLift.setPower(-1);
+                    cLift.setPower(1);
                     telemetry.addLine("TopLimit.getValue() ==0");
                 }
                 else if (gamepad1.right_bumper && TopLimit.getValue() ==1){
@@ -416,7 +429,7 @@ public class Teleop extends LinearOpMode {
                     telemetry.addLine("TopLimit.getValue() ==1");
                 }
                 else if (BottomLimit.getValue() ==0) {
-                    cLift.setPower(1);
+                    cLift.setPower(-1);
                     telemetry.addLine("BottomLimit.getValue() ==0");
                 }
                 else{

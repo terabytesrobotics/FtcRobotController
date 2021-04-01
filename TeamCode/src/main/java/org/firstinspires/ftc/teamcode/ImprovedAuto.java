@@ -256,8 +256,13 @@ public class ImprovedAuto extends LinearOpMode {
                         }
                         sleep(1);
                     }
-                    if (Location == 1 || Location == 2){
-                        telemetry.addLine("LOL");
+                    if (Location == 1){
+                        telemetry.addLine("Pos 2");
+                        telemetry.update();
+                        break;
+                    }
+                    if (Location == 2){
+                        telemetry.addLine("Pos 3");
                         telemetry.update();
                         break;
                     }

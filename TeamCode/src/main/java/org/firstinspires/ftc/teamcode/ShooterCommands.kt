@@ -13,29 +13,36 @@ class ShooterCommands(
         private val RFinger: Servo
 ) {
     fun pos1(){
-        Platform.position = .36
-        lLift.position = 0.899
-        rLift.position = .98 - .899
+        Platform.position = .3
+        lLift.position = 0.918
+        rLift.position = .98 - .918
         sleep(300)
     }
     fun pos2(){
-        Platform.position = .325
-        lLift.position = 0.899
-        rLift.position = .98 - .899
+        Platform.position = .27
+        lLift.position = 0.91
+        rLift.position = .98 - .91
         sleep(300)
 
     }
     fun pos3(){
-        Platform.position = .29
-        lLift.position = 0.91
+        Platform.position = .257
+        lLift.position = 0.9
         rLift.position = .98 - .9
         sleep(300)
 
     }
     fun pos4(){
-        Platform.position = .475
-        lLift.position = .855
-        rLift.position = .124
+        Platform.position = .36
+        lLift.position = 0.871
+        rLift.position = .98 - .871
+        sleep(300)
+
+    }
+    fun pos5(){
+        Platform.position = .38
+        lLift.position = 0.885
+        rLift.position = .98 - .885
         sleep(300)
 
     }
