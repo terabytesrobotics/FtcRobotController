@@ -16,8 +16,7 @@ class CLift(
         val targetPos = currentPos + tics
         cLift.targetPosition = targetPos
         cLift.power = speed
-        while (cLift.isBusy) {
-
+        while (cLift.isBusy||TopLimit.value == 1.0) {
         }
 
     }
@@ -27,7 +26,7 @@ class CLift(
         val targetPos = currentPos - tics
         cLift.targetPosition = targetPos
         cLift.power = speed*-1
-        while (cLift.isBusy) {
+        while (cLift.isBusy||BottomLimit.value == 1.0) {
 
         }
         cLift.power = 0.0

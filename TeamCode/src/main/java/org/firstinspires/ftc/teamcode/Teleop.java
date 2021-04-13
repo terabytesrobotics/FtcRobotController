@@ -49,6 +49,7 @@ public class Teleop extends LinearOpMode {
     private Servo RFinger;
     private Servo FinalRoller;
 
+
     // IMPORTANT: If you are using a USB WebCam, you must select CAMERA_CHOICE = BACK; and PHONE_IS_PORTRAIT = false;
     private static final VuforiaLocalizer.CameraDirection CAMERA_CHOICE = BACK;
     private static final boolean PHONE_IS_PORTRAIT = false  ;
@@ -419,7 +420,7 @@ public class Teleop extends LinearOpMode {
                 }
 
                 //* Collector Up and Down Code
-
+                telemetry.addData("clift",cLift.getCurrentPosition());
                 if (gamepad1.right_bumper && TopLimit.getValue() ==0){
                     cLift.setPower(1);
                     telemetry.addLine("TopLimit.getValue() ==0");

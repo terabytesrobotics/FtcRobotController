@@ -14,18 +14,15 @@ import org.firstinspires.ftc.robotcore.external.ClassFactory;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.matrices.OpenGLMatrix;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer;
-import org.firstinspires.ftc.robotcore.external.tfod.Recognition;
 import org.firstinspires.ftc.robotcore.external.tfod.TFObjectDetector;
-
-import java.util.List;
 
 import static org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer.CameraDirection.BACK;
 
 
-@Autonomous(name="More Points Auto", group ="Real")
+@Autonomous(name="ConsistencyTestAUTO", group ="Real")
 
 
-public class NewandImprovedAuto extends LinearOpMode {
+public class ConsistencyTestAUTO extends LinearOpMode {
     private static final int secondsPermissionTimeout = Integer.MAX_VALUE;
     private static final String TAG = "Webcam Sample";
     //  private Gyroscope imu;
@@ -159,7 +156,7 @@ public class NewandImprovedAuto extends LinearOpMode {
         WobbleServo = hardwareMap.get(Servo.class, "WobbleServo");
         //   digitalTouch = hardwareMap.get(DigitalChannel.class, "digitalTouch");
         //   sensorColorRange = hardwareMap.get(DistanceSensor.class, "sensorColorRange");
-        double lServopos = .96;
+        double lServopos = .98;
         double rServopos = 0;
         lLift.setPosition(lServopos);
         rLift.setPosition(rServopos);
@@ -176,8 +173,8 @@ public class NewandImprovedAuto extends LinearOpMode {
         double Location;
         Location = 0;
         double FingerPos = 0.4;
-        RFinger.setPosition(0.26);
-        LFinger.setPosition(0.05);
+        RFinger.setPosition(0.24);
+        LFinger.setPosition(0.07);
         double EncoderTarget;
 
 
@@ -241,62 +238,62 @@ public class NewandImprovedAuto extends LinearOpMode {
                 telemetry.addLine("op mode active");
                 telemetry.update();
 
-                for (int j = 0; j < 4000; j++) {
-                    if (tfod != null) {
-                        // getUpdatedRecognitions() will return null if no new information is available since
-                        // the last time that call was made.
-                        List<Recognition> updatedRecognitions = tfod.getUpdatedRecognitions();
-                        if (updatedRecognitions != null) {
-                            telemetry.addData("# Object Detected", updatedRecognitions.size());
-                            if (updatedRecognitions.size() == 0) {
-                                // empty list.  no objects recognized.
-                                telemetry.addData("TFOD", "No items detected.");
-                                telemetry.addData("Target Zone", "A");
-                                Location = 0;
-                            } else {
-                                // list is not empty.
-                                // step through the list of recognitions and display boundary info.
-                                int i = 0;
-                                for (Recognition recognition : updatedRecognitions) {
-                                    telemetry.addData(String.format("label (%d)", i), recognition.getLabel());
-                                    telemetry.addData(String.format("  left,top (%d)", i), "%.03f , %.03f",
-                                            recognition.getLeft(), recognition.getTop());
-                                    telemetry.addData(String.format("  right,bottom (%d)", i), "%.03f , %.03f",
-                                            recognition.getRight(), recognition.getBottom());
+//                for (int j = 0; j < 4000; j++) {
+//                    if (tfod != null) {
+//                        // getUpdatedRecognitions() will return null if no new information is available since
+//                        // the last time that call was made.
+//                        List<Recognition> updatedRecognitions = tfod.getUpdatedRecognitions();
+//                        if (updatedRecognitions != null) {
+//                            telemetry.addData("# Object Detected", updatedRecognitions.size());
+//                            if (updatedRecognitions.size() == 0) {
+//                                // empty list.  no objects recognized.
+//                                telemetry.addData("TFOD", "No items detected.");
+//                                telemetry.addData("Target Zone", "A");
+//                                Location = 0;
+//                            } else {
+//                                // list is not empty.
+//                                // step through the list of recognitions and display boundary info.
+//                                int i = 0;
+//                                for (Recognition recognition : updatedRecognitions) {
+//                                    telemetry.addData(String.format("label (%d)", i), recognition.getLabel());
+//                                    telemetry.addData(String.format("  left,top (%d)", i), "%.03f , %.03f",
+//                                            recognition.getLeft(), recognition.getTop());
+//                                    telemetry.addData(String.format("  right,bottom (%d)", i), "%.03f , %.03f",
+//                                            recognition.getRight(), recognition.getBottom());
+//
+//                                    // check label to see which target zone to go after.
+//                                    if (recognition.getLabel().equals("Single")) {
+//                                        telemetry.addData("Target Zone", "B");
+//                                        Location = 1;
+//                                    } else if (recognition.getLabel().equals("Quad")) {
+//                                        telemetry.addData("Target Zone", "C");
+//                                        Location = 2;
+//                                    } else {
+//                                        telemetry.addData("Target Zone", "UNKNOWN");
+//                                    }
+//                                }
+//                            }
+//                            telemetry.addData("j", j);
+//                            telemetry.update();
+//                        }
+//                        sleep(1);
+//                    }
+//                    if (Location == 1) {
+//                        telemetry.addLine("Pos 2");
+//                        telemetry.update();
+//                        break;
+//                    }
+//                    if (Location == 2) {
+//                        telemetry.addLine("Pos 3");
+//                        telemetry.update();
+//                        break;
+//                    }
+//                }
 
-                                    // check label to see which target zone to go after.
-                                    if (recognition.getLabel().equals("Single")) {
-                                        telemetry.addData("Target Zone", "B");
-                                        Location = 1;
-                                    } else if (recognition.getLabel().equals("Quad")) {
-                                        telemetry.addData("Target Zone", "C");
-                                        Location = 2;
-                                    } else {
-                                        telemetry.addData("Target Zone", "UNKNOWN");
-                                    }
-                                }
-                            }
-                            telemetry.addData("j", j);
-                            telemetry.update();
-                        }
-                        sleep(1);
-                    }
-                    if (Location == 1) {
-                        telemetry.addLine("Pos 2");
-                        telemetry.update();
-                        break;
-                    }
-                    if (Location == 2) {
-                        telemetry.addLine("Pos 3");
-                        telemetry.update();
-                        break;
-                    }
-                }
-
-                if (Location == 0) {
+/*                if (Location == 0) {
                     while (! CollectorMove.fullUp()) {}
 
-                    Shooter.setPower(.85);
+                    Shooter.setPower(.95);
                     Collector.setPower(.95);
                     FinalRoller.setPosition(0);
                     Roller1.setPosition(1);
@@ -386,54 +383,43 @@ public class NewandImprovedAuto extends LinearOpMode {
                     WobbleServo.setPosition(1);
                     driveMotors.rightFAST(20);
                     driveMotors.backFAST(24);
-                }
+*/
 
-                if (Location == 2) {
-                    while (! CollectorMove.fullUp()) {}
+                Shooter.setPower(.85);
+                Collector.setPower(.95);
+                FinalRoller.setPosition(0);
+                Roller1.setPosition(1);
+                Roller.setPosition(1);
+                sleep(1000);
+                sleep(1500);
+                shooterCommands.pos4();
+                sleep(100);
+                telemetry.addLine();
+                telemetry.addData("sspd before shot 1", Shooter.getVelocity());
+                //telemetry.update();
+                shooterCommands.shoot();
+                telemetry.addLine();
+                telemetry.addData("sspd after shot 1", Shooter.getVelocity());
+                telemetry.update();
+                sleep(100);
+                telemetry.addLine();
+                telemetry.addData("sspd before shot 2", Shooter.getVelocity());
+                //telemetry.update();
+                shooterCommands.shoot();
+                telemetry.addLine();
+                telemetry.addData("sspd after shot 2", Shooter.getVelocity());
+                telemetry.update();
+                sleep(100);
+                telemetry.addLine();
+                telemetry.addData("sspd before shot 3", Shooter.getVelocity());
+                //telemetry.update();
+                shooterCommands.shoot();
+                telemetry.addLine();
+                telemetry.addData("sspd after shot 3", Shooter.getVelocity());
+                telemetry.update();
+                sleep(2000);
 
-                    Shooter.setPower(.95);
-                    Collector.setPower(.95);
-                    FinalRoller.setPosition(0);
-                    Roller1.setPosition(1);
-                    Roller.setPosition(1);
-                    driveMotors.forward(41);
-                    sleep(1500);
-                    shooterCommands.pos4();
-                    sleep(100);
-                    shooterCommands.shoot();
-                    sleep(100);
-                    shooterCommands.shoot();
-                    sleep(100);
-                    shooterCommands.shoot();
 
-                    CollectorMove.down(623, 0.95);
-                    sleep(500);
-                    while (! CollectorMove.fullUp()) {}
-
-                    sleep(3000);
-                    Shooter.setPower(0);
-                    sleep(50);
-                    Shooter.setPower(.95);
-                    sleep(50);
-                    shooterCommands.shoot();
-
-                    CollectorMove.down(700, 0.95);
-                    sleep(100);
-                    while (! CollectorMove.fullUp()) {}
-
-                    sleep(3000);
-                    shooterCommands.shoot();
-                    sleep(100);
-
-                    driveMotors.forwardFAST(82);
-                    driveMotors.leftFast(10);
-                    WobbleServo.setPosition(1);
-                    sleep(1000);
-                    driveMotors.rightFAST(10);
-                    driveMotors.backFAST(45);
-                }
-                sleep(10000);
-                break;
             }
         } finally {
             // Disable Tracking when we are done;
@@ -477,4 +463,6 @@ public class NewandImprovedAuto extends LinearOpMode {
         tfod = ClassFactory.getInstance().createTFObjectDetector(tfodParameters, vuforia);
         tfod.loadModelFromAsset(TFOD_MODEL_ASSET, LABEL_FIRST_ELEMENT, LABEL_SECOND_ELEMENT);
     }
+
 }
+
