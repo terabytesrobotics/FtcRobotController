@@ -23,6 +23,8 @@ android {
     buildToolsVersion '30.0.3'
 }
 
+apply from: '../build.dependencies.gradle'
+
 repositories {
     maven { url = "https://dl.bintray.com/first-tech-challenge/ftcsdk/" }
 
@@ -38,3 +40,4 @@ dependencies {
     implementation "androidx.core:core-ktx:+"
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
 }
+
