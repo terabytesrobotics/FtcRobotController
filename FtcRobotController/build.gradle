@@ -25,17 +25,6 @@ android {
 
 apply from: '../build.dependencies.gradle'
 
-repositories {
-    maven { url = "https://dl.bintray.com/first-tech-challenge/ftcsdk/" }
-
-    flatDir {
-        dirs '../libs'
-    }
-    maven { url 'https://dl.bintray.com/kotlin/kotlin-eap' }
-    mavenCentral()
-}
-
-apply from: 'build.release.gradle'
 dependencies {
     implementation "androidx.core:core-ktx:+"
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
