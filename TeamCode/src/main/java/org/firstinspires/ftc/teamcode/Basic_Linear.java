@@ -91,12 +91,14 @@ public class Basic_Linear extends LinearOpMode {
     AnalogInput rotval;
     double MDirV;
     double rotmax =2.642;
-    double rotoffset = .25;
+    double rotoffset = .283;
     double rotscale;
     double rotdeg;
     double robhead;
-    double robheadzero=90;
+    double robheadzero=0;
     double heading;
+    double x=0;
+    double y = 0;
 
 
 
@@ -147,7 +149,7 @@ private BNO055IMU imu = null;
         rightBackDrive.setDirection(DcMotorEx.Direction.FORWARD);
 
         // set up imu
-        // parameters = new BNO055IMU.Parameters();
+        parameters = new BNO055IMU.Parameters();
         parameters.mode = BNO055IMU.SensorMode.IMU;
         parameters.angleUnit = BNO055IMU.AngleUnit.DEGREES;
         parameters.accelUnit = BNO055IMU.AccelUnit.METERS_PERSEC_PERSEC;
@@ -174,23 +176,12 @@ private BNO055IMU imu = null;
         runtime.reset();
 
         try {
-            PosLog.addHeaderLine(new String("Time, Speed, Current"));
+            PosLog.addHeaderLine(new String("Time, X, Y, Head"));
         } catch (IOException e) {
             e.printStackTrace();
         }
 
-        telemetry.addData("Status", "Run Time: " + runtime.toString());
-// Get updated position
-        s = rightBackDrive.getCurrentPosition() / ppinch;
-        deltas = s - olds;
-        rotdeg= ((rotval.getVoltage() - rot0) / rotscale ) % 360;
-        robhead = 450 - (imu.getAngularOrientation().firstAngle);
-        if (robhead > 360) {
-            robhead = robhead - 360;
-        }
-        heading = robhead + rotdeg - robheadzero;
-        if (heading > 360) {
-            heading = heading - 360;
+
 
         // run until the end of the match (driver presses STOP)
         while (opModeIsActive()) {
@@ -205,15 +196,19 @@ private BNO055IMU imu = null;
             // Set up a variable for each drive wheel to save the power level for telemetry.
 
             double leftFrontPower = axial + lateral + yaw;
-            double rightFrontPower = (3.0 / 2.0) * (axial - lateral - yaw);
+            double rightFrontPower = axial - lateral - yaw;
             double leftBackPower = axial - lateral + yaw;
             double rightBackPower = axial + lateral - yaw;
+
+
 
             // Normalize the values so no wheel power exceeds 100%
             // This ensures that the robot maintains the desired motion.
             max = Math.max(Math.abs(leftFrontPower), Math.abs(rightFrontPower));
             max = Math.max(max, Math.abs(leftBackPower));
             max = Math.max(max, Math.abs(rightBackPower));
+
+
 
             if (max > 1.0) {
                 leftFrontPower /= max;
@@ -239,6 +234,28 @@ private BNO055IMU imu = null;
             rightFrontPower = gamepad1.y ? 1.0 : 0.0;  // Y gamepad
             rightBackPower  = gamepad1.b ? 1.0 : 0.0;  // B gamepad
             */
+            telemetry.addData("Status", "Run Time: " + runtime.toString());
+// Get updated position
+            s = -rightBackDrive.getCurrentPosition() / ppinch;
+            deltas = s - olds;
+            rotdeg= ((rotval.getVoltage() - rot0) / rotscale ) % 360;
+            if (rotdeg<0) {rotdeg= 360+rotdeg;}
+
+            robhead = ((imu.getAngularOrientation().firstAngle))%360;
+           if (robhead < 0) {
+                robhead = robhead + 360;
+            }
+
+            heading = (robhead + rotdeg - robheadzero)%360;
+            if (heading > 360) {
+                heading = heading - 360;
+            }
+            x = x + deltas * Math.sin(Math.toRadians(heading));
+            y = y + deltas * Math.cos(Math.toRadians(heading));
+            //x_robot = x + ((-odsenx * Math.cos(Math.toRadians(rhead - 90))) + (-odseny * Math.sin(Math.toRadians(rhead - 90))));
+            //y_robot = y + ((-odseny * Math.cos(Math.toRadians(rhead - 90))) - (-odsenx * Math.sin(Math.toRadians(rhead - 90))));
+        olds = s;
+
 
             // Send calculated power to wheels
             leftFrontDrive.setPower(leftFrontPower);
@@ -252,9 +269,18 @@ private BNO055IMU imu = null;
             telemetry.addData("Front left/Right", "%4.2f, %4.2f", leftFrontPower, rightFrontPower);
             telemetry.addData("Back  left/Right", "%4.2f, %4.2f", leftBackPower, rightBackPower);
             telemetry.addData("Direction pot voltage", rotval.getVoltage());
+            telemetry.addData("rot0",rot0);
             telemetry.addData("Move angle", rotdeg);
+            telemetry.addData("IMU", imu.getAngularOrientation().firstAngle);
+            telemetry.addData("Robhead",robhead);
+            telemetry.addData("Heading",heading);
+            telemetry.addData("x",x);
+            telemetry.addData("y",y);
+            telemetry.addData("s",s);
+            telemetry.addData("olds",olds);
+            telemetry.addData("deltas",deltas);
             telemetry.update();
 
         }
         }
-    }}
+    }
