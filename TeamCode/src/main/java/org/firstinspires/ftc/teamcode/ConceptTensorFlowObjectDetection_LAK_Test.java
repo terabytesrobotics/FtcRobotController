@@ -64,6 +64,100 @@ public class ConceptTensorFlowObjectDetection_LAK_Test extends LinearOpMode {
      */
     private VisionPortal visionPortal;
 
+    private static final String[] LABELS = {
+            "person",
+            "bicycle",
+            "car",
+            "motorcycle",
+            "airplane",
+            "bus",
+            "train",
+            "truck",
+            "boat",
+            "traffic light",
+            "fire hydrant",
+            "???",
+            "stop sign",
+            "parking meter",
+            "bench",
+            "bird",
+            "cat",
+            "dog",
+            "horse",
+            "sheep",
+            "cow",
+            "elephant",
+            "bear",
+            "zebra",
+            "giraffe",
+            "???",
+            "backpack",
+            "umbrella",
+            "???",
+            "???",
+            "handbag",
+            "tie",
+            "suitcase",
+            "frisbee",
+            "skis",
+            "snowboard",
+            "sports ball",
+            "kite",
+            "baseball bat",
+            "baseball glove",
+            "1skateboard",
+            "surfboard",
+            "tennis racket",
+            "bottle",
+            "???",
+            "wine glass",
+            "cup",
+            "fork",
+            "knife",
+            "spoon",
+            "bowl",
+            "banana",
+            "apple",
+            "sandwich",
+            "orange",
+            "broccoli",
+            "carrot",
+            "hot dog",
+            "pizza",
+            "donut",
+            "cake",
+            "chair",
+            "couch",
+            "potted plant",
+            "bed",
+            "???",
+            "dining table",
+            "???",
+            "???",
+            "toilet",
+            "???",
+            "tv",
+            "laptop",
+            "mouse",
+            "remote",
+            "keyboard",
+            "cell phone",
+            "microwave",
+            "oven",
+            "toaster",
+            "sink",
+            "refrigerator",
+            "???",
+            "book",
+            "clock",
+            "vase",
+            "scissors",
+            "teddy bear",
+            "hair drier",
+            "toothbrush",
+            "Marker"
+    };
+
     @Override
     public void runOpMode() {
 
@@ -115,11 +209,12 @@ public class ConceptTensorFlowObjectDetection_LAK_Test extends LinearOpMode {
             //.setModelAssetName(TFOD_MODEL_ASSET)
             .setModelFileName("/sdcard/FIRST/tflitemodels/ssd_mobilenet_v2_320x320_coco17_tpu_8.tflite")
 
-            //.setModelLabels(LABELS)
+            .setModelLabels(LABELS)
             .setIsModelTensorFlow2(true)
-            //.setIsModelQuantized(true)
-            //.setModelInputSize(300)
+            .setIsModelQuantized(true)
+            .setModelInputSize(300)
             //.setModelAspectRatio(16.0 / 9.0)
+            .setModelAspectRatio(1.0 / 1.0)
 
             .build();
 
@@ -154,7 +249,7 @@ public class ConceptTensorFlowObjectDetection_LAK_Test extends LinearOpMode {
         visionPortal = builder.build();
 
         // Set confidence threshold for TFOD recognitions, at any time.
-        //tfod.setMinResultConfidence(0.75f);
+        tfod.setMinResultConfidence(0.75f);
 
         // Disable or re-enable the TFOD processor at any time.
         visionPortal.setProcessorEnabled(tfod, true);
