@@ -89,17 +89,24 @@ boolean prop_scanned = false;
 
                 //if (!prop_scanned) {
 
-                    VideoCapture prop_scan_capture = new VideoCapture(0);
+                    VideoCapture prop_scan_capture = new VideoCapture();
 
-                    if (!prop_scan_capture.isOpened()) {
-                        System.out.println("Error: Could not open camera.");
+
+                 /*   if (!prop_scan_capture.isOpened()) {
+                        //System.out.println("Error: Could not open camera.");
+                        telemetry.addLine("Not captured");
+                        telemetry.update();
+                        sleep(10000);
                         return;
-                    }
+                    }*/
 
-                        while (true) {
-                            prop_scan = new Mat();
+                       // while (true) {
+                           prop_scan = new Mat();
 
-                            if (prop_scan_capture.read(prop_scan)) {
+                    prop_scanned = prop_scan_capture.read(prop_scan);
+
+
+                         //   if (prop_scan_capture.read(prop_scan)) {
 
                                 int height = prop_scan.height();
                                 int width = prop_scan.width();
@@ -109,9 +116,10 @@ boolean prop_scanned = false;
                                 telemetry.addData("H", height);
                                 telemetry.addData("SW", sectionwidth);
                                 telemetry.update();
+                                sleep(10000);
 
 
-                 /*   double totalRed = 0.0;
+                    double totalRed = 0.0;
                     int pixelCount = 0;
                     int[] StartX = new int[3];
                     int[] EndX = new int[3];
@@ -143,14 +151,14 @@ boolean prop_scanned = false;
                         telemetry.addData("Section" + i, sectionR[i]);
 
                         telemetry.update();
-                    }*/
+                    }
 
 
-                            } else {
-                    System.out.println("Error: Could not read frame.");
-                    break;
-                            }
-                }
+                           // } //else {
+                    //System.out.println("Error: Could not read frame.");
+                    //break;
+                     //       }
+               // }
 
 
             }
