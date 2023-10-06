@@ -36,6 +36,7 @@ import org.firstinspires.ftc.robotcore.external.hardware.camera.BuiltinCameraDir
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
+import org.opencv.core.Core;
 import org.opencv.core.Mat;
 import org.opencv.core.Point;
 import org.opencv.core.Rect;
@@ -47,6 +48,8 @@ import org.openftc.easyopencv.OpenCvCameraFactory;
 import org.openftc.easyopencv.OpenCvCameraRotation;
 import org.openftc.easyopencv.OpenCvInternalCamera;
 import org.openftc.easyopencv.OpenCvPipeline;
+
+import java.util.ArrayList;
 
 /*
  * This OpMode illustrates the basics of AprilTag recognition and pose estimation, using
@@ -85,11 +88,15 @@ boolean prop_scanned = false;
 
 
                 // Push telemetry to the Driver Station.
+                telemetry.addData("Analysis", prop_pipeline.getAnalysis());
+
+
                 telemetry.update();
+                sleep(5000);
 
                 //if (!prop_scanned) {
 
-                    VideoCapture prop_scan_capture = new VideoCapture();
+                    //VideoCapture prop_scan_capture = new VideoCapture();
 
 
                  /*   if (!prop_scan_capture.isOpened()) {
@@ -103,7 +110,8 @@ boolean prop_scanned = false;
                        // while (true) {
                            prop_scan = new Mat();
 
-                    prop_scanned = prop_scan_capture.read(prop_scan);
+
+                    //prop_scanned = prop_scan_capture.read(prop_scan);
 
 
                          //   if (prop_scan_capture.read(prop_scan)) {
@@ -171,9 +179,42 @@ boolean prop_scanned = false;
 
         // boolean viewportPaused = false;
         //Mat prop_scan = new Mat();
+        Mat BGRa = new Mat();
+        Mat R = new Mat();
+
+        int avg;
+
+        void inputToR(Mat input) {
+
+            ArrayList<Mat> BGRaChannels = new ArrayList<Mat>(4);
+            input.copyTo(BGRa);
+            Core.split(BGRa, BGRaChannels);
+            R = BGRaChannels.get(0);
+
+        }
+
         @Override
         public Mat processFrame(Mat input) {
+            inputToR(input);
+            System.out.println("processing requested");
+            avg = (int) Core.mean(R).val[0];
+
+            BGRa.release(); // don't leak memory!
+            R.release(); // don't leak memory!
+
+
+           // avg = 1;
+
+
             return input;
+        }
+
+        public int getAnalysis() {
+            return avg;
+        }
+
+        public Mat getBGRa() {
+            return BGRa;
         }
     }
 

@@ -64,6 +64,7 @@ public class ConceptAprilTagEasy_LAK_Test_OpenCv_test extends LinearOpMode {
      * The variable to store our instance of the AprilTag processor.
      */
     private AprilTagProcessor aprilTag;
+    private EmptyProcessor emptyProcessor;
 
 
     /**
@@ -71,16 +72,16 @@ public class ConceptAprilTagEasy_LAK_Test_OpenCv_test extends LinearOpMode {
      */
     private VisionPortal visionPortal;
 
-    private Prop_Pipeline prop_pipeline;
+    //private Prop_Pipeline prop_pipeline;
 
 
-    class Prop_Pipeline extends OpenCvPipeline {
+   /* class Prop_Pipeline extends OpenCvPipeline {
         Mat prop_scan = new Mat();
         @Override
         public Mat processFrame(Mat input) {
             return input;
         }
-    }
+    }*/
 
     @Override
     public void runOpMode() {
@@ -123,13 +124,13 @@ public class ConceptAprilTagEasy_LAK_Test_OpenCv_test extends LinearOpMode {
         // aprilTag = AprilTagProcessor.easyCreateWithDefaults();
 
         // Create the vision portal the easy way.
-        prop_pipeline = new Prop_Pipeline();
+       // prop_pipeline = new Prop_Pipeline();
         if (USE_WEBCAM) {
             visionPortal = VisionPortal.easyCreateWithDefaults(
-                    hardwareMap.get(WebcamName.class, "Webcam 1"), (VisionProcessor) prop_pipeline);
+                    hardwareMap.get(WebcamName.class, "Webcam 1"), (VisionProcessor) emptyProcessor);
         } else {
             visionPortal = VisionPortal.easyCreateWithDefaults(
-                    BuiltinCameraDirection.BACK, (VisionProcessor) prop_pipeline);
+                    BuiltinCameraDirection.BACK, (VisionProcessor) emptyProcessor);
         }
 
     }   // end method initscanforprop()
