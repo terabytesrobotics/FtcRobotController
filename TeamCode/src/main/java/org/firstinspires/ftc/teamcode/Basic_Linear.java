@@ -134,7 +134,7 @@ private BNO055IMU imu = null;
         rotval=hardwareMap.get(AnalogInput.class,"dirpot");
 
         // ########################################################################################
-        // !!!            IMPORTANT Drive Information. Test your motor directions.            !!!!!
+        // !!!1            IMPORTANT Drive Information. Test your motor directions.            !!!!!
         // ########################################################################################
         // Most robots need the motors on one side to be reversed to drive forward.
         // The motor reversals shown here are for a "direct drive" robot (the wheels turn the same direction as the motor shaft)
