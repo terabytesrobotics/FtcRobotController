@@ -29,12 +29,12 @@
 
 package org.firstinspires.ftc.teamcode;
 
-import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.robotcore.external.hardware.camera.BuiltinCameraDirection;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
+import org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibration;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
@@ -48,9 +48,9 @@ import java.util.List;
  * Use Android Studio to Copy this Class, and Paste it into your team's code folder with a new name.
  * Remove or comment out the @Disabled line to add this OpMode to the Driver Station OpMode list.
  */
-@TeleOp(name = "Concept: AprilTag Easy", group = "Concept")
+@TeleOp(name = "Prop Detection test LAK", group = "Concept")
 //@Disabled
-public class ConceptAprilTagEasy_LAK_Test extends LinearOpMode {
+public class PropDetectTest_LAK extends LinearOpMode {
 
     private static final boolean USE_WEBCAM = false;  // true for webcam, false for phone camera
 
@@ -58,6 +58,17 @@ public class ConceptAprilTagEasy_LAK_Test extends LinearOpMode {
      * The variable to store our instance of the AprilTag processor.
      */
     private AprilTagProcessor aprilTag;
+    private WindowBoxesVisionProcessor propfinder;
+    private CameraCalibration calibration;
+
+    int Height = 480;
+    int Width = 640;
+
+   String redprop = "Red";
+   String bluprop = "Blue;";
+
+   int rows = 3;
+   int cols = 3;
 
     /**
      * The variable to store our instance of the vision portal.
@@ -67,7 +78,9 @@ public class ConceptAprilTagEasy_LAK_Test extends LinearOpMode {
     @Override
     public void runOpMode() {
 
-        initAprilTag();
+
+
+        initpropfinder();
 
         // Wait for the DS start button to be touched.
         telemetry.addData("DS preview on/off", "3 dots, Camera Stream");
@@ -78,6 +91,7 @@ public class ConceptAprilTagEasy_LAK_Test extends LinearOpMode {
         if (opModeIsActive()) {
             while (opModeIsActive()) {
 
+                /*
                 telemetryAprilTag();
 
                 // Push telemetry to the Driver Station.
@@ -91,7 +105,31 @@ public class ConceptAprilTagEasy_LAK_Test extends LinearOpMode {
                 }
 
                 // Share the CPU.
+                sleep(20);*/
+
+                Object redresults[] = propfinder.topbox(Width, Height, rows, cols, "red");
+                telemetry.addLine("Red Row " + redresults[0]);
+                telemetry.addLine("Red Col" + redresults[1]);
+                telemetry.addLine("Red value " + redresults[2]);
+
+                Object blueresults[] = propfinder.topbox(Width, Height, rows, cols, "blue");
+                telemetry.addLine("Blue Row " + redresults[0]);
+                telemetry.addLine("Blue Col" + redresults[1]);
+                telemetry.addLine("Blue value " + redresults[2]);
+
+                telemetry.update();
+
+
+                // Save CPU resources; can resume streaming when needed.
+                if (gamepad1.dpad_down) {
+                    visionPortal.stopStreaming();
+                } else if (gamepad1.dpad_up) {
+                    visionPortal.resumeStreaming();
+                }
+
+                // Share the CPU.
                 sleep(20);
+
             }
         }
 
@@ -145,7 +183,22 @@ public class ConceptAprilTagEasy_LAK_Test extends LinearOpMode {
         telemetry.addLine("PRY = Pitch, Roll & Yaw (XYZ Rotation)");
         telemetry.addLine("RBE = Range, Bearing & Elevation");
 
-
     }   // end method telemetryAprilTag()
+
+    private void initpropfinder() {
+
+        propfinder = new WindowBoxesVisionProcessor();
+
+        // Create the vision portal the easy way.
+        if (USE_WEBCAM) {
+            visionPortal = VisionPortal.easyCreateWithDefaults(
+                    hardwareMap.get(WebcamName.class, "Webcam 1"), propfinder);
+        } else {
+            visionPortal = VisionPortal.easyCreateWithDefaults(
+                    BuiltinCameraDirection.BACK, propfinder);
+        }
+
+    }   // end method initpropfinder()
+
 
 }   // end class
