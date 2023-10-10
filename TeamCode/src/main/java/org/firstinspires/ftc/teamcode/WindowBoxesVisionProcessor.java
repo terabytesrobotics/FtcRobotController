@@ -1,9 +1,12 @@
 package org.firstinspires.ftc.teamcode;
 
 import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
 
 import org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibration;
 import org.firstinspires.ftc.vision.VisionProcessor;
+import org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibration;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
@@ -23,12 +26,13 @@ public class WindowBoxesVisionProcessor implements VisionProcessor {
     private int colorindex;
     private int Height;
     private int Width;
+    private Rect maxroi;
+
+
 
     @Override
-    public void init(int width, int height, CameraCalibration calibration) {
+    public void init(int width, int height, org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibration calibration) {
 
-    Height=height;
-    Width=width;
 
     }
 
@@ -44,7 +48,18 @@ public class WindowBoxesVisionProcessor implements VisionProcessor {
     @Override
     public void onDrawFrame(Canvas canvas, int onscreenWidth, int onscreenHeight, float scaleBmpPxToCanvasPx, float scaleCanvasDensity, Object userContext) {
 
+     /*   Paint rectPaint = new Paint();
+        if (colorindex == 2){
+            rectPaint.setColor(Color.RED);}
+        else if (colorindex == 0){
+            rectPaint.setColor(Color.BLUE);}
+        rectPaint.setStyle(Paint.Style.STROKE);
+        rectPaint.setStrokeWidth(scaleCanvasDensity * 4);
+
+        canvas.drawRect(makeGraphicsRect(maxroi, scaleBmpPxToCanvasPx), rectPaint);
+    */
     }
+
 
 
     public Object[] topbox (int width,int height, int rows, int cols, String color) {
@@ -53,8 +68,8 @@ public class WindowBoxesVisionProcessor implements VisionProcessor {
         double colorvals[][] = new double[rows][cols];
         boxmaxes = new Mat(rows, cols, CvType.CV_64FC1);
 
-        //Width = width;
-        //Height = height;
+        Width = width;
+        Height = height;
         Rows = rows;
         Cols = cols;
         int maxrow = -1;
@@ -64,6 +79,8 @@ public class WindowBoxesVisionProcessor implements VisionProcessor {
 
         if (color == "red") {
             colorindex = 2;
+
+
         } else if (color == "blue") {
             colorindex = 0;
         } else {
@@ -95,11 +112,25 @@ public class WindowBoxesVisionProcessor implements VisionProcessor {
 
         maxval = result.maxVal;
         Point maxLoc = result.maxLoc;
+        maxroi = new Rect(maxcol * boxWidth, maxrow * boxHeight, boxWidth, boxHeight);
 
         maxrow = (int) maxLoc.y;
         maxcol = (int) maxLoc.x;
         return new Object[]{maxrow, maxcol, maxval};
 
 
+
+
+
+
+
+    }
+    private android.graphics.Rect makeGraphicsRect(Rect rect, float scaleBmpPxToCanvasPx) {
+        int left = Math.round(rect.x * scaleBmpPxToCanvasPx);
+        int top = Math.round(rect.y * scaleBmpPxToCanvasPx);
+        int right = left + Math.round(rect.width * scaleBmpPxToCanvasPx);
+        int bottom = top + Math.round(rect.height * scaleBmpPxToCanvasPx);
+
+        return new android.graphics.Rect(left, top, right, bottom);
     }
 }

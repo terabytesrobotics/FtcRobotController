@@ -117,6 +117,9 @@ public class ConceptAprilTagEasy_LAK_Test extends LinearOpMode {
                 BuiltinCameraDirection.BACK, aprilTag);
         }
 
+        telemetry.addData("test", "test");
+        telemetry.update();
+
     }   // end method initAprilTag()
 
     /**
