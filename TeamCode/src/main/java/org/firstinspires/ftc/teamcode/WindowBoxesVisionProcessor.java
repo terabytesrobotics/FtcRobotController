@@ -3,7 +3,9 @@ package org.firstinspires.ftc.teamcode;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.view.SurfaceView;
 
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibration;
 import org.firstinspires.ftc.vision.VisionProcessor;
 import org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibration;
@@ -23,10 +25,17 @@ public class WindowBoxesVisionProcessor implements VisionProcessor {
     private Mat boxmaxes;
     private int Rows;
     private int Cols;
-    private int colorindex;
+    private int colorindex=-1;
     private int Height;
     private int Width;
     private Rect maxroi;
+
+    private Paint rectPaint;
+
+
+
+
+
 
 
 
@@ -48,16 +57,17 @@ public class WindowBoxesVisionProcessor implements VisionProcessor {
     @Override
     public void onDrawFrame(Canvas canvas, int onscreenWidth, int onscreenHeight, float scaleBmpPxToCanvasPx, float scaleCanvasDensity, Object userContext) {
 
-     /*   Paint rectPaint = new Paint();
+       rectPaint = new Paint();
         if (colorindex == 2){
             rectPaint.setColor(Color.RED);}
         else if (colorindex == 0){
             rectPaint.setColor(Color.BLUE);}
+        else return;
         rectPaint.setStyle(Paint.Style.STROKE);
         rectPaint.setStrokeWidth(scaleCanvasDensity * 4);
 
         canvas.drawRect(makeGraphicsRect(maxroi, scaleBmpPxToCanvasPx), rectPaint);
-    */
+
     }
 
 
@@ -118,12 +128,6 @@ public class WindowBoxesVisionProcessor implements VisionProcessor {
         maxcol = (int) maxLoc.x;
         return new Object[]{maxrow, maxcol, maxval};
 
-
-
-
-
-
-
     }
     private android.graphics.Rect makeGraphicsRect(Rect rect, float scaleBmpPxToCanvasPx) {
         int left = Math.round(rect.x * scaleBmpPxToCanvasPx);
@@ -133,4 +137,5 @@ public class WindowBoxesVisionProcessor implements VisionProcessor {
 
         return new android.graphics.Rect(left, top, right, bottom);
     }
-}
+
+    }
