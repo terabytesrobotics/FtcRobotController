@@ -86,8 +86,8 @@ public class handTestGordon extends LinearOpMode {
         handCOllector2 = hardwareMap.get(Servo.class, "servo2");
         // Wait for the game to start (driver presses PLAY)
 
-        handCollector1.setPosition(.5);
-        handCOllector2.setPosition(.5);
+        handCollector1.setPosition(.6);
+        handCOllector2.setPosition(.575);
 
         waitForStart();
         runtime.reset();
@@ -95,16 +95,26 @@ public class handTestGordon extends LinearOpMode {
         // run until the end of the match (driver presses STOP)
         while (opModeIsActive()) {
 
-            if (gamepad1.dpad_down = true) {
-                if (handCollector1.getPosition() = .5){
+            if (gamepad1.a == true) {
+                if (handCollector1.getPosition() == .6){
                     handCollector1.setPosition(1);
 
             }
             else {
-                handCollector1.setPosition(.5);
+                handCollector1.setPosition(.6);
 
             }
             }
+
+            if (gamepad1.b == true) {
+                if (handCOllector2.getPosition() == .575){
+                    handCOllector2.setPosition(1);
+
+                }
+                else {
+                    handCOllector2.setPosition(.575);
+
+                }}
 
             // Setup a variable for each drive wheel to save power level for telemetry
            // double leftPower;
@@ -115,7 +125,7 @@ public class handTestGordon extends LinearOpMode {
 
             // POV Mode uses left stick to go forward, and right stick to turn.
             // - This uses basic math to combine motions and is easier to drive straight.
-            double drive = -gamepad1.left_stick_y;
+           /* double drive = -gamepad1.left_stick_y;
             double turn  =  gamepad1.right_stick_x;
             leftPower    = Range.clip(drive + turn, -1.0, 1.0) ;
             rightPower   = Range.clip(drive - turn, -1.0, 1.0) ;
@@ -133,6 +143,6 @@ public class handTestGordon extends LinearOpMode {
             telemetry.addData("Status", "Run Time: " + runtime.toString());
             telemetry.addData("Motors", "left (%.2f), right (%.2f)", leftPower, rightPower);
             telemetry.update();
-        }
+       */ }
     }
 }
