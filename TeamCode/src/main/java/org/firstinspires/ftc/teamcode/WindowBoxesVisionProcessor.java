@@ -15,22 +15,30 @@ import org.opencv.core.Mat;
 import org.opencv.core.Point;
 import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
+import org.opencv.imgproc.Imgproc;
 
 import java.lang.reflect.Array;
 import java.security.PublicKey;
 import java.util.ArrayList;
 
 public class WindowBoxesVisionProcessor implements VisionProcessor {
-    private Mat lastFrame;
-    private Mat boxmaxes;
-    private int Rows;
-    private int Cols;
-    private int colorindex=-1;
-    private int Height;
-    private int Width;
-    private Rect maxroi;
+    public Mat lastFrame;
+    public Mat boxmaxes;
+    public int Rows;
+    public int Cols;
+    public int colorindex=0;
+    public int Height;
+    public int Width;
+    public Rect maxroi;
 
-    private Paint rectPaint;
+    public Rect startrect;
+
+    public Paint rectPaint;
+
+
+    public String color = "";
+
+
 
 
 
@@ -42,6 +50,9 @@ public class WindowBoxesVisionProcessor implements VisionProcessor {
     @Override
     public void init(int width, int height, org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibration calibration) {
 
+        startrect=new Rect(0,0,width/2,height/2);
+        maxroi=new Rect(0,0,width/2,height/2);
+
 
     }
 
@@ -51,31 +62,54 @@ public class WindowBoxesVisionProcessor implements VisionProcessor {
     public Object processFrame(Mat frame, long captureTimeNanos) {
 
       lastFrame = frame.clone();
-        return frame;
+
+        return lastFrame;
     }
 
     @Override
     public void onDrawFrame(Canvas canvas, int onscreenWidth, int onscreenHeight, float scaleBmpPxToCanvasPx, float scaleCanvasDensity, Object userContext) {
 
-       rectPaint = new Paint();
-        if (colorindex == 2){
-            rectPaint.setColor(Color.RED);}
-        else if (colorindex == 0){
-            rectPaint.setColor(Color.BLUE);}
-        else return;
-        rectPaint.setStyle(Paint.Style.STROKE);
-        rectPaint.setStrokeWidth(scaleCanvasDensity * 4);
 
-        canvas.drawRect(makeGraphicsRect(maxroi, scaleBmpPxToCanvasPx), rectPaint);
+            rectPaint = new Paint();
+           if (colorindex == 1) {
+                rectPaint.setColor(Color.RED);
+            } else if (colorindex == 2) {
+                rectPaint.setColor(Color.BLUE);
+            } else return;
+
+
+            rectPaint.setStyle(Paint.Style.STROKE);
+            rectPaint.setStrokeWidth(scaleCanvasDensity * 10);
+
+        if(maxroi!=null ) {
+
+         canvas.drawRect(makeGraphicsRect(maxroi, scaleBmpPxToCanvasPx), rectPaint);
+        }
+        else {
+
+          canvas.drawRect(makeGraphicsRect(startrect,scaleBmpPxToCanvasPx), rectPaint);
+             }
 
     }
 
 
-
     public Object[] topbox (int width,int height, int rows, int cols, String color) {
-        Mat evalFrame = lastFrame.clone();
+        // Comment out this is RGB Mat evalFrame = lastFrame.clone();
+        //This converts to YCRCB
+        Mat ycrcbEvalFrame = new Mat();
+        Imgproc.cvtColor(lastFrame, ycrcbEvalFrame,Imgproc.COLOR_RGB2YCrCb);
         Mat boxes[][] = new Mat[rows][cols];
-        double colorvals[][] = new double[rows][cols];
+        double crvals[][] = new double[rows][cols];
+        double cbvals[][] = new double[rows][cols];
+        double yvals[][] = new double[rows][cols];
+
+        double avred;
+        double avy;
+        double rcor;
+        rcor = 0;
+
+
+
         boxmaxes = new Mat(rows, cols, CvType.CV_64FC1);
 
         Width = width;
@@ -87,12 +121,15 @@ public class WindowBoxesVisionProcessor implements VisionProcessor {
         double maxval = -1;
 
 
-        if (color == "red") {
+        if (color == "RED") {
+            //index 2 for RGB, 1 for ycrcb
+            colorindex = 1;
+
+
+        } else if (color == "BLUE") {
+            //index 0 for RGB, 2 for ycrcb
+
             colorindex = 2;
-
-
-        } else if (color == "blue") {
-            colorindex = 0;
         } else {
             System.err.println("Error: Color not recognized.");
         }
@@ -105,15 +142,21 @@ public class WindowBoxesVisionProcessor implements VisionProcessor {
             for (int c = 0; c < Cols; c++) {
 
                 Rect roi = new Rect(c * boxWidth, r * boxHeight, boxWidth, boxHeight);
-                boxes[r][c] = new Mat(evalFrame, roi);
+                boxes[r][c] = new Mat(ycrcbEvalFrame, roi);
 
                 // Calculate the average selected color intensity in the box
                 Scalar avgColor = Core.mean(boxes[r][c]);
 
-                colorvals[r][c] = avgColor.val[colorindex]; // Red channel (0=Blue, 1=Green, 2=Red)
 
-                boxmaxes.put(r, c, colorvals[r][c]);
+                if (color=="RED") {
 
+                    boxmaxes.put(r, c, avgColor.val[1]);
+
+                } else if (color=="BLUE") {
+
+                    boxmaxes.put(r, c, avgColor.val[2]);
+
+                }
             }
 
 
@@ -122,7 +165,7 @@ public class WindowBoxesVisionProcessor implements VisionProcessor {
 
         maxval = result.maxVal;
         Point maxLoc = result.maxLoc;
-        maxroi = new Rect(maxcol * boxWidth, maxrow * boxHeight, boxWidth, boxHeight);
+        maxroi = new Rect((int) maxLoc.x * boxWidth, (int)maxLoc.y * boxHeight, boxWidth, boxHeight);
 
         maxrow = (int) maxLoc.y;
         maxcol = (int) maxLoc.x;
@@ -130,12 +173,18 @@ public class WindowBoxesVisionProcessor implements VisionProcessor {
 
     }
     private android.graphics.Rect makeGraphicsRect(Rect rect, float scaleBmpPxToCanvasPx) {
+        if(rect !=null){
         int left = Math.round(rect.x * scaleBmpPxToCanvasPx);
         int top = Math.round(rect.y * scaleBmpPxToCanvasPx);
         int right = left + Math.round(rect.width * scaleBmpPxToCanvasPx);
         int bottom = top + Math.round(rect.height * scaleBmpPxToCanvasPx);
 
-        return new android.graphics.Rect(left, top, right, bottom);
-    }
+        return new android.graphics.Rect(left, top, right, bottom);}
+        else {return null;
+        }
+
+
+        }
 
     }
+

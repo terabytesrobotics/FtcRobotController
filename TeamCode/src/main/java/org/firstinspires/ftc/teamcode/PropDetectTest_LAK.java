@@ -63,14 +63,18 @@ public class PropDetectTest_LAK extends LinearOpMode {
     public CameraCalibration calibration;
 
 
+
+
     int Height = 480;
     int Width = 640;
 
-   String redprop = "Red";
-   String bluprop = "Blue;";
+   String redprop = "RED";
+   String bluprop = "BLUE";
 
-   int rows = 3;
-   int cols = 3;
+   int rows = 8;
+   int cols = 6;
+
+   String color = "RED";//Change to BLUE as necessary.
 
     /**
      * The variable to store our instance of the vision portal.
@@ -108,16 +112,19 @@ public class PropDetectTest_LAK extends LinearOpMode {
 
                 // Share the CPU.
                 sleep(20);*/
-
-                Object redresults[] = propfinder.topbox(Width, Height, rows, cols, "red");
-                telemetry.addLine("Red Row " + redresults[0]);
-                telemetry.addLine("Red Col" + redresults[1]);
-                telemetry.addLine("Red value " + redresults[2]);
-
-                Object blueresults[] = propfinder.topbox(Width, Height, rows, cols, "blue");
-                telemetry.addLine("Blue Row " + redresults[0]);
-                telemetry.addLine("Blue Col" + redresults[1]);
-                telemetry.addLine("Blue value " + redresults[2]);
+                if (color=="RED") {
+                    Object redresults[] = propfinder.topbox(Width, Height, rows, cols, "RED");
+                    telemetry.addLine("Red Row " + redresults[0]);
+                    telemetry.addLine("Red Col" + redresults[1]);
+                    telemetry.addLine("Red value " + redresults[2]);
+                }
+                else if (color=="BLUE") {
+                                    Object blueresults[] = propfinder.topbox(Width, Height, rows, cols, "BLUE");
+                telemetry.addLine("Blue Row " + blueresults[0]);
+                telemetry.addLine("Blue Col" + blueresults[1]);
+                telemetry.addLine("Blue value " + blueresults[2]);
+                }
+                else return;
 
                 telemetry.update();
 
