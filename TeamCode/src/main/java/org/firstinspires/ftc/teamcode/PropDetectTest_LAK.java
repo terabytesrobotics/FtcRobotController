@@ -29,13 +29,14 @@
 
 package org.firstinspires.ftc.teamcode;
 
+import com.acmerobotics.dashboard.FtcDashboard;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.robotcore.external.hardware.camera.BuiltinCameraDirection;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibration;
-import org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibrationManager;
+import org.firstinspires.ftc.teamcode.Processors.WindowBoxesVisionProcessor;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
@@ -71,10 +72,10 @@ public class PropDetectTest_LAK extends LinearOpMode {
    String redprop = "RED";
    String bluprop = "BLUE";
 
-   int rows = 8;
-   int cols = 6;
+   public static int rows = 8;
+   public static int cols = 6;
 
-   String color = "RED";//Change to BLUE as necessary.
+   public static String color = "RED";//Change to BLUE as necessary.
 
     /**
      * The variable to store our instance of the vision portal.
@@ -84,14 +85,17 @@ public class PropDetectTest_LAK extends LinearOpMode {
     @Override
     public void runOpMode() {
 
+        FtcDashboard dashboard = FtcDashboard.getInstance();
+        telemetry = dashboard.getTelemetry();
+
 
 
         initpropfinder();
 
         // Wait for the DS start button to be touched.
-        telemetry.addData("DS preview on/off", "3 dots, Camera Stream");
+       /* telemetry.addData("DS preview on/off", "3 dots, Camera Stream");
         telemetry.addData(">", "Touch Play to start OpMode");
-        telemetry.update();
+        telemetry.update();*/
         waitForStart();
 
         if (opModeIsActive()) {
@@ -117,7 +121,9 @@ public class PropDetectTest_LAK extends LinearOpMode {
                     telemetry.addLine("Red Row " + redresults[0]);
                     telemetry.addLine("Red Col" + redresults[1]);
                     telemetry.addLine("Red value " + redresults[2]);
+                    telemetry.addData("RedMax", redresults[2]);
                 }
+
                 else if (color=="BLUE") {
                                     Object blueresults[] = propfinder.topbox(Width, Height, rows, cols, "BLUE");
                 telemetry.addLine("Blue Row " + blueresults[0]);
@@ -125,6 +131,8 @@ public class PropDetectTest_LAK extends LinearOpMode {
                 telemetry.addLine("Blue value " + blueresults[2]);
                 }
                 else return;
+
+
 
                 telemetry.update();
 

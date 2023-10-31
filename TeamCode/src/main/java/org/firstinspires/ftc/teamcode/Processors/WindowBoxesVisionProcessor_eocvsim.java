@@ -1,14 +1,12 @@
-package org.firstinspires.ftc.teamcode;
+package org.firstinspires.ftc.teamcode.Processors;
 
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
-import android.view.SurfaceView;
 
-import org.firstinspires.ftc.robotcore.external.Telemetry;
+
 import org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibration;
 import org.firstinspires.ftc.vision.VisionProcessor;
-import org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibration;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
@@ -17,11 +15,7 @@ import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
 import org.opencv.imgproc.Imgproc;
 
-import java.lang.reflect.Array;
-import java.security.PublicKey;
-import java.util.ArrayList;
-
-public class WindowBoxesVisionProcessor implements VisionProcessor {
+public class WindowBoxesVisionProcessor_eocvsim implements VisionProcessor {
     public Mat lastFrame;
     public Mat boxmaxes;
     public int Rows;
@@ -48,7 +42,7 @@ public class WindowBoxesVisionProcessor implements VisionProcessor {
 
 
     @Override
-    public void init(int width, int height, org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibration calibration) {
+    public void init(int width, int height, CameraCalibration calibration) {
 
         startrect=new Rect(0,0,width/2,height/2);
         maxroi=new Rect(0,0,width/2,height/2);
