@@ -30,6 +30,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.dashboard.FtcDashboard;
+import com.acmerobotics.dashboard.config.Config;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
@@ -50,6 +51,7 @@ import java.util.List;
  * Use Android Studio to Copy this Class, and Paste it into your team's code folder with a new name.
  * Remove or comment out the @Disabled line to add this OpMode to the Driver Station OpMode list.
  */
+@Config
 @TeleOp(name = "Prop Detection test LAK", group = "Concept")
 //@Disabled
 public class PropDetectTest_LAK extends LinearOpMode {
@@ -130,7 +132,7 @@ public class PropDetectTest_LAK extends LinearOpMode {
                 telemetry.addLine("Blue Col" + blueresults[1]);
                 telemetry.addLine("Blue value " + blueresults[2]);
                 }
-                else return;
+                    else return;
 
 
 

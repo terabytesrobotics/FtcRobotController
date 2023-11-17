@@ -4,30 +4,21 @@ import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.arcrobotics.ftclib.controller.PIDController;
-import com.arcrobotics.ftclib.controller.PIDFController;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
-import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.DcMotorController;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
-import com.qualcomm.robotcore.hardware.PIDCoefficients;
-import com.qualcomm.robotcore.hardware.PIDFCoefficients;
-import com.qualcomm.robotcore.hardware.configuration.typecontainers.MotorConfigurationType;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 @Config
-@TeleOp (name = "Arm Control PID plus F")
-public class ArmPIDFControl extends LinearOpMode {
+@TeleOp (name = "Worm Arm Control PID plus F")
+public class ArmWormPIDFControl extends LinearOpMode {
     private ElapsedTime runtime = new ElapsedTime();
 
     private PIDController armcontrol;
 
-    public static double p = 0.004, i = 0.05, d = 0.0002;
-    public static double f = 0.23;
+    public static double p = 0.005, i = 0.005, d = 0.0002;
+    public static double f = 0.0;
 
    // Angle below horiontal at start in degrees.  horizontal is 0.
     public static double angleoffset = -28;
@@ -37,20 +28,21 @@ public class ArmPIDFControl extends LinearOpMode {
             ;
 
     //Max arm extension in cm
-    public static double maxextend = 25;
+    public static double maxextend = 20;
     public static int extendTolerance = 4;
 
-    public static double extendPower = 0.6
+    public static double extendPower = 0.8
+
             ;
 
     //Length to extend in cm
-    public static int extendLength = 0;
+    public static double extendLength = 0;
 
     public static int extendTicTarget =0;
 
     public double fmax = 0;
 
-    public static double extendergearratio = (1+46/17);
+    public static double extendergearratio = (5.2);
 
 
     static double extender_tics_per_cm = extendergearratio*28/0.8;
@@ -60,12 +52,14 @@ public class ArmPIDFControl extends LinearOpMode {
 
     public static double armTolerance = 10;
 
-    private final double gear_ratio = 50.9;
+    private final double gear_ratio = 13.7;
 
-    private final double arm_ticks_per_degree = 28*gear_ratio/360;
+    private static double worm_ratio =28;
+
+    private final double arm_ticks_per_degree = worm_ratio*28*gear_ratio/360;
 
     private DcMotorEx arm_motor0;
-    private DcMotorEx arm_motor1;
+    //private DcMotorEx arm_motor1;
 
     private DcMotorEx extender;
 
@@ -86,12 +80,12 @@ public class ArmPIDFControl extends LinearOpMode {
 
         armcontrol = new PIDController(p,i,d);
         arm_motor0 = hardwareMap.get(DcMotorEx.class,"arm_motor0");
-        arm_motor1 = hardwareMap.get(DcMotorEx.class,"arm_motor1");
+        //arm_motor1 = hardwareMap.get(DcMotorEx.class,"arm_motor1");
         extender = hardwareMap.get(DcMotorEx.class,"extender");
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
-        arm_motor0.setDirection(DcMotorEx.Direction.REVERSE);
-        arm_motor1.setDirection(DcMotorEx.Direction.FORWARD);
+        arm_motor0.setDirection(DcMotorEx.Direction.FORWARD);
+        //arm_motor1.setDirection(DcMotorEx.Direction.FORWARD);
         extender.setDirection(DcMotorSimple.Direction.REVERSE);
 
 
@@ -140,7 +134,7 @@ public class ArmPIDFControl extends LinearOpMode {
 
 
             arm_motor0.setPower(armpower);
-            arm_motor1.setPower(armpower);
+            //arm_motor1.setPower(armpower);
             extender.setPower(extendPower);
 
             telemetry.addData("f",f);
