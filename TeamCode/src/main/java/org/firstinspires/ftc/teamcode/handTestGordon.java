@@ -82,8 +82,8 @@ public class handTestGordon extends LinearOpMode {
         // Note: The settings here assume direct drive on left and right wheels.  Gear Reduction or 90 Deg drives may require direction flips
         //leftDrive.setDirection(DcMotor.Direction.REVERSE);
         //rightDrive.setDirection(DcMotor.Direction.FORWARD);
-        handCollector1 = hardwareMap.get(Servo.class, "servo");
-        handCOllector2 = hardwareMap.get(Servo.class, "servo2");
+        handCollector1 = hardwareMap.get(Servo.class, "greenE0");
+        handCOllector2 = hardwareMap.get(Servo.class, "blueE1");
         // Wait for the game to start (driver presses PLAY)
 
         handCollector1.setPosition(.6);
