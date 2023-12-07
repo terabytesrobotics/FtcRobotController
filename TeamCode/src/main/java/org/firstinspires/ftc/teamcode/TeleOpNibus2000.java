@@ -108,8 +108,8 @@ public class TeleOpNibus2000 extends LinearOpMode {
         greenGrabber = hardwareMap.get(Servo.class, "greenE0");
         blueGrabber = hardwareMap.get(Servo.class, "blueE1");
 
-        greenGrabber.setPosition(1);
-        blueGrabber.setPosition(1);
+        greenGrabber.setPosition(.4);
+        blueGrabber.setPosition(.8);
 //arm and ex
         armcontrol = new PIDController(p, i, d);
         arm_motor0 = hardwareMap.get(DcMotorEx.class, "arm_motorE0");
@@ -186,19 +186,19 @@ public class TeleOpNibus2000 extends LinearOpMode {
 
                 switch (greenGrabberState) {
                     case GRABBED:
-                        greenGrabber.setPosition(1);
+                        greenGrabber.setPosition(.4);
                         break;
                     case NOT_GRABBED:
-                        greenGrabber.setPosition(.5);
+                        greenGrabber.setPosition(.1);
                         break;
                 }
 
                 switch (blueGrabberState) {
                     case GRABBED:
-                        blueGrabber.setPosition(.5);
+                        blueGrabber.setPosition(.8);
                         break;
                     case NOT_GRABBED:
-                        blueGrabber.setPosition(0);
+                        blueGrabber.setPosition(.5);
                         break;
                 }
 

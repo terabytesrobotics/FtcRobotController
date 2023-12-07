@@ -6,6 +6,7 @@ import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.arcrobotics.ftclib.controller.PIDController;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.util.ElapsedTime;
@@ -77,6 +78,10 @@ public class ArmWormPIDFControl extends LinearOpMode {
      */
     @Override
     public void runOpMode() throws InterruptedException {
+
+
+
+
 
         armcontrol = new PIDController(p,i,d);
         arm_motor0 = hardwareMap.get(DcMotorEx.class,"arm_motor0");
