@@ -123,10 +123,10 @@ public class RobotAutoDriveToAprilTagOmni_LAK_Test extends LinearOpMode
         // Initialize the hardware variables. Note that the strings used here as parameters
         // to 'get' must match the names assigned during the robot configuration.
         // step (using the FTC Robot Controller app on the phone).
-        leftFrontDrive  = hardwareMap.get(DcMotor.class, "LF");
-        rightFrontDrive = hardwareMap.get(DcMotor.class, "RF");
-        leftBackDrive  = hardwareMap.get(DcMotor.class, "LR");
-        rightBackDrive = hardwareMap.get(DcMotor.class, "RR");
+        leftFrontDrive  = hardwareMap.get(DcMotor.class, "fl2");
+        rightFrontDrive = hardwareMap.get(DcMotor.class, "fr3");
+        leftBackDrive  = hardwareMap.get(DcMotor.class, "bl0");
+        rightBackDrive = hardwareMap.get(DcMotor.class, "br1");
 
         // To drive forward, most robots need the motor on one side to be reversed, because the axles point in opposite directions.
         // When run, this OpMode should start both motors driving forward. So adjust these two lines based on your first test drive.

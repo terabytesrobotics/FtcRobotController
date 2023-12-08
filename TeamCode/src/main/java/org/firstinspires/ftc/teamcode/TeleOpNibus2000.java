@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.dashboard.FtcDashboard;
+import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.arcrobotics.ftclib.controller.PIDController;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
@@ -12,6 +13,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 
+@Config
 @TeleOp
 
 public class TeleOpNibus2000 extends LinearOpMode {
@@ -110,6 +112,8 @@ public class TeleOpNibus2000 extends LinearOpMode {
 
         greenGrabber = hardwareMap.get(Servo.class, "greenE0");
         blueGrabber = hardwareMap.get(Servo.class, "blueE1");
+
+        telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         greenGrabber.setPosition(0);
         blueGrabber.setPosition(.8);

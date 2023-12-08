@@ -74,8 +74,8 @@ public class PropDetectTest_LAK extends LinearOpMode {
    String redprop = "RED";
    String bluprop = "BLUE";
 
-   public static int rows = 8;
-   public static int cols = 6;
+   public static int rows = 3;
+   public static int cols = 2;
 
    public static String color = "RED";//Change to BLUE as necessary.
 
@@ -87,8 +87,8 @@ public class PropDetectTest_LAK extends LinearOpMode {
     @Override
     public void runOpMode() {
 
-        FtcDashboard dashboard = FtcDashboard.getInstance();
-        telemetry = dashboard.getTelemetry();
+       // FtcDashboard dashboard = FtcDashboard.getInstance();
+        // telemetry = dashboard.getTelemetry();
 
 
 
@@ -123,7 +123,7 @@ public class PropDetectTest_LAK extends LinearOpMode {
                     telemetry.addLine("Red Row " + redresults[0]);
                     telemetry.addLine("Red Col" + redresults[1]);
                     telemetry.addLine("Red value " + redresults[2]);
-                    telemetry.addData("RedMax", redresults[2]);
+
                 }
 
                 else if (color=="BLUE") {
