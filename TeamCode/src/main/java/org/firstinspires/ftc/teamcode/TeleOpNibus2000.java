@@ -78,6 +78,7 @@ public class TeleOpNibus2000 extends LinearOpMode {
     private boolean lBWasPressed = false;
     private boolean rBWasPressed = false;
     private boolean bPressed = false;
+    
     private long lastAPressTime = 0;
     private long lastBPressTime = 0;
     private static final long DEBOUNCE_TIME = 500; // Debounce time in milliseconds
@@ -124,7 +125,7 @@ public class TeleOpNibus2000 extends LinearOpMode {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         arm_motor0.setDirection(DcMotorEx.Direction.FORWARD);
-        extender.setDirection(DcMotorSimple.Direction.REVERSE);
+        extender.setDirection(DcMotorSimple.Direction.FORWARD);
 
 
         extender.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
