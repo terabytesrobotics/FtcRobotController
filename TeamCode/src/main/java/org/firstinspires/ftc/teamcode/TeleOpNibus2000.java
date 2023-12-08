@@ -27,7 +27,7 @@ public class TeleOpNibus2000 extends LinearOpMode {
     public static double f = 0.0;
 
     // Angle below horiontal at start in degrees.  horizontal is 0.
-    public static double angleoffset = -28;
+    public static double angleoffset = 0;
 
     //Max angle limit
     public static double maxangle = 135;
@@ -72,6 +72,9 @@ public class TeleOpNibus2000 extends LinearOpMode {
     Servo blueGrabber;
 
     private boolean aWasPressed = false;
+
+    private boolean lBWasPressed = false;
+    private boolean rBWasPressed = false;
     private boolean bPressed = false;
     private long lastAPressTime = 0;
     private long lastBPressTime = 0;
@@ -108,7 +111,7 @@ public class TeleOpNibus2000 extends LinearOpMode {
         greenGrabber = hardwareMap.get(Servo.class, "greenE0");
         blueGrabber = hardwareMap.get(Servo.class, "blueE1");
 
-        greenGrabber.setPosition(.4);
+        greenGrabber.setPosition(0);
         blueGrabber.setPosition(.8);
 //arm and ex
         armcontrol = new PIDController(p, i, d);
@@ -147,13 +150,33 @@ public class TeleOpNibus2000 extends LinearOpMode {
             while (opModeIsActive()) {
 
                 if (gamepad1.a) {
-                    if (aWasPressed) {
+                    if (!aWasPressed) {
                         blueGrabberState = blueGrabberState.toggle();
                         greenGrabberState = greenGrabberState.toggle();
                     }
                     aWasPressed = true;
                 } else {
                     aWasPressed = false;
+                }
+
+                if (gamepad1.left_bumper) {
+                    if (!lBWasPressed) {
+
+                        greenGrabberState = greenGrabberState.toggle();
+                    }
+                    lBWasPressed = true;
+                } else {
+                    lBWasPressed = false;
+                }
+
+                if (gamepad1.right_bumper) {
+                    if (!rBWasPressed) {
+
+                        blueGrabberState = blueGrabberState.toggle();
+                    }
+                    rBWasPressed = true;
+                } else {
+                    rBWasPressed = false;
                 }
 
                 /*if (gamepad1.a && !aPressed) {
@@ -186,19 +209,19 @@ public class TeleOpNibus2000 extends LinearOpMode {
 
                 switch (greenGrabberState) {
                     case GRABBED:
-                        greenGrabber.setPosition(.4);
+                        greenGrabber.setPosition(.3);
                         break;
                     case NOT_GRABBED:
-                        greenGrabber.setPosition(.1);
+                        greenGrabber.setPosition(0.02);
                         break;
                 }
 
                 switch (blueGrabberState) {
                     case GRABBED:
-                        blueGrabber.setPosition(.8);
+                        blueGrabber.setPosition(.65);
                         break;
                     case NOT_GRABBED:
-                        blueGrabber.setPosition(.5);
+                        blueGrabber.setPosition(.9);
                         break;
                 }
 
@@ -225,7 +248,7 @@ public class TeleOpNibus2000 extends LinearOpMode {
                 extender.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
 
                 // RIGHT HERE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                //arm_motor0.setPower(armpower);
+                arm_motor0.setPower(armpower);
                 extender.setPower(extendPower);
 
                 telemetry.addData("f", f);
