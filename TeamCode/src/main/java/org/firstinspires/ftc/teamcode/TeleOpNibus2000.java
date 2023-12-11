@@ -241,7 +241,7 @@ public class TeleOpNibus2000 extends LinearOpMode {
                     case 6:
                         collectorHeight = collectorHeight + gamepad2.right_stick_y;
                         telemetry.addData("Collector Height", collectorHeight);
-                        degtarget = triangleCalculator(collectorHeight, 10, 100)[2];
+                        degtarget = triangleCalculator(collectorHeight, 10, 100)[1];
                         telemetry.addData("Angle", degtarget);
                         extendLength = triangleCalculator(collectorHeight, 10, 90)[0];
                         telemetry.addData("Extend Length", extendLength);
