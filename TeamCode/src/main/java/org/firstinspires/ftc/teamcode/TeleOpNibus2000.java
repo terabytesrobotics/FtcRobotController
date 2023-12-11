@@ -324,9 +324,12 @@ public class TeleOpNibus2000 extends LinearOpMode {
         //output[0] = sideC. c^2 = a^2 + b^2 - 2abcos(C)
         output[0] = Math.sqrt(Math.pow(sideA, 2) + Math.pow(sideB, 2) - 2 * sideA * sideB * Math.cos(Math.toRadians(angleC)));
         //output[1] = angleA. sin(A)/a = sin(B)/b
-        output[1] = Math.toDegrees(Math.asin((sideB * Math.sin(Math.toRadians(angleC))) / output[0]));
+        telemetry.addData("sideA", sideA);
+        output[1] = 200 - Math.toDegrees(Math.asin((sideB * Math.sin(Math.toRadians(angleC))) / output[0]));
         //output[2] = angleB. 180 - angleC - angleA
+        telemetry.addData("sideB", sideB);
         output[2] = Math.toDegrees(Math.asin((sideA * Math.sin(Math.toRadians(angleC))) / output[0]));
+        telemetry.addData("angleC", angleC);
         return output;
     }
 }
