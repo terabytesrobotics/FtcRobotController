@@ -10,6 +10,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.TouchSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 
@@ -23,6 +24,7 @@ public class TeleOpNibus2000 extends LinearOpMode {
     private DcMotor rightBackDrive = null;  //  Used to control the right back drive wheel
     private ElapsedTime runtime = new ElapsedTime();
 
+    private TouchSensor armMin;
     private PIDController armcontrol;
 
     public static double p = 0.005, i = 0.005, d = 0.0002;
@@ -32,10 +34,10 @@ public class TeleOpNibus2000 extends LinearOpMode {
     public static double angleoffset = 0;
 
     //Max angle limit
-    public static double maxangle = 135;
+    public static double maxangle = 180;
 
     //Max arm extension in cm
-    public static double maxextend = 20;
+    public static double maxextend = 19;
     public static int extendTolerance = 4;
 
     public static double extendPower = 0.8;
@@ -121,6 +123,7 @@ public class TeleOpNibus2000 extends LinearOpMode {
         rightFrontDrive.setDirection(DcMotor.Direction.FORWARD);
         rightBackDrive.setDirection(DcMotor.Direction.FORWARD);
 
+
         greenGrabber = hardwareMap.get(Servo.class, "greenE0");
         blueGrabber = hardwareMap.get(Servo.class, "blueE1");
         wrist = hardwareMap.get(Servo.class, "redE3");
@@ -129,22 +132,31 @@ public class TeleOpNibus2000 extends LinearOpMode {
         greenGrabber.setPosition(0);
         blueGrabber.setPosition(.8);
 //arm and ex
+        armMin = hardwareMap.get(TouchSensor.class, "armResetButton");
         armcontrol = new PIDController(p, i, d);
         arm_motor0 = hardwareMap.get(DcMotorEx.class, "arm_motorE0");
+        arm_motor0.setDirection(DcMotorEx.Direction.FORWARD);
+        wrist.setPosition(1);
+        /*
+        while (!armMin.isPressed()){
+            arm_motor0.setPower(0.1);
+        }
+        /*
+         */
+        arm_motor0.setPower(0);
+        arm_motor0.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+
+
         extender = hardwareMap.get(DcMotorEx.class, "extenderE1");
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
-
-        arm_motor0.setDirection(DcMotorEx.Direction.FORWARD);
         extender.setDirection(DcMotorSimple.Direction.FORWARD);
-
-
         extender.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
         extender.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
         extender.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.FLOAT);
         //extender.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
         extender.setTargetPosition(0);
 
-        wrist.setPosition(0);
+
 
         // Wait for the game to start (driver presses PLAY)
         telemetry.addData("Status", "Initialized");
@@ -209,44 +221,43 @@ public class TeleOpNibus2000 extends LinearOpMode {
                 telemetry.addData("Collector state",collectorState);
                 switch (collectorState) {
                     case 1:
-                        degtarget = -19;
+                        degtarget = -21;
                         extendLength = 0;
-                        wrist.setPosition(0);
+                        wrist.setPosition(.45);
                         collectorHeight = 0;
                         break;
                     case 2:
-                        degtarget = -10;
-                        extendLength = 18;
-                        wrist.setPosition(0);
-                        collectorHeight = 0;
+                        //degtarget = -10;
+                        //extendLength = 18;
+                        wrist.setPosition(.6);
+                       // collectorHeight = 0;
                         break;
                     case 3:
                         degtarget = 0;
                         extendLength = 0;
-                        wrist.setPosition(0);
+                        wrist.setPosition(.7);
                         collectorHeight = 0;
                         break;
                     case 4:
-                        degtarget = 170;
-                        extendLength =0 ;
-                        wrist.setPosition(.3);
-                        collectorHeight = 0;
+                        //degtarget = 170;
+                        //extendLength =0 ;
+                        wrist.setPosition(1);
+                        //collectorHeight = 0;
                         break;
                     case 5:
-                        degtarget = 110;
+                        degtarget = 120;
                         extendLength = 18;
-                        wrist.setPosition(.3);
-                        collectorHeight =0;
+                        wrist.setPosition(1);
+                        //collectorHeight =0;
                         break;
                     case 6:
-                        collectorHeight = collectorHeight + gamepad2.right_stick_y;
-                        telemetry.addData("Collector Height", collectorHeight);
-                        degtarget = triangleCalculator(collectorHeight, 10, 100)[1];
-                        telemetry.addData("Angle", degtarget);
-                        extendLength = triangleCalculator(collectorHeight, 10, 90)[0];
-                        telemetry.addData("Extend Length", extendLength);
-                        wrist.setPosition(0.5);
+                        degtarget = 153;
+                        extendLength =0 ;
+                        wrist.setPosition(.9);
+                        collectorHeight = 0;
                         break;
+
+
                 }
 
 
