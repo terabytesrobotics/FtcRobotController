@@ -5,6 +5,7 @@ import android.icu.text.CaseMap;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.trajectory.Trajectory;
+import com.qualcomm.hardware.rev.RevBlinkinLedDriver;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
@@ -51,7 +52,28 @@ public class RedAudience extends LinearOpMode {
 
     String propLocation;
 
+    RevBlinkinLedDriver blinkinLedDriver;
+    RevBlinkinLedDriver.BlinkinPattern pattern;
+    /**Blinkin Patterns using red, blue, or green
+     * BLUE
+     * RED
+     * GREEN
+     * BREATH_BLUE
+     * BREATH_RED
+     * DARK_BLUE
+     * DARK_RED
+     * DARK_GREEN
+     * HEARTBEAT_BLUE
+     * HEARTBEAT_RED
+     * SHOT_BLUE
+     * SHOT_RED
+     * LIGHT_CHASE_BLUE
+     * LIGHT_CHASE_RED
+     * STROBE_BLUE
+     * STROBE_RED
+     *
 
+    */
 
     @Override
     public void runOpMode() throws InterruptedException {
@@ -81,6 +103,7 @@ public class RedAudience extends LinearOpMode {
                 propLocation = "right";
             }
 
+           //Default = center
             else propLocation = "center";
 
             telemetry.addLine("Red Row " + redresults[0]);
@@ -101,16 +124,28 @@ public class RedAudience extends LinearOpMode {
             else if (blueresults[1] instanceof Integer && (int) blueresults[1] > 1) {
                 propLocation = "right";
             }
-
             else propLocation = "center";
-
 
 
             telemetry.addLine("Blue Row " + blueresults[0]);
             telemetry.addLine("Blue Col" + blueresults[1]);
             telemetry.addLine("Blue value " + blueresults[2]);
+
         }
         else return;
+        /**Turn off front camera
+         * Turn on rear camera and set up Apriltag processor
+         */
+
+        /**
+         * Add drive to pose to drop first pixel based on propLocation left, center, right
+         * Drop pixel
+         * If on audience side, drive to backstage to score deployment position
+         * Move arm and wrist to score position
+         * Drive to April tag detect position
+         * Do Apriltag alignment based on propLocation
+         * Drop pixel
+         */
 
 
 
