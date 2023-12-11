@@ -129,6 +129,7 @@ private BNO055IMU imu = null;
         leftBackDrive  = hardwareMap.get(DcMotorEx.class, "LR");
         rightFrontDrive = hardwareMap.get(DcMotorEx.class, "RF");
         rightBackDrive = hardwareMap.get(DcMotorEx.class, "RR");
+
         rightBackDrive.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
 
         rotval=hardwareMap.get(AnalogInput.class,"dirpot");
@@ -280,6 +281,8 @@ private BNO055IMU imu = null;
             telemetry.addData("olds",olds);
             telemetry.addData("deltas",deltas);
             telemetry.update();
+                        
+
 
         }
         }

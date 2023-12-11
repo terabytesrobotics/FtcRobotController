@@ -87,7 +87,7 @@ public class TeleOpNibus2000 extends LinearOpMode {
     private boolean twoXWasPressed = false;
     private boolean twoYWasPressed = false;
 
-
+    private double collectorHeight = 0;
 
     private long lastAPressTime = 0;
     private long lastBPressTime = 0;
@@ -146,9 +146,6 @@ public class TeleOpNibus2000 extends LinearOpMode {
 
         wrist.setPosition(0);
 
-
-
-
         // Wait for the game to start (driver presses PLAY)
         telemetry.addData("Status", "Initialized");
         telemetry.update();
@@ -202,38 +199,7 @@ public class TeleOpNibus2000 extends LinearOpMode {
                     rBWasPressed = false;
                 }
 
-                /*if (gamepad1.a && !aPressed) {
-                    aPressed = true;
-
-                    lastAPressTime = System.currentTimeMillis();
-                    redGrabberState = GrabberState.GRABBED;
-                */
-                    /*
-                    if ((int)greenGrabber.getPosition()*100 == 60) {
-                        greenGrabber.setPosition(1);
-                    }
-                    else if (greenGrabber.getPosition() == 1) {
-                        greenGrabber.setPosition(.6);*/
-                /*f (!gamepad1.a) {
-                    aPressed = false;
-                }*/
-
-                // Debounce for gamepad1.b
-/*                if (gamepad1.b && !bPressed && (System.currentTimeMillis() - lastBPressTime) > DEBOUNCE_TIME) {
-                    bPressed = true;
-                    lastBPressTime = System.currentTimeMillis();
-
-                    if (blueGrabber.getPosition() == 0.575) {
-                        blueGrabber.setPosition(1);
-                    }
-                } else if (!gamepad1.b) {
-                    bPressed = false;
-                }*/
-
-                //Test for set-points collecting
-
                 //Test for set points collecting
-
                 if(gamepad2.a) collectorState = 1;
                 if(gamepad2.b) collectorState = 2;
                 if(gamepad2.x) collectorState = 3;
@@ -246,31 +212,40 @@ public class TeleOpNibus2000 extends LinearOpMode {
                         degtarget = -19;
                         extendLength = 0;
                         wrist.setPosition(0);
+                        collectorHeight = 0;
                         break;
                     case 2:
                         degtarget = -10;
                         extendLength = 18;
                         wrist.setPosition(0);
+                        collectorHeight = 0;
                         break;
                     case 3:
                         degtarget = 0;
                         extendLength = 0;
                         wrist.setPosition(0);
+                        collectorHeight = 0;
                         break;
                     case 4:
                         degtarget = 170;
                         extendLength =0 ;
                         wrist.setPosition(.3);
+                        collectorHeight = 0;
                         break;
                     case 5:
                         degtarget = 110;
                         extendLength = 18;
                         wrist.setPosition(.3);
+                        collectorHeight =0;
                         break;
                     case 6:
-                        degtarget = degtarget;
-                        extendLength = extendLength;
-                        wrist.setPosition(wrist.getPosition());
+                        collectorHeight = collectorHeight + gamepad2.right_stick_y;
+                        telemetry.addData("Collector Height", collectorHeight);
+                        degtarget = triangleCalculator(collectorHeight, 10, 100)[2];
+                        telemetry.addData("Angle", degtarget);
+                        extendLength = triangleCalculator(collectorHeight, 10, 90)[0];
+                        telemetry.addData("Extend Length", extendLength);
+                        wrist.setPosition(0.5);
                         break;
                 }
 
@@ -342,6 +317,17 @@ public class TeleOpNibus2000 extends LinearOpMode {
 
 
         }
+    }
+
+    private double[] triangleCalculator(double sideA, double sideB, double angleC) {
+        double[] output = new double[3];
+        //output[0] = sideC. c^2 = a^2 + b^2 - 2abcos(C)
+        output[0] = Math.sqrt(Math.pow(sideA, 2) + Math.pow(sideB, 2) - 2 * sideA * sideB * Math.cos(Math.toRadians(angleC)));
+        //output[1] = angleA. sin(A)/a = sin(B)/b
+        output[1] = Math.toDegrees(Math.asin((sideB * Math.sin(Math.toRadians(angleC))) / output[0]));
+        //output[2] = angleB. 180 - angleC - angleA
+        output[2] = Math.toDegrees(Math.asin((sideA * Math.sin(Math.toRadians(angleC))) / output[0]));
+        return output;
     }
 }
 
