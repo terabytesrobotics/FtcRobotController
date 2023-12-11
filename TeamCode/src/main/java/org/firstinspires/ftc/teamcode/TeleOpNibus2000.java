@@ -73,12 +73,22 @@ public class TeleOpNibus2000 extends LinearOpMode {
 
     Servo blueGrabber;
 
+    Servo wrist;
+
     private boolean aWasPressed = false;
+
 
     private boolean lBWasPressed = false;
     private boolean rBWasPressed = false;
     private boolean bPressed = false;
-    
+    private int collectorState = 0;
+    private boolean twoAWasPressed = false;
+    private boolean twoBWasPressed = false;
+    private boolean twoXWasPressed = false;
+    private boolean twoYWasPressed = false;
+
+
+
     private long lastAPressTime = 0;
     private long lastBPressTime = 0;
     private static final long DEBOUNCE_TIME = 500; // Debounce time in milliseconds
@@ -113,7 +123,7 @@ public class TeleOpNibus2000 extends LinearOpMode {
 
         greenGrabber = hardwareMap.get(Servo.class, "greenE0");
         blueGrabber = hardwareMap.get(Servo.class, "blueE1");
-
+        wrist = hardwareMap.get(Servo.class, "redE3");
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         greenGrabber.setPosition(0);
@@ -134,7 +144,7 @@ public class TeleOpNibus2000 extends LinearOpMode {
         //extender.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
         extender.setTargetPosition(0);
 
-
+        wrist.setPosition(0);
 
 
 
@@ -149,10 +159,18 @@ public class TeleOpNibus2000 extends LinearOpMode {
 
         GrabberState blueGrabberState = GrabberState.NOT_GRABBED;
         GrabberState greenGrabberState = GrabberState.NOT_GRABBED;
+
+        //Test for set points collecting
+        GrabberState closeSetPoint = GrabberState.NOT_GRABBED;
+        //end of test
+
         // run until the end of the match (driver presses STOP)
         if (opModeIsActive()) {
 
             while (opModeIsActive()) {
+
+
+                //end of test
 
                 if (gamepad1.a) {
                     if (!aWasPressed) {
@@ -211,6 +229,51 @@ public class TeleOpNibus2000 extends LinearOpMode {
                 } else if (!gamepad1.b) {
                     bPressed = false;
                 }*/
+
+                //Test for set-points collecting
+
+                //Test for set points collecting
+
+                if(gamepad2.a) collectorState = 1;
+                if(gamepad2.b) collectorState = 2;
+                if(gamepad2.x) collectorState = 3;
+                if(gamepad2.y) collectorState = 4;
+                if(gamepad2.right_bumper) collectorState = 5;
+                if(gamepad2.left_bumper) collectorState = 6;
+                telemetry.addData("Collector state",collectorState);
+                switch (collectorState) {
+                    case 1:
+                        degtarget = -19;
+                        extendLength = 0;
+                        wrist.setPosition(0);
+                        break;
+                    case 2:
+                        degtarget = -10;
+                        extendLength = 18;
+                        wrist.setPosition(0);
+                        break;
+                    case 3:
+                        degtarget = 0;
+                        extendLength = 0;
+                        wrist.setPosition(0);
+                        break;
+                    case 4:
+                        degtarget = 170;
+                        extendLength =0 ;
+                        wrist.setPosition(.3);
+                        break;
+                    case 5:
+                        degtarget = 110;
+                        extendLength = 18;
+                        wrist.setPosition(.3);
+                        break;
+                    case 6:
+                        degtarget = degtarget;
+                        extendLength = extendLength;
+                        wrist.setPosition(wrist.getPosition());
+                        break;
+                }
+
 
                 switch (greenGrabberState) {
                     case GRABBED:
