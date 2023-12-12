@@ -155,7 +155,7 @@ public class TeleOpNibus2000 extends LinearOpMode {
         armcontrol = new PIDController(p, i, d);
         arm_motor0 = hardwareMap.get(DcMotorEx.class, "arm_motorE0");
         arm_motor0.setDirection(DcMotorEx.Direction.FORWARD);
-        wrist.setPosition(1);
+        wrist.setPosition(.8);
 
         OnActivatedEvaluator a1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.a);
         OnActivatedEvaluator lb1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.left_bumper);
@@ -231,37 +231,37 @@ public class TeleOpNibus2000 extends LinearOpMode {
                     case 1:
                         degtarget = -21;
                         extendLength = 0;
-                        wrist.setPosition(.45);
+                        wrist.setPosition(.25);
                         collectorHeight = 0;
                         break;
                     case 2:
                         degtarget = -26;
                         extendLength = 0;
-                        wrist.setPosition(1);
+                        wrist.setPosition(.8);
                        // collectorHeight = 0;
                         break;
                     case 3:
                         degtarget = 0;
                         extendLength = 0;
-                        wrist.setPosition(.7);
+                        wrist.setPosition(.5);
                         collectorHeight = 0;
                         break;
                     case 4:
                         //degtarget = 170;
                         //extendLength =0 ;
-                        wrist.setPosition(1);
+                        wrist.setPosition(.8);
                         //collectorHeight = 0;
                         break;
                     case 5:
                         degtarget = 120;
                         extendLength = 18;
-                        wrist.setPosition(1);
+                        wrist.setPosition(.8);
                         //collectorHeight =0;
                         break;
                     case 6:
                         degtarget = 153;
                         extendLength =0 ;
-                        wrist.setPosition(.9);
+                        wrist.setPosition(.7);
                         collectorHeight = 0;
                         break;
 
