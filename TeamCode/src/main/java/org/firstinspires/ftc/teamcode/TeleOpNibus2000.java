@@ -127,9 +127,15 @@ public class TeleOpNibus2000 extends LinearOpMode {
         arm_motor0.setDirection(DcMotorEx.Direction.FORWARD);
         wrist.setPosition(1);
 
-        OnActivatedEvaluator aPressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.a);
-        OnActivatedEvaluator lbPressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.left_bumper);
-        OnActivatedEvaluator rbPressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.right_bumper);
+        OnActivatedEvaluator a1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.a);
+        OnActivatedEvaluator lb1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.left_bumper);
+        OnActivatedEvaluator rb1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.right_bumper);
+        OnActivatedEvaluator a2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.a);
+        OnActivatedEvaluator b2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.b);
+        OnActivatedEvaluator x2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.x);
+        OnActivatedEvaluator y2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.y);
+        OnActivatedEvaluator lb2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.left_bumper);
+        OnActivatedEvaluator rb2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_bumper);
 
         while (!armMin.isPressed()){
             arm_motor0.setPower(-0.3);
@@ -176,27 +182,34 @@ public class TeleOpNibus2000 extends LinearOpMode {
         if (opModeIsActive()) {
 
             while (opModeIsActive()) {
-                if (aPressedEvaluator.evaluate()) {
+                if (a1PressedEvaluator.evaluate()) {
                     blueGrabberState = blueGrabberState.toggle();
                     greenGrabberState = greenGrabberState.toggle();
                 }
 
-                if (lbPressedEvaluator.evaluate()) {
+                if (lb1PressedEvaluator.evaluate()) {
                     greenGrabberState = greenGrabberState.toggle();
                 }
 
-                if (rbPressedEvaluator.evaluate()) {
+                if (rb1PressedEvaluator.evaluate()) {
                     blueGrabberState = blueGrabberState.toggle();
                 }
 
                 //Test for set points collecting
-                if(gamepad2.a) collectorState = 1;
-                if(gamepad2.b) collectorState = 2;
-                if(gamepad2.x) collectorState = 3;
-                if(gamepad2.y) collectorState = 4;
-                if(gamepad2.right_bumper) collectorState = 5;
-                if(gamepad2.left_bumper) collectorState = 6;
-                telemetry.addData("Collector state",collectorState);
+                if (a2PressedEvaluator.evaluate()) {
+                    collectorState = 1;
+                } else if (b2PressedEvaluator.evaluate()) {
+                    collectorState = 2;
+                } else if (x2PressedEvaluator.evaluate()) {
+                    collectorState = 3;
+                } else if (y2PressedEvaluator.evaluate()) {
+                    collectorState = 4;
+                } else if (rb2PressedEvaluator.evaluate()) {
+                    collectorState = 5;
+                } else if (lb2PressedEvaluator.evaluate()) {
+                    collectorState = 6;
+                }
+                telemetry.addData("Collector state", collectorState);
                 switch (collectorState) {
                     case 1:
                         degtarget = -21;
