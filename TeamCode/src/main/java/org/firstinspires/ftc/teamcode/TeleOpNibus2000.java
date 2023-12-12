@@ -13,6 +13,8 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.TouchSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
+import org.firstinspires.ftc.teamcode.util.OnActivatedEvaluator;
+
 
 @Config
 @TeleOp
@@ -77,22 +79,10 @@ public class TeleOpNibus2000 extends LinearOpMode {
 
     Servo wrist;
 
-    private boolean aWasPressed = false;
-
-
-    private boolean lBWasPressed = false;
-    private boolean rBWasPressed = false;
-    private boolean bPressed = false;
     private int collectorState = 0;
-    private boolean twoAWasPressed = false;
-    private boolean twoBWasPressed = false;
-    private boolean twoXWasPressed = false;
-    private boolean twoYWasPressed = false;
 
     private double collectorHeight = 0;
 
-    private long lastAPressTime = 0;
-    private long lastBPressTime = 0;
     private static final long DEBOUNCE_TIME = 500; // Debounce time in milliseconds
 
     private enum GrabberState {
@@ -137,6 +127,10 @@ public class TeleOpNibus2000 extends LinearOpMode {
         arm_motor0.setDirection(DcMotorEx.Direction.FORWARD);
         wrist.setPosition(1);
 
+        OnActivatedEvaluator aPressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.a);
+        OnActivatedEvaluator lbPressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.left_bumper);
+        OnActivatedEvaluator rbPressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.right_bumper);
+
         while (!armMin.isPressed()){
             arm_motor0.setPower(-0.3);
         }
@@ -163,8 +157,6 @@ public class TeleOpNibus2000 extends LinearOpMode {
         //extender.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
         extender.setTargetPosition(0);
 
-
-
         // Wait for the game to start (driver presses PLAY)
         telemetry.addData("Status", "Initialized");
         telemetry.update();
@@ -184,38 +176,17 @@ public class TeleOpNibus2000 extends LinearOpMode {
         if (opModeIsActive()) {
 
             while (opModeIsActive()) {
-
-
-                //end of test
-
-                if (gamepad1.a) {
-                    if (!aWasPressed) {
-                        blueGrabberState = blueGrabberState.toggle();
-                        greenGrabberState = greenGrabberState.toggle();
-                    }
-                    aWasPressed = true;
-                } else {
-                    aWasPressed = false;
+                if (aPressedEvaluator.evaluate()) {
+                    blueGrabberState = blueGrabberState.toggle();
+                    greenGrabberState = greenGrabberState.toggle();
                 }
 
-                if (gamepad1.left_bumper) {
-                    if (!lBWasPressed) {
-
-                        greenGrabberState = greenGrabberState.toggle();
-                    }
-                    lBWasPressed = true;
-                } else {
-                    lBWasPressed = false;
+                if (lbPressedEvaluator.evaluate()) {
+                    greenGrabberState = greenGrabberState.toggle();
                 }
 
-                if (gamepad1.right_bumper) {
-                    if (!rBWasPressed) {
-
-                        blueGrabberState = blueGrabberState.toggle();
-                    }
-                    rBWasPressed = true;
-                } else {
-                    rBWasPressed = false;
+                if (rbPressedEvaluator.evaluate()) {
+                    blueGrabberState = blueGrabberState.toggle();
                 }
 
                 //Test for set points collecting
@@ -327,16 +298,10 @@ public class TeleOpNibus2000 extends LinearOpMode {
                 telemetry.addData("Extender Target Length cm", extendLength);
                 telemetry.addData("Extend Current Length", extendPos / extender_tics_per_cm);
                 telemetry.addData("extender power", extender.getPower());
-                telemetry.addData("a",aWasPressed);
-                telemetry.addData("b",bPressed);
                 telemetry.addData("green",greenGrabber.getPosition());
                 telemetry.addData("blue",blueGrabber.getPosition());
-
                 telemetry.update();
-
             }
-
-
         }
     }
 
