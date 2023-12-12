@@ -31,7 +31,7 @@ public class TeleOpNibus2000 extends LinearOpMode {
     public static double f = 0.0;
 
     // Angle below horiontal at start in degrees.  horizontal is 0.
-    public static double angleoffset = 0;
+    public static double angleoffset = -37;
 
     //Max angle limit
     public static double maxangle = 180;
@@ -123,7 +123,6 @@ public class TeleOpNibus2000 extends LinearOpMode {
         rightFrontDrive.setDirection(DcMotor.Direction.FORWARD);
         rightBackDrive.setDirection(DcMotor.Direction.FORWARD);
 
-
         greenGrabber = hardwareMap.get(Servo.class, "greenE0");
         blueGrabber = hardwareMap.get(Servo.class, "blueE1");
         wrist = hardwareMap.get(Servo.class, "redE3");
@@ -132,20 +131,28 @@ public class TeleOpNibus2000 extends LinearOpMode {
         greenGrabber.setPosition(0);
         blueGrabber.setPosition(.8);
 //arm and ex
-        armMin = hardwareMap.get(TouchSensor.class, "armResetButton");
+        armMin = hardwareMap.get(TouchSensor.class, "armMin1");
         armcontrol = new PIDController(p, i, d);
         arm_motor0 = hardwareMap.get(DcMotorEx.class, "arm_motorE0");
         arm_motor0.setDirection(DcMotorEx.Direction.FORWARD);
         wrist.setPosition(1);
-        /*
+
         while (!armMin.isPressed()){
-            arm_motor0.setPower(0.1);
+            arm_motor0.setPower(-0.3);
         }
-        /*
-         */
+        while (armMin.isPressed()){
+            arm_motor0.setPower(0.4);
+        }
+        sleep(500);
+
+        while (!armMin.isPressed()){
+            arm_motor0.setPower(-0.1);
+        }
+
         arm_motor0.setPower(0);
         arm_motor0.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-
+        arm_motor0.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        degtarget = 0;
 
         extender = hardwareMap.get(DcMotorEx.class, "extenderE1");
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
@@ -227,9 +234,9 @@ public class TeleOpNibus2000 extends LinearOpMode {
                         collectorHeight = 0;
                         break;
                     case 2:
-                        //degtarget = -10;
-                        //extendLength = 18;
-                        wrist.setPosition(.6);
+                        degtarget = -26;
+                        extendLength = 0;
+                        wrist.setPosition(1);
                        // collectorHeight = 0;
                         break;
                     case 3:
@@ -259,6 +266,7 @@ public class TeleOpNibus2000 extends LinearOpMode {
 
 
                 }
+                telemetry.addData("Wrist pos:",wrist.getPosition());
 
 
                 switch (greenGrabberState) {
@@ -301,7 +309,9 @@ public class TeleOpNibus2000 extends LinearOpMode {
                 extender.setTargetPosition(extendTicTarget);
                 extender.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
 
+
                 // RIGHT HERE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                if(armpower < 0 && armMin.isPressed()) armpower = 0;
                 arm_motor0.setPower(armpower);
                 extender.setPower(extendPower);
 
