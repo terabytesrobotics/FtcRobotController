@@ -27,6 +27,7 @@ public class TeleOpNibus2000 extends LinearOpMode {
     private ElapsedTime runtime = new ElapsedTime();
 
     private TouchSensor armMin;
+    private TouchSensor extenderMin;
     private PIDController armcontrol;
 
     public static double p = 0.005, i = 0.005, d = 0.0002;
@@ -150,6 +151,7 @@ public class TeleOpNibus2000 extends LinearOpMode {
         blueGrabber.setPosition(.8);
 //arm and ex
         armMin = hardwareMap.get(TouchSensor.class, "armMin1");
+        extenderMin = hardwareMap.get(TouchSensor.class, "extenderMin3");
         armcontrol = new PIDController(p, i, d);
         arm_motor0 = hardwareMap.get(DcMotorEx.class, "arm_motorE0");
         arm_motor0.setDirection(DcMotorEx.Direction.FORWARD);
@@ -165,20 +167,7 @@ public class TeleOpNibus2000 extends LinearOpMode {
         OnActivatedEvaluator lb2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.left_bumper);
         OnActivatedEvaluator rb2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_bumper);
 
-        while (!armMin.isPressed()){
-            arm_motor0.setPower(-0.3);
-        }
-        while (armMin.isPressed()){
-            arm_motor0.setPower(0.4);
-        }
-        sleep(500);
-
-        while (!armMin.isPressed()){
-            arm_motor0.setPower(-0.1);
-        }
-
-        arm_motor0.setPower(0);
-        arm_motor0.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        autoHomeCollectorLoop();
         arm_motor0.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         degtarget = 0;
 
@@ -340,6 +329,36 @@ public class TeleOpNibus2000 extends LinearOpMode {
         output[2] = Math.toDegrees(Math.asin((sideA * Math.sin(Math.toRadians(angleC))) / output[0]));
         telemetry.addData("angleC", angleC);
         return output;
+    }
+    private void autoHomeCollectorLoop() {
+        //home arm
+        while (!armMin.isPressed()){
+            arm_motor0.setPower(-0.3);
+        }
+        while (armMin.isPressed()){
+            arm_motor0.setPower(0.4);
+        }
+        sleep(500);
+
+        while (!armMin.isPressed()){
+            arm_motor0.setPower(-0.1);
+        }
+        arm_motor0.setPower(0);
+        arm_motor0.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        //home extender
+        while (!extenderMin.isPressed()){
+            extender.setPower(-0.3);
+        }
+        while (extenderMin.isPressed()){
+            extender.setPower(0.4);
+        }
+        sleep(500);
+
+        while (!extenderMin.isPressed()){
+            extender.setPower(-0.1);
+        }
+        extender.setPower(0);
+        extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
     }
 }
 
