@@ -188,9 +188,7 @@ public class TeleOpNibus2000 extends LinearOpMode {
         OnActivatedEvaluator lb2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.left_bumper);
         OnActivatedEvaluator rb2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_bumper);
 
-        autoHomeCollectorLoop();
-        arm_motor0.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        degtarget = 0;
+
 
         extender = hardwareMap.get(DcMotorEx.class, "extenderE1");
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
@@ -199,6 +197,13 @@ public class TeleOpNibus2000 extends LinearOpMode {
         extender.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
         extender.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.FLOAT);
         //extender.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
+
+
+        autoHomeCollectorLoop();
+        arm_motor0.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        arm_motor0.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        degtarget = 0;
         extender.setTargetPosition(0);
 
         // Wait for the game to start (driver presses PLAY)
@@ -282,6 +287,11 @@ public class TeleOpNibus2000 extends LinearOpMode {
                 // RIGHT HERE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                 if(armpower < 0 && armMin.isPressed()) armpower = 0;
                 arm_motor0.setPower(armpower);
+               // if(extender.get < 0 && extenderMin.isPressed()){
+                  //  armpower = 0;
+                  //  extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+                   // extender.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+                //}
                 extender.setPower(extendPower);
 
                 telemetry.addData("f", f);
@@ -317,23 +327,10 @@ public class TeleOpNibus2000 extends LinearOpMode {
         return output;
     }
     private void autoHomeCollectorLoop() {
-        //home arm
-        while (!armMin.isPressed()){
-            arm_motor0.setPower(-0.3);
-        }
-        while (armMin.isPressed()){
-            arm_motor0.setPower(0.4);
-        }
-        sleep(500);
-
-        while (!armMin.isPressed()){
-            arm_motor0.setPower(-0.1);
-        }
-        arm_motor0.setPower(0);
-        arm_motor0.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         //home extender
+        extender.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         while (!extenderMin.isPressed()){
-            extender.setPower(-0.3);
+            extender.setPower(-0.4);
         }
         while (extenderMin.isPressed()){
             extender.setPower(0.4);
@@ -345,6 +342,20 @@ public class TeleOpNibus2000 extends LinearOpMode {
         }
         extender.setPower(0);
         extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        //home arm
+        while (!armMin.isPressed()){
+            arm_motor0.setPower(-0.3);
+        }
+        while (armMin.isPressed()){
+            arm_motor0.setPower(0.4);
+        }
+        sleep(500);
+
+        while (!armMin.isPressed()){
+            arm_motor0.setPower(-0.05);
+        }
+        arm_motor0.setPower(0);
+        arm_motor0.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
     }
 }
 
