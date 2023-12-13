@@ -80,7 +80,7 @@ public class TeleOpNibus2000 extends LinearOpMode {
 
     Servo wrist;
 
-    private int collectorState = 0;
+    private CollectorState collectorState = CollectorState.CLOSE_COLLECTION;
 
     private double collectorHeight = 0;
 
@@ -128,6 +128,27 @@ public class TeleOpNibus2000 extends LinearOpMode {
                     return GRABBED;
             }
         }
+    }
+
+    private enum CollectorState {
+        CLOSE_COLLECTION(-26, 0, 0.25f),
+        FAR_COLLECTION(-20, 18, 0.8f),
+        DRIVING_SAFE(0, 0, 0.5f),
+        LOW_SCORING(170, 0, 0.8f),
+        HIGH_SCORING(120, 18, 0.8f),
+        SAFE_POSITION(0, 0, 0.5f);
+
+        public float WristPosition;
+        public int ArmPosition;
+
+        public int ExtenderPosition;
+
+        private CollectorState( int armPosition, int extenderPosition, float wristPosition) {
+            this.ArmPosition = armPosition;
+            this.ExtenderPosition = extenderPosition;
+            this.WristPosition = wristPosition;
+        }
+
     }
 
     @Override
@@ -214,59 +235,24 @@ public class TeleOpNibus2000 extends LinearOpMode {
 
                 //Test for set points collecting
                 if (a2PressedEvaluator.evaluate()) {
-                    collectorState = 1;
+                    collectorState = CollectorState.CLOSE_COLLECTION;
                 } else if (b2PressedEvaluator.evaluate()) {
-                    collectorState = 2;
+                    collectorState = CollectorState.FAR_COLLECTION;
                 } else if (x2PressedEvaluator.evaluate()) {
-                    collectorState = 3;
+                    collectorState = CollectorState.DRIVING_SAFE;
                 } else if (y2PressedEvaluator.evaluate()) {
-                    collectorState = 4;
+                    collectorState = CollectorState.LOW_SCORING;
                 } else if (rb2PressedEvaluator.evaluate()) {
-                    collectorState = 5;
+                    collectorState = CollectorState.FAR_COLLECTION;
                 } else if (lb2PressedEvaluator.evaluate()) {
-                    collectorState = 6;
+                    collectorState = CollectorState.SAFE_POSITION;
                 }
                 telemetry.addData("Collector state", collectorState);
-                switch (collectorState) {
-                    case 1:
-                        degtarget = -21;
-                        extendLength = 0;
-                        wrist.setPosition(.25);
-                        collectorHeight = 0;
-                        break;
-                    case 2:
-                        degtarget = -26;
-                        extendLength = 0;
-                        wrist.setPosition(.8);
-                       // collectorHeight = 0;
-                        break;
-                    case 3:
-                        degtarget = 0;
-                        extendLength = 0;
-                        wrist.setPosition(.5);
-                        collectorHeight = 0;
-                        break;
-                    case 4:
-                        //degtarget = 170;
-                        //extendLength =0 ;
-                        wrist.setPosition(.8);
-                        //collectorHeight = 0;
-                        break;
-                    case 5:
-                        degtarget = 120;
-                        extendLength = 18;
-                        wrist.setPosition(.8);
-                        //collectorHeight =0;
-                        break;
-                    case 6:
-                        degtarget = 153;
-                        extendLength =0 ;
-                        wrist.setPosition(.7);
-                        collectorHeight = 0;
-                        break;
 
-
-                }
+                degtarget = collectorState.ArmPosition;
+                extendLength = collectorState.ExtenderPosition;
+                wrist.setPosition(collectorState.WristPosition);
+                collectorHeight = 0;
                 telemetry.addData("Wrist pos:",wrist.getPosition());
                 greenGrabber.setPosition(greenGrabberState.ServoPosition);
                 blueGrabber.setPosition(blueGrabberState.ServoPosition);
