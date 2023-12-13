@@ -17,6 +17,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.TouchSensor;
 
 import org.firstinspires.ftc.robotcore.external.hardware.camera.BuiltinCameraDirection;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.CameraName;
@@ -65,6 +66,7 @@ public class RedAudience extends LinearOpMode {
 
 
     //Extender section
+    private DcMotorEx extender;
     // Max arm extension in cm
     public static double maxextend = 20;
     public static int extendTolerance = 4;
@@ -75,8 +77,11 @@ public class RedAudience extends LinearOpMode {
     public static double extendergearratio = (5.2);
     static double extender_tics_per_cm = extendergearratio * 28 / 0.8;
 
+    // touch sensors
+    private TouchSensor armMin;
+    private TouchSensor extenderMin;
 
-    private DcMotorEx extender;
+
 
 
     //Servos
@@ -140,6 +145,26 @@ public class RedAudience extends LinearOpMode {
 
     */
 
+    private enum CollectorState {
+        CLOSE_COLLECTION(-26, 0, 0.25f),
+        FAR_COLLECTION(-20, 18, 0.8f),
+        DRIVING_SAFE(0, 0, 0.5f),
+        LOW_SCORING(170, 0, 0.8f),
+        HIGH_SCORING(120, 18, 0.8f),
+        SAFE_POSITION(0, 0, 0.5f);
+
+        public float WristPosition;
+        public int ArmPosition;
+
+        public int ExtenderPosition;
+
+        private CollectorState( int armPosition, int extenderPosition, float wristPosition) {
+            this.ArmPosition = armPosition;
+            this.ExtenderPosition = extenderPosition;
+            this.WristPosition = wristPosition;
+        }
+
+    }
     @Override
     public void runOpMode() throws InterruptedException {
 
@@ -156,6 +181,9 @@ public class RedAudience extends LinearOpMode {
         blueGrabber = hardwareMap.get(Servo.class, "blueE1");
         wrist = hardwareMap.get(Servo.class, "redE3");
 
+        //arm and ex
+        armMin = hardwareMap.get(TouchSensor.class, "armMin1");
+        extenderMin = hardwareMap.get(TouchSensor.class, "extenderMin3");
         armcontrol = new PIDController(p, i, d);
         arm_motor0 = hardwareMap.get(DcMotorEx.class, "arm_motorE0");
         extender = hardwareMap.get(DcMotorEx.class, "extenderE1");
