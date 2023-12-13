@@ -276,56 +276,24 @@ public class TeleOpNibus2000 extends LinearOpMode {
     private void runCollector() {
         //Test for set points collecting
         if (a2PressedEvaluator.evaluate()) {
-            collectorState = 1;
+            collectorState = CollectorState.CLOSE_COLLECTION;
         } else if (b2PressedEvaluator.evaluate()) {
-            collectorState = 2;
+            collectorState = CollectorState.FAR_COLLECTION;
         } else if (x2PressedEvaluator.evaluate()) {
-            collectorState = 3;
+            collectorState = CollectorState.DRIVING_SAFE;
         } else if (y2PressedEvaluator.evaluate()) {
-            collectorState = 4;
+            collectorState = CollectorState.LOW_SCORING;
         } else if (rb2PressedEvaluator.evaluate()) {
-            collectorState = 5;
+            collectorState = CollectorState.HIGH_SCORING;
         } else if (lb2PressedEvaluator.evaluate()) {
-            collectorState = 6;
+            collectorState = CollectorState.SAFE_POSITION;
         }
         telemetry.addData("Collector state", collectorState);
-        switch (collectorState) {
-            case 1:
-                armTargetDegrees = -21;
-                extendLength = 0;
-                wrist.setPosition(.45);
-                break;
-            case 2:
-                armTargetDegrees = -26;
-                extendLength = 0;
-                wrist.setPosition(1);
-                break;
-            case 3:
-                armTargetDegrees = 0;
-                extendLength = 0;
-                wrist.setPosition(.7);
-                break;
-            case 4:
-                //degtarget = 170;
-                //extendLength =0 ;
-                wrist.setPosition(1);
-                break;
-            case 5:
-                armTargetDegrees = 120;
-                extendLength = 18;
-                wrist.setPosition(1);
-                break;
-            case 6:
-                armTargetDegrees = 153;
-                extendLength =0 ;
-                wrist.setPosition(.9);
-                break;
-
-
-        }
         telemetry.addData("Wrist pos:",wrist.getPosition());
-        greenGrabber.setPosition(greenGrabberState.ServoPosition);
-        blueGrabber.setPosition(blueGrabberState.ServoPosition);
+        wrist.setPosition(collectorState.WristPosition);
+        extendLength = collectorState.ExtenderPosition;
+        armTargetDegrees = collectorState.ArmPosition;
+        controlGrabber();
     }
 
     private void runTelemetry() {
