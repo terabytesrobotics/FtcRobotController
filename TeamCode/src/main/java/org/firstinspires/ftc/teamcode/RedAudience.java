@@ -263,7 +263,7 @@ public class RedAudience extends LinearOpMode {
          */
 
 
-
+        telemetry.addData("Prop position",propLocation);
         telemetry.update();
 
 
