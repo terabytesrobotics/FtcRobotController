@@ -1,15 +1,14 @@
 package org.firstinspires.ftc.teamcode;
 
-import com.acmerobotics.dashboard.FtcDashboard;
-import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
+import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.arcrobotics.ftclib.controller.PIDController;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
-import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.TouchSensor;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
@@ -75,6 +74,7 @@ public class Nibus2000 {
     private CollectorState collectorState = CollectorState.SAFE_POSITION;
 
     private OnActivatedEvaluator a1PressedEvaluator;
+    private OnActivatedEvaluator b1PressedEvaluator;
     private OnActivatedEvaluator lb1PressedEvaluator;
     private OnActivatedEvaluator rb1PressedEvaluator;
     private OnActivatedEvaluator a2PressedEvaluator;
@@ -91,17 +91,24 @@ public class Nibus2000 {
     private final Gamepad gamepad1;
     private final Gamepad gamepad2;
 
+    private NibusState state;
+
+    private ElapsedTime timeSinceStart;
+    private ElapsedTime timeInState;
+
     public Nibus2000(Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, Telemetry telemetry) {
         this.gamepad1 = gamepad1;
         this.gamepad2 = gamepad2;
         this.hardwareMap = hardwareMap;
         this.telemetry = telemetry;
+        this.state = NibusState.DRIVING_ONLY;
     }
 
     public void init() {
         a1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.a);
         lb1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.left_bumper);
         rb1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.right_bumper);
+        b1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.b);
         a2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.a);
         b2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.b);
         x2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.x);
@@ -133,13 +140,93 @@ public class Nibus2000 {
         telemetry.update();
     }
 
-    public void evaluate() {
-        evaluateGrabberInput();
+    public void startup() {
+        timeSinceStart = new ElapsedTime();
+        timeInState = new ElapsedTime();
+    }
 
-        runCollector();
+    public void evaluate() {
+        NibusState currentState = state;
+        NibusState nextState = state;
+        switch (state) {
+            case SCORING_ONLY:
+                nextState = evaluateScoringOnly();
+                break;
+            case DRIVING_ONLY:
+                nextState = evaluateDrivingOnly();
+                break;
+            default:
+                break;
+        }
+        if (nextState != currentState) {
+            timeInState.reset();
+            state = nextState;
+        }
+    }
+
+    private NibusState evaluateScoringOnly() {
+        controlScoringSystem();
+        if (b1PressedEvaluator.evaluate()) {
+            getReadyToMove();
+            return NibusState.DRIVING_ONLY;
+        }
+        return NibusState.SCORING_ONLY;
+    }
+
+    private NibusState evaluateDrivingOnly() {
+        controlDrivingFromGamepad();
+        if (b1PressedEvaluator.evaluate()) {
+            stop();
+            return NibusState.SCORING_ONLY;
+        }
+        return NibusState.DRIVING_ONLY;
+    }
+
+    private void controlDrivingFromGamepad() {
+        drive.setWeightedDrivePower(
+                new Pose2d(
+                        -gamepad1.left_stick_y,
+                        -gamepad1.left_stick_x,
+                        -gamepad1.right_stick_x));
+        drive.update();
+    }
+
+    private void getReadyToMove() {
+        drive.setWeightedDrivePower(new Pose2d(0, 0, 0));
+        drive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        drive.update();
+    }
+
+    private void stop() {
+        drive.setWeightedDrivePower(new Pose2d(0, 0, 0));
+        drive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        drive.update();
+    }
+
+    private void controlScoringSystem() {
+        controlGrabber();
+
+        if (a2PressedEvaluator.evaluate()) {
+            collectorState = CollectorState.CLOSE_COLLECTION;
+        } else if (b2PressedEvaluator.evaluate()) {
+            collectorState = CollectorState.FAR_COLLECTION;
+        } else if (x2PressedEvaluator.evaluate()) {
+            collectorState = CollectorState.DRIVING_SAFE;
+        } else if (y2PressedEvaluator.evaluate()) {
+            collectorState = CollectorState.LOW_SCORING;
+        } else if (rb2PressedEvaluator.evaluate()) {
+            collectorState = CollectorState.HIGH_SCORING;
+        } else if (lb2PressedEvaluator.evaluate()) {
+            collectorState = CollectorState.SAFE_POSITION;
+        }
+        telemetry.addData("Collector state", collectorState);
+        telemetry.addData("Wrist pos:",wrist.getPosition());
+
+        wrist.setPosition(collectorState.WristPosition);
+        extendLength = collectorState.ExtenderPosition;
+        armTargetDegrees = collectorState.ArmPosition;
 
         target = ((Math.min(armTargetDegrees, ARM_MAX_ANGLE)) - ARM_DEGREE_OFFSET_FROM_HORIZONTAL) * ARM_TICKS_PER_DEGREE;
-
         armcontrol.setPID(p, i, d);
         armcontrol.setTolerance(ARM_TOLERANCE);
 
@@ -159,7 +246,7 @@ public class Nibus2000 {
         extender.setPower(EXTENDER_POWER);
     }
 
-    private void evaluateGrabberInput() {
+    private void controlGrabber() {
         if (a1PressedEvaluator.evaluate()) {
             blueGrabberState = blueGrabberState.toggle();
             greenGrabberState = greenGrabberState.toggle();
@@ -172,9 +259,7 @@ public class Nibus2000 {
         if (rb1PressedEvaluator.evaluate()) {
             blueGrabberState = blueGrabberState.toggle();
         }
-    }
 
-    private void controlGrabber() {
         greenGrabber.setPosition(greenGrabberState.ServoPosition);
         blueGrabber.setPosition(greenGrabberState.ServoPosition);
     }
@@ -186,29 +271,6 @@ public class Nibus2000 {
         sleep(5000);
         blueGrabberState = BlueGrabberState.GRABBED;
         greenGrabberState = GreenGrabberState.GRABBED;
-        controlGrabber();
-    }
-
-    private void runCollector() {
-        //Test for set points collecting
-        if (a2PressedEvaluator.evaluate()) {
-            collectorState = CollectorState.CLOSE_COLLECTION;
-        } else if (b2PressedEvaluator.evaluate()) {
-            collectorState = CollectorState.FAR_COLLECTION;
-        } else if (x2PressedEvaluator.evaluate()) {
-            collectorState = CollectorState.DRIVING_SAFE;
-        } else if (y2PressedEvaluator.evaluate()) {
-            collectorState = CollectorState.LOW_SCORING;
-        } else if (rb2PressedEvaluator.evaluate()) {
-            collectorState = CollectorState.HIGH_SCORING;
-        } else if (lb2PressedEvaluator.evaluate()) {
-            collectorState = CollectorState.SAFE_POSITION;
-        }
-        telemetry.addData("Collector state", collectorState);
-        telemetry.addData("Wrist pos:",wrist.getPosition());
-        wrist.setPosition(collectorState.WristPosition);
-        extendLength = collectorState.ExtenderPosition;
-        armTargetDegrees = collectorState.ArmPosition;
         controlGrabber();
     }
 

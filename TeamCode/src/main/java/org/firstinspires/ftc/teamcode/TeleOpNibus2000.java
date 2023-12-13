@@ -33,6 +33,7 @@ public class TeleOpNibus2000 extends LinearOpMode {
                 new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry()));
         nibus.init();
         waitForStart();
+        nibus.startup();
         while (!isStopRequested()) {
             nibus.evaluate();
         }
