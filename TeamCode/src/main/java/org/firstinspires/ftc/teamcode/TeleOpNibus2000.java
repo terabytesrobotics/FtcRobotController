@@ -85,11 +85,39 @@ public class TeleOpNibus2000 extends LinearOpMode {
 
     private static final long DEBOUNCE_TIME = 500; // Debounce time in milliseconds
 
-    private enum GrabberState {
-        GRABBED,
-        NOT_GRABBED;
+    private enum BlueGrabberState {
+        GRABBED(0.65f),
+        NOT_GRABBED(0.9f);
 
-        public GrabberState toggle() {
+        public float ServoPosition;
+
+        private BlueGrabberState(float servoPosition) {
+            ServoPosition = servoPosition;
+        }
+
+        public BlueGrabberState toggle() {
+            switch (this) {
+                case NOT_GRABBED:
+                    return GRABBED;
+                case GRABBED:
+                    return NOT_GRABBED;
+                default:
+                    return GRABBED;
+            }
+        }
+    }
+
+    private enum GreenGrabberState {
+        GRABBED(0.3f),
+        NOT_GRABBED(0.02f);
+
+        public float ServoPosition;
+
+        private GreenGrabberState(float servoPosition) {
+            ServoPosition = servoPosition;
+        }
+
+        public GreenGrabberState toggle() {
             switch (this) {
                 case NOT_GRABBED:
                     return GRABBED;
@@ -171,11 +199,11 @@ public class TeleOpNibus2000 extends LinearOpMode {
         // Wait for the game to start (driver presses PLAY)
         waitForStart();
 
-        GrabberState blueGrabberState = GrabberState.NOT_GRABBED;
-        GrabberState greenGrabberState = GrabberState.NOT_GRABBED;
+        BlueGrabberState blueGrabberState = BlueGrabberState.NOT_GRABBED;
+        GreenGrabberState greenGrabberState = GreenGrabberState.NOT_GRABBED;
 
         //Test for set points collecting
-        GrabberState closeSetPoint = GrabberState.NOT_GRABBED;
+        //GrabberState closeSetPoint = GrabberState.NOT_GRABBED;
         //end of test
 
         // run until the end of the match (driver presses STOP)
@@ -251,26 +279,8 @@ public class TeleOpNibus2000 extends LinearOpMode {
 
                 }
                 telemetry.addData("Wrist pos:",wrist.getPosition());
-
-
-                switch (greenGrabberState) {
-                    case GRABBED:
-                        greenGrabber.setPosition(.3);
-                        break;
-                    case NOT_GRABBED:
-                        greenGrabber.setPosition(0.02);
-                        break;
-                }
-
-                switch (blueGrabberState) {
-                    case GRABBED:
-                        blueGrabber.setPosition(.65);
-                        break;
-                    case NOT_GRABBED:
-                        blueGrabber.setPosition(.9);
-                        break;
-                }
-
+                greenGrabber.setPosition(greenGrabberState.ServoPosition);
+                blueGrabber.setPosition(blueGrabberState.ServoPosition);
 
                 target = ((Math.min(degtarget, maxangle)) - angleoffset) * arm_ticks_per_degree;
 
