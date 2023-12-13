@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
+import static com.qualcomm.hardware.rev.RevBlinkinLedDriver.BlinkinPattern.SHOT_RED;
+
 import android.icu.text.CaseMap;
 
 import com.acmerobotics.dashboard.FtcDashboard;
@@ -116,7 +118,7 @@ public class RedAudience extends LinearOpMode {
     String propLocation;
 
     RevBlinkinLedDriver blinkinLedDriver;
-    RevBlinkinLedDriver.BlinkinPattern pattern;
+    RevBlinkinLedDriver.BlinkinPattern pattern = SHOT_RED;//Change Pattern and color for Alliance and position;
     /**Blinkin Patterns using red, blue, or green
      * BLUE
      * RED
@@ -189,7 +191,7 @@ public class RedAudience extends LinearOpMode {
         /**
          * Add Blinken code to id alliance and position
          */
-
+        blinkinLedDriver.setPattern(pattern);
 
         // Wait for the DS start button to be touched.
         telemetry.addData(">", "Touch Play to start OpMode");
