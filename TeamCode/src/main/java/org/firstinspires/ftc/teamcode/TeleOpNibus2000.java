@@ -131,11 +131,11 @@ public class TeleOpNibus2000 extends LinearOpMode {
     }
 
     private enum CollectorState {
-        CLOSE_COLLECTION(-26, 0, 0.25f),
-        FAR_COLLECTION(-20, 18, 0.8f),
-        DRIVING_SAFE(0, 0, 0.5f),
-        LOW_SCORING(170, 0, 0.8f),
-        HIGH_SCORING(120, 18, 0.8f),
+        CLOSE_COLLECTION(-24, 0, 0.2f),
+        FAR_COLLECTION(-16, 18, 0.16f),
+        DRIVING_SAFE(-20, 0, 0.9f),
+        LOW_SCORING(140, 0, 0.5f),
+        HIGH_SCORING(120, 18, 0.75f),
         SAFE_POSITION(0, 0, 0.5f);
 
         public float WristPosition;
@@ -248,7 +248,7 @@ public class TeleOpNibus2000 extends LinearOpMode {
                 } else if (y2PressedEvaluator.evaluate()) {
                     collectorState = CollectorState.LOW_SCORING;
                 } else if (rb2PressedEvaluator.evaluate()) {
-                    collectorState = CollectorState.FAR_COLLECTION;
+                    collectorState = CollectorState.HIGH_SCORING;
                 } else if (lb2PressedEvaluator.evaluate()) {
                     collectorState = CollectorState.SAFE_POSITION;
                 }
@@ -344,10 +344,10 @@ public class TeleOpNibus2000 extends LinearOpMode {
         extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         //home arm
         while (!armMin.isPressed()){
-            arm_motor0.setPower(-0.3);
+            arm_motor0.setPower(-0.5);
         }
         while (armMin.isPressed()){
-            arm_motor0.setPower(0.4);
+            arm_motor0.setPower(0.5);
         }
         sleep(500);
 
