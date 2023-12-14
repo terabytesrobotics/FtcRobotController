@@ -175,7 +175,7 @@ public class Nibus2000 {
                 nextState = evaluateDrivingAndScoring();
                 break;
             case DETECT_ALLIANCE_MARKER:
-                nextState = evaluateStopped();
+                nextState = evaluateDetectAllianceMarker();
                 break;
             default:
                 break;
@@ -184,6 +184,10 @@ public class Nibus2000 {
             timeInState.reset();
             state = nextState;
         }
+
+        // Control arm every cycle (individual states can always just set the armDegreeTarget)
+        controlArmAndExtender();
+
         runTelemetry();
     }
 
@@ -274,6 +278,28 @@ public class Nibus2000 {
         drive.update();
     }
 
+    private void controlArmAndExtender() {
+        target = ((Math.min(armTargetDegrees, ARM_MAX_ANGLE)) - ARM_DEGREE_OFFSET_FROM_HORIZONTAL) * ARM_TICKS_PER_DEGREE;
+        armcontrol.setPID(p, i, d);
+        armcontrol.setTolerance(ARM_TOLERANCE);
+
+        int armPos = arm_motor0.getCurrentPosition();
+        int extendPos = extender.getCurrentPosition();
+        double pid = armcontrol.calculate(armPos, target);
+        double ff = ((f) + (fmax * extendPos / (EXTENDER_MAX_LENGTH * EXTENDER_TICS_PER_CM))) * Math.cos(Math.toRadians(armTargetDegrees));
+        double armpower = pid + ff;
+
+        //Set extension
+        extendTicTarget = (int) ((Math.min(extendLength, EXTENDER_MAX_LENGTH)) * EXTENDER_TICS_PER_CM);
+        extender.setTargetPosition(extendTicTarget);
+
+        if(armpower < 0 && armMin.isPressed()) armpower = 0;
+        arm_motor0.setPower(armpower);
+        extender.setPower(EXTENDER_POWER);
+
+        telemetry.addData("Armpower", armpower);
+    }
+
     private void controlScoringSystem() {
         controlGrabber();
 
@@ -296,26 +322,6 @@ public class Nibus2000 {
         wrist.setPosition(collectorState.WristPosition);
         extendLength = collectorState.ExtenderPosition;
         armTargetDegrees = collectorState.ArmPosition;
-
-        target = ((Math.min(armTargetDegrees, ARM_MAX_ANGLE)) - ARM_DEGREE_OFFSET_FROM_HORIZONTAL) * ARM_TICKS_PER_DEGREE;
-        armcontrol.setPID(p, i, d);
-        armcontrol.setTolerance(ARM_TOLERANCE);
-
-        int armPos = arm_motor0.getCurrentPosition();
-        int extendPos = extender.getCurrentPosition();
-        double pid = armcontrol.calculate(armPos, target);
-        double ff = ((f) + (fmax * extendPos / (EXTENDER_MAX_LENGTH * EXTENDER_TICS_PER_CM))) * Math.cos(Math.toRadians(armTargetDegrees));
-        double armpower = pid + ff;
-
-        //Set extension
-        extendTicTarget = (int) ((Math.min(extendLength, EXTENDER_MAX_LENGTH)) * EXTENDER_TICS_PER_CM);
-        extender.setTargetPosition(extendTicTarget);
-
-        if(armpower < 0 && armMin.isPressed()) armpower = 0;
-        arm_motor0.setPower(armpower);
-        extender.setPower(EXTENDER_POWER);
-
-        telemetry.addData("Armpower", armpower);
     }
 
     private void controlGrabber() {
