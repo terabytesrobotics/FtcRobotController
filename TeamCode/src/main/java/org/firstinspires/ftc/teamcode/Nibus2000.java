@@ -152,6 +152,7 @@ public class Nibus2000 {
         sleep(1000);
         autoHomeCollectorLoop();
         grabberInit();
+        wrist.setPosition(1);
 
         telemetry.addData("Status", "Initialized");
         telemetry.update();
