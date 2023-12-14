@@ -35,17 +35,7 @@ public class WindowBoxesVisionProcessor implements VisionProcessor {
 
     public Paint rectPaint;
 
-
     public String color = "";
-
-
-
-
-
-
-
-
-
 
     @Override
     public void init(int width, int height, org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibration calibration) {
@@ -94,6 +84,9 @@ public class WindowBoxesVisionProcessor implements VisionProcessor {
 
 
     public Object[] topbox (int width,int height, int rows, int cols, String color) {
+        if (lastFrame == null) {
+            return new Object[]{};
+        }
         // Comment out this is RGB Mat evalFrame = lastFrame.clone();
         //This converts to YCRCB
         Mat ycrcbEvalFrame = new Mat();

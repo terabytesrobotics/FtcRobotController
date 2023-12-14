@@ -16,4 +16,15 @@ public enum AllianceColor {
                 return new Pose2d();
         }
     }
+
+    public int getAprilTagId(AlliancePropPosition alliancePropPosition) {
+        switch (this) {
+            case RED:
+                return alliancePropPosition.RedAprilTagId;
+            case BLUE:
+                return alliancePropPosition.BlueAprilTagId;
+            default:
+                return 0;
+        }
+    }
 }
