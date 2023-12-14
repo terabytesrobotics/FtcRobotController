@@ -21,7 +21,6 @@ import org.firstinspires.ftc.teamcode.util.OnActivatedEvaluator;
 @Config
 @TeleOp
 public class TeleOpNibus2000 extends LinearOpMode {
-
     private Nibus2000 nibus;
 
     @Override

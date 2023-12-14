@@ -4,6 +4,7 @@ import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.arcrobotics.ftclib.controller.PIDController;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
@@ -19,7 +20,7 @@ import org.firstinspires.ftc.teamcode.util.OnActivatedEvaluator;
 
 public class Nibus2000 {
 
-    public static final double ARM_TOLERANCE = 10d;
+    public static final int ARM_TOLERANCE = 10;
 
     private static final double GEAR_RATIO = 13.7d;
 
@@ -71,7 +72,7 @@ public class Nibus2000 {
 
     Servo wrist;
 
-    private CollectorState collectorState = CollectorState.SAFE_POSITION;
+    private CollectorState collectorState = CollectorState.DRIVING_SAFE;
 
     private OnActivatedEvaluator a1PressedEvaluator;
     private OnActivatedEvaluator b1PressedEvaluator;
@@ -101,7 +102,7 @@ public class Nibus2000 {
         this.gamepad2 = gamepad2;
         this.hardwareMap = hardwareMap;
         this.telemetry = telemetry;
-        this.state = NibusState.DRIVING_ONLY;
+        this.state = NibusState.STOPPED;
     }
 
     public void init() {
@@ -128,10 +129,9 @@ public class Nibus2000 {
         armMin = hardwareMap.get(TouchSensor.class, "armMin1");
         extenderMin = hardwareMap.get(TouchSensor.class, "extenderMin3");
         armcontrol = new PIDController(p, i, d);
-        arm_motor0.setDirection(DcMotorEx.Direction.FORWARD);
 
         // MOVEMENT HAPPENS HERE
-        wrist.setPosition(1);
+        wrist.setPosition(.8);
         sleep(1000);
         autoHomeCollectorLoop();
         grabberInit();
@@ -149,11 +149,11 @@ public class Nibus2000 {
         NibusState currentState = state;
         NibusState nextState = state;
         switch (state) {
-            case SCORING_ONLY:
-                nextState = evaluateScoringOnly();
+            case STOPPED:
+                nextState = evaluateStopped();
                 break;
-            case DRIVING_ONLY:
-                nextState = evaluateDrivingOnly();
+            case DRIVE_AND_SCORE:
+                nextState = evaluateDrivingAndScoring();
                 break;
             default:
                 break;
@@ -162,24 +162,26 @@ public class Nibus2000 {
             timeInState.reset();
             state = nextState;
         }
+        runTelemetry();
     }
 
-    private NibusState evaluateScoringOnly() {
-        controlScoringSystem();
+    private NibusState evaluateStopped() {
+        stop();
         if (b1PressedEvaluator.evaluate()) {
             getReadyToMove();
-            return NibusState.DRIVING_ONLY;
+            return NibusState.DRIVE_AND_SCORE;
         }
-        return NibusState.SCORING_ONLY;
+        return NibusState.STOPPED;
     }
 
-    private NibusState evaluateDrivingOnly() {
+    private NibusState evaluateDrivingAndScoring() {
+        controlScoringSystem();
         controlDrivingFromGamepad();
         if (b1PressedEvaluator.evaluate()) {
             stop();
-            return NibusState.SCORING_ONLY;
+            return NibusState.STOPPED;
         }
-        return NibusState.DRIVING_ONLY;
+        return NibusState.DRIVE_AND_SCORE;
     }
 
     private void controlDrivingFromGamepad() {
@@ -217,7 +219,7 @@ public class Nibus2000 {
         } else if (rb2PressedEvaluator.evaluate()) {
             collectorState = CollectorState.HIGH_SCORING;
         } else if (lb2PressedEvaluator.evaluate()) {
-            collectorState = CollectorState.SAFE_POSITION;
+            collectorState = CollectorState.DRIVING_SAFE;
         }
         telemetry.addData("Collector state", collectorState);
         telemetry.addData("Wrist pos:",wrist.getPosition());
@@ -239,11 +241,12 @@ public class Nibus2000 {
         //Set extension
         extendTicTarget = (int) ((Math.min(extendLength, EXTENDER_MAX_LENGTH)) * EXTENDER_TICS_PER_CM);
         extender.setTargetPosition(extendTicTarget);
-        extender.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
 
         if(armpower < 0 && armMin.isPressed()) armpower = 0;
         arm_motor0.setPower(armpower);
         extender.setPower(EXTENDER_POWER);
+
+        telemetry.addData("Armpower", armpower);
     }
 
     private void controlGrabber() {
@@ -261,7 +264,7 @@ public class Nibus2000 {
         }
 
         greenGrabber.setPosition(greenGrabberState.ServoPosition);
-        blueGrabber.setPosition(greenGrabberState.ServoPosition);
+        blueGrabber.setPosition(blueGrabberState.ServoPosition);
     }
 
     private void grabberInit() {
@@ -277,7 +280,6 @@ public class Nibus2000 {
     private void runTelemetry() {
         telemetry.addData("f", f);
         //telemetry.addData("ff", ff);
-        //telemetry.addData("Armpower", armpower);
         //telemetry.addData("Position", armPos);
         telemetry.addData("target", target);
         //telemetry.addData("AnglePos", (armPos / ARM_TICKS_PER_DEGREE) + ARM_DEGREE_OFFSET_FROM_HORIZONTAL);
@@ -299,8 +301,11 @@ public class Nibus2000 {
     }
 
     private void autoHomeCollectorLoop() {
-        //home extender
+        extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        extender.setDirection(DcMotorEx.Direction.FORWARD);
         extender.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        extender.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+
         while (!extenderMin.isPressed()) {
             extender.setPower(-0.4);
         }
@@ -314,12 +319,20 @@ public class Nibus2000 {
         }
         extender.setPower(0);
         extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        extender.setTargetPosition(0);
+        extender.setTargetPositionTolerance(ARM_TOLERANCE);
+        extender.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
+
         //home arm
-        while (!armMin.isPressed()) {
-            arm_motor0.setPower(-0.3);
+        arm_motor0.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        arm_motor0.setDirection(DcMotorSimple.Direction.FORWARD);
+        arm_motor0.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+
+        while (!armMin.isPressed()){
+            arm_motor0.setPower(-0.65);
         }
-        while (armMin.isPressed()) {
-            arm_motor0.setPower(0.4);
+        while (armMin.isPressed()){
+            arm_motor0.setPower(0.65);
         }
         sleep(500);
 
@@ -328,5 +341,6 @@ public class Nibus2000 {
         }
         arm_motor0.setPower(0);
         arm_motor0.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        arm_motor0.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
     }
 }

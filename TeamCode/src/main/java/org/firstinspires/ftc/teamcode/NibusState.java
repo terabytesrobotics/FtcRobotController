@@ -1,9 +1,8 @@
 package org.firstinspires.ftc.teamcode;
 
 public enum NibusState {
-    SCORING_ONLY,
-    DRIVING_ONLY,
-    APRIL_SEEK;
+    STOPPED,
+    DRIVE_AND_SCORE;
 
     private NibusState() {
     }
