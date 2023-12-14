@@ -21,19 +21,22 @@ public abstract class Nibus2000OpMode extends LinearOpMode {
     private final MultipleTelemetry multipleTelemetry;
     private final AllianceColor allianceColor;
     private final Pose2d startPose;
+    private final NibusState startupState;
 
-    public Nibus2000OpMode(AllianceColor allianceColor) {
+    public Nibus2000OpMode(AllianceColor allianceColor, NibusState startupState) {
         super();
         this.multipleTelemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
         this.allianceColor = allianceColor;
         this.startPose = RecoverPoseEstimate();
+        this.startupState = startupState;
     }
 
-    public Nibus2000OpMode(AllianceColor allianceColor, AlliancePose startPose) {
+    public Nibus2000OpMode(AllianceColor allianceColor, AlliancePose startPose, NibusState startupState) {
         super();
         this.multipleTelemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
         this.allianceColor = allianceColor;
         this.startPose = allianceColor.getAbsoluteFieldPose(startPose);
+        this.startupState = startupState;
     }
 
     private static final String POSE_FILE = "PoseData.tmp";
@@ -72,7 +75,7 @@ public abstract class Nibus2000OpMode extends LinearOpMode {
                 multipleTelemetry);
         nibus.init(startPose);
         waitForStart();
-        nibus.startup();
+        nibus.startup(startupState);
         while (!isStopRequested()) {
             nibus.evaluate();
         }

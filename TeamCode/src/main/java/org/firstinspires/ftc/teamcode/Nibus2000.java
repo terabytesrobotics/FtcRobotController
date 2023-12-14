@@ -12,12 +12,16 @@ import com.qualcomm.robotcore.hardware.TouchSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.robotcore.external.hardware.camera.BuiltinCameraDirection;
+import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
+import org.firstinspires.ftc.teamcode.Processors.WindowBoxesVisionProcessor;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
 import org.firstinspires.ftc.teamcode.util.BlueGrabberState;
 import org.firstinspires.ftc.teamcode.util.CollectorState;
 import org.firstinspires.ftc.teamcode.util.GreenGrabberState;
 import org.firstinspires.ftc.teamcode.util.OnActivatedEvaluator;
+import org.firstinspires.ftc.vision.VisionPortal;
 
 public class Nibus2000 {
 
@@ -41,6 +45,11 @@ public class Nibus2000 {
     public static final double EXTENDER_GEAR_RATIO = 5.2d;
 
     public static final double EXTENDER_TICS_PER_CM = EXTENDER_GEAR_RATIO * 28 / 0.8;
+
+    public static int PROP_CAMERA_WIDTH_PIXELS = 480;
+    public static int PROP_CAMERA_HEIGHT_PIXELS = 640;
+    public static int PROP_CAMERA_ROW_COUNT = 2;
+    public static int PROP_CAMERA_COLUMN_COUNT = 3;
 
     private SampleMecanumDrive drive;
     private TouchSensor armMin;
@@ -76,6 +85,7 @@ public class Nibus2000 {
     private CollectorState collectorState = CollectorState.DRIVING_SAFE;
 
     private OnActivatedEvaluator a1PressedEvaluator;
+    private OnActivatedEvaluator y1PressedEvaluator;
     private OnActivatedEvaluator b1PressedEvaluator;
     private OnActivatedEvaluator lb1PressedEvaluator;
     private OnActivatedEvaluator rb1PressedEvaluator;
@@ -98,6 +108,8 @@ public class Nibus2000 {
 
     private ElapsedTime timeSinceStart;
     private ElapsedTime timeInState;
+    private VisionPortal visionPortal;
+    private WindowBoxesVisionProcessor propFinder;
 
     public Nibus2000(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, Telemetry telemetry) {
         this.allianceColor = allianceColor;
@@ -110,9 +122,10 @@ public class Nibus2000 {
 
     public void init(Pose2d initialPose) {
         a1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.a);
+        b1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.b);
+        y1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.y);
         lb1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.left_bumper);
         rb1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.right_bumper);
-        b1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.b);
         a2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.a);
         b2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.b);
         x2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.x);
@@ -144,9 +157,10 @@ public class Nibus2000 {
         telemetry.update();
     }
 
-    public void startup() {
+    public void startup(NibusState startupState) {
         timeSinceStart = new ElapsedTime();
         timeInState = new ElapsedTime();
+        state = startupState;
     }
 
     public void evaluate() {
@@ -158,6 +172,9 @@ public class Nibus2000 {
                 break;
             case DRIVE_AND_SCORE:
                 nextState = evaluateDrivingAndScoring();
+                break;
+            case DETECT_ALLIANCE_MARKER:
+                nextState = evaluateStopped();
                 break;
             default:
                 break;
@@ -175,6 +192,11 @@ public class Nibus2000 {
             getReadyToMove();
             return NibusState.DRIVE_AND_SCORE;
         }
+
+        if (y1PressedEvaluator.evaluate()) {
+            initPropFinder();
+            return NibusState.DETECT_ALLIANCE_MARKER;
+        }
         return NibusState.STOPPED;
     }
 
@@ -186,6 +208,48 @@ public class Nibus2000 {
             return NibusState.STOPPED;
         }
         return NibusState.DRIVE_AND_SCORE;
+    }
+
+    private NibusState evaluateDetectAllianceMarker() {
+        if (y1PressedEvaluator.evaluate()) {
+            deinitPropFider();
+            return NibusState.STOPPED;
+        }
+
+        if (allianceColor == AllianceColor.RED) {
+            Object[] redResults = propFinder.topbox(PROP_CAMERA_WIDTH_PIXELS, PROP_CAMERA_HEIGHT_PIXELS, PROP_CAMERA_ROW_COUNT, PROP_CAMERA_COLUMN_COUNT, "RED");
+            telemetry.addLine("Red Row " + redResults[0]);
+            telemetry.addLine("Red Col" + redResults[1]);
+            telemetry.addLine("Red value " + redResults[2]);
+        } else if (allianceColor == AllianceColor.BLUE) {
+            Object[] blueResults = propFinder.topbox(PROP_CAMERA_WIDTH_PIXELS, PROP_CAMERA_HEIGHT_PIXELS, PROP_CAMERA_ROW_COUNT, PROP_CAMERA_COLUMN_COUNT, "BLUE");
+            telemetry.addLine("Blue Row " + blueResults[0]);
+            telemetry.addLine("Blue Col" + blueResults[1]);
+            telemetry.addLine("Blue value " + blueResults[2]);
+        }
+
+        return NibusState.DETECT_ALLIANCE_MARKER;
+    }
+
+    private void initPropFinder() {
+        propFinder = new WindowBoxesVisionProcessor();
+
+        // Create the vision portal the easy way.
+        //if (USE_WEBCAM) {
+        visionPortal = VisionPortal.easyCreateWithDefaults(
+                hardwareMap.get(WebcamName.class, "Webcam 1"), propFinder);
+        visionPortal.resumeStreaming();
+/*        } else {
+            visionPortal = VisionPortal.easyCreateWithDefaults(
+                    BuiltinCameraDirection.BACK, propfinder);
+        }*/
+    }
+
+    private void deinitPropFider() {
+        visionPortal.stopStreaming();
+        visionPortal.close();
+        visionPortal = null;
+        propFinder = null;
     }
 
     private void controlDrivingFromGamepad() {

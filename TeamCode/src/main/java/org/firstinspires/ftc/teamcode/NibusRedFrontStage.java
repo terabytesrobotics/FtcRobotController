@@ -12,6 +12,6 @@ import org.firstinspires.ftc.teamcode.util.AlliancePose;
 public class NibusRedFrontStage extends Nibus2000OpMode {
 
     public NibusRedFrontStage() {
-        super(AllianceColor.RED, AlliancePose.FRONTSTAGE_START);
+        super(AllianceColor.RED, AlliancePose.FRONTSTAGE_START, NibusState.DETECT_ALLIANCE_MARKER);
     }
 }

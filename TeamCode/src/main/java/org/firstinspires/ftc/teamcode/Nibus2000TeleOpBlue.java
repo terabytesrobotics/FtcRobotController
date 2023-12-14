@@ -10,6 +10,6 @@ import org.firstinspires.ftc.teamcode.util.AllianceColor;
 public class Nibus2000TeleOpBlue extends Nibus2000OpMode {
 
     public Nibus2000TeleOpBlue() {
-        super(AllianceColor.BLUE);
+        super(AllianceColor.BLUE, NibusState.STOPPED);
     }
 }
