@@ -105,7 +105,7 @@ public class Nibus2000 {
         this.state = NibusState.STOPPED;
     }
 
-    public void init() {
+    public void init(Pose2d initialPose) {
         a1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.a);
         lb1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.left_bumper);
         rb1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.right_bumper);
@@ -119,6 +119,7 @@ public class Nibus2000 {
 
         drive = new SampleMecanumDrive(hardwareMap);
         drive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        drive.setPoseEstimate(initialPose);
 
         arm_motor0 = hardwareMap.get(DcMotorEx.class, "arm_motorE0");
         extender = hardwareMap.get(DcMotorEx.class, "extenderE1");
