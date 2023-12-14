@@ -13,6 +13,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
+import org.firstinspires.ftc.teamcode.util.AllianceColor;
 import org.firstinspires.ftc.teamcode.util.BlueGrabberState;
 import org.firstinspires.ftc.teamcode.util.CollectorState;
 import org.firstinspires.ftc.teamcode.util.GreenGrabberState;
@@ -92,12 +93,14 @@ public class Nibus2000 {
     private final Gamepad gamepad1;
     private final Gamepad gamepad2;
 
+    private AllianceColor allianceColor;
     private NibusState state;
 
     private ElapsedTime timeSinceStart;
     private ElapsedTime timeInState;
 
-    public Nibus2000(Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, Telemetry telemetry) {
+    public Nibus2000(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, Telemetry telemetry) {
+        this.allianceColor = allianceColor;
         this.gamepad1 = gamepad1;
         this.gamepad2 = gamepad2;
         this.hardwareMap = hardwareMap;
@@ -343,5 +346,9 @@ public class Nibus2000 {
         arm_motor0.setPower(0);
         arm_motor0.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         arm_motor0.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+    }
+
+    public Pose2d getPoseEstimate() {
+        return drive.getPoseEstimate();
     }
 }
