@@ -1,7 +1,5 @@
 package org.firstinspires.ftc.teamcode.util;
 
-import org.firstinspires.ftc.teamcode.TeleOpNibus2000;
-
 public enum GreenGrabberState {
     GRABBED(0.3f),
     NOT_GRABBED(0.02f);

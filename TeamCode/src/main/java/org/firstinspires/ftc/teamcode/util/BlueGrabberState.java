@@ -1,7 +1,5 @@
 package org.firstinspires.ftc.teamcode.util;
 
-import org.firstinspires.ftc.teamcode.TeleOpNibus2000;
-
 public enum BlueGrabberState {
     GRABBED(0.65f),
     NOT_GRABBED(0.9f);
