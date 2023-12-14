@@ -8,7 +8,7 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 
-
+@Disabled
     @TeleOp(name="Test: Gordon", group="Linear OpMode")
 
     public class GordonsTest extends LinearOpMode {
