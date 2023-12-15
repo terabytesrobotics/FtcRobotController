@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
+import android.util.Log;
+
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.arcrobotics.ftclib.controller.PIDController;
@@ -53,7 +55,7 @@ public class Nibus2000 {
 
     public static int PROP_CAMERA_WIDTH_PIXELS = 640;
     public static int PROP_CAMERA_HEIGHT_PIXELS = 480;
-    public static int PROP_CAMERA_ROW_COUNT = 1;
+    public static int PROP_CAMERA_ROW_COUNT = 3;
     public static int PROP_CAMERA_COLUMN_COUNT = 3;
 
     private SampleMecanumDrive drive;
@@ -142,6 +144,7 @@ public class Nibus2000 {
         y2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.y);
         lb2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.left_bumper);
         rb2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_bumper);
+
         arm_motor0 = hardwareMap.get(DcMotorEx.class, "arm_motorE0");
         extender = hardwareMap.get(DcMotorEx.class, "extenderE1");
         greenGrabber = hardwareMap.get(Servo.class, "greenE0");
@@ -174,14 +177,16 @@ public class Nibus2000 {
         arm_motor0.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
         extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        extender.setDirection(DcMotorEx.Direction.FORWARD);
-        extender.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        extender.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        extender.setTargetPosition(0);
+        extender.setTargetPositionTolerance(ARM_TOLERANCE);
+        extender.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
 
         if (saveState != null) {
             drive.setPoseEstimate(saveState.Pose);
             armStartingTickOffset = saveState.ArmPosition;
             extenderStartingTickOffset = saveState.ExtenderPosition;
+            Log.d("Nibus2000", String.format("Setting arm offset ticks: %d", armStartingTickOffset));
+            Log.d("Nibus2000", String.format("Setting extender offset ticks: %d", extenderStartingTickOffset));
             blueGrabberState = saveState.BlueGrabberState;
             greenGrabberState = saveState.GreenGrabberState;
             applyCollectorState(saveState.CollectorState);
@@ -251,7 +256,6 @@ public class Nibus2000 {
     private ArrayList<NibusAutonomousCommand> commandSequence = new ArrayList<NibusAutonomousCommand>();
     private NibusState continuationState = null;
 
-
     private NibusState evaluateDrivingAutonomously() {
         if (commandSequence.size() == 0) {
             NibusState _continuationState = continuationState;
@@ -264,27 +268,30 @@ public class Nibus2000 {
             currentCommand = commandSequence.get(0);
 
             if (currentCommand.BlueGrabberState != null) {
-                blueGrabber.setPosition(currentCommand.BlueGrabberState.ServoPosition);
+                blueGrabberState = currentCommand.BlueGrabberState;
             }
 
             if (currentCommand.GreenGrabberState != null) {
-                greenGrabber.setPosition(currentCommand.GreenGrabberState.ServoPosition);
+                greenGrabberState = currentCommand.GreenGrabberState;
             }
 
             if (currentCommand.CollectorState != null) {
+                Log.d("evaluateDrivingAutonomously", "Setting collector state");
                 applyCollectorState(currentCommand.CollectorState);
             }
 
             if (currentCommand.TrajectoryCreator != null) {
+                Log.d("evaluateDrivingAutonomously", "Following trajectory async");
                 drive.followTrajectoryAsync(currentCommand.TrajectoryCreator.create());
             }
         }
 
-        boolean collectorSettled = currentCommand.CollectorState != null && armAndExtenderSettled();
-        boolean driveCompleted = currentCommand.TrajectoryCreator != null && !drive.isBusy();
+        boolean collectorSettled = currentCommand.CollectorState == null || armAndExtenderSettled();
+        boolean driveCompleted = currentCommand.TrajectoryCreator == null || !drive.isBusy();
         boolean minTimeElapsed = currentCommandTime.milliseconds() > currentCommand.MinTimeMillis;
         boolean commandComplete = minTimeElapsed && collectorSettled && driveCompleted;
         if (commandComplete) {
+            Log.d("evaluateDrivingAutonomously", "Command completed, popping command");
             commandSequence.remove(0);
             currentCommand = null;
         }
@@ -349,9 +356,11 @@ public class Nibus2000 {
                 alliancePropPosition = AlliancePropPosition.RIGHT;
             }
 
+            Log.d("evaluateDetectAllianceMarker", String.format("Detected %s", alliancePropPosition.name()));
+
             if (alliancePose != null) {
                 Vector2d targetLocation = alliancePose.getPixelTargetPosition(allianceColor, alliancePropPosition);
-                Pose2d targetPose = new Pose2d(targetLocation.getX(), targetLocation.getY(), latestPoseEstimate.getHeading());
+                Pose2d targetPose = new Pose2d(targetLocation.getX(), targetLocation.getY(), Math.toRadians(90 + 45));
                 Pose2d approachPose = calculateApproachPose(targetPose, -8);
 
                 setAutonomousCommands(NibusState.MANUAL_DRIVE,
@@ -360,7 +369,23 @@ public class Nibus2000 {
                                 () -> drive.trajectoryBuilder(drive.getPoseEstimate())
                                     .lineToSplineHeading(approachPose)
                                     .build()),
-                        new NibusAutonomousCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.GRABBED));
+                        new NibusAutonomousCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.GRABBED),
+                        new NibusAutonomousCommand(CollectorState.DRIVING_SAFE),
+                        new NibusAutonomousCommand(
+                                () -> drive.trajectoryBuilder(drive.getPoseEstimate())
+                                        .lineToSplineHeading(new Pose2d(-24, -8, 0))
+                                        .build()),
+                        new NibusAutonomousCommand(
+                                () -> drive.trajectoryBuilder(drive.getPoseEstimate())
+                                        .lineToSplineHeading(new Pose2d(24, -8, 0))
+                                        .build()),
+                        new NibusAutonomousCommand(
+                                () -> drive.trajectoryBuilder(drive.getPoseEstimate())
+                                        .lineToSplineHeading(new Pose2d(48, -36, 0))
+                                        .build()),
+                        new NibusAutonomousCommand(CollectorState.HIGH_SCORING),
+                        new NibusAutonomousCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.NOT_GRABBED),
+                        new NibusAutonomousCommand(CollectorState.DRIVING_SAFE));
 
                 return NibusState.AUTONOMOUSLY_DRIVING;
             } else {
@@ -610,5 +635,9 @@ public class Nibus2000 {
 
         // Return the robot's required pose
         return new Pose2d(robotX, robotY, targetPose.getHeading());
+    }
+
+    public Pose2d convertToPose(Vector2d vector2d, double heading) {
+        return new Pose2d(vector2d.getX(), vector2d.getY(), heading);
     }
 }

@@ -84,6 +84,7 @@ public class WindowBoxesVisionProcessor implements VisionProcessor {
     }
 
 
+    // NOTE: This is very hacked to only check the second row of 3.
     public Object[] topbox(int width,int height, int rows, int cols, AllianceColor color) {
         if (lastFrame == null) {
             return new Object[]{};
@@ -92,7 +93,7 @@ public class WindowBoxesVisionProcessor implements VisionProcessor {
         //This converts to YCRCB
         Mat ycrcbEvalFrame = new Mat();
         Imgproc.cvtColor(lastFrame, ycrcbEvalFrame,Imgproc.COLOR_RGB2YCrCb);
-        Mat boxes[][] = new Mat[rows][cols];
+        Mat boxes[][] = new Mat[1][cols];
         double crvals[][] = new double[rows][cols];
         double cbvals[][] = new double[rows][cols];
         double yvals[][] = new double[rows][cols];
@@ -131,15 +132,16 @@ public class WindowBoxesVisionProcessor implements VisionProcessor {
         int boxWidth = Width / Cols;
         int boxHeight = Height / Rows;
 
-        for (int r = 0; r < Rows; r++) {
+        // TODO: THIS IS HACKED
+        for (int r = 1; r < 2; r++) {
             //boxmaxes = null;
             for (int c = 0; c < Cols; c++) {
 
                 Rect roi = new Rect(c * boxWidth, r * boxHeight, boxWidth, boxHeight);
-                boxes[r][c] = new Mat(ycrcbEvalFrame, roi);
+                boxes[0][c] = new Mat(ycrcbEvalFrame, roi);
 
                 // Calculate the average selected color intensity in the box
-                Scalar avgColor = Core.mean(boxes[r][c]);
+                Scalar avgColor = Core.mean(boxes[0][c]);
 
 
                 if (color == AllianceColor.RED) {
