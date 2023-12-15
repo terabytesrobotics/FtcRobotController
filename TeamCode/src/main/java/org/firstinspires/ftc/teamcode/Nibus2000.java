@@ -220,6 +220,7 @@ public class Nibus2000 {
     }
     private void planeLaunch() {
         launcherWrist.setPosition(.5);
+        sleep(1000);
 
         launcher.setPower(1);
     }
