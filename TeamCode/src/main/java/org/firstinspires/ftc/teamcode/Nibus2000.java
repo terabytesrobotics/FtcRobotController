@@ -95,6 +95,7 @@ public class Nibus2000 {
     private OnActivatedEvaluator y2PressedEvaluator;
     private OnActivatedEvaluator lb2PressedEvaluator;
     private OnActivatedEvaluator rb2PressedEvaluator;
+    private OnActivatedEvaluator driveNotBusyEvaluator;
     private BlueGrabberState blueGrabberState = BlueGrabberState.NOT_GRABBED;
     private GreenGrabberState greenGrabberState = GreenGrabberState.NOT_GRABBED;
 
@@ -139,6 +140,8 @@ public class Nibus2000 {
         drive = new SampleMecanumDrive(hardwareMap);
         drive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         drive.setPoseEstimate(initialPose);
+
+        driveNotBusyEvaluator = new OnActivatedEvaluator(() -> !drive.isBusy());
 
         arm_motor0 = hardwareMap.get(DcMotorEx.class, "arm_motorE0");
         extender = hardwareMap.get(DcMotorEx.class, "extenderE1");
@@ -215,6 +218,10 @@ public class Nibus2000 {
     }
 
     private NibusState evaluateDrivingAutonomously() {
+        if (driveNotBusyEvaluator.evaluate()) {
+            return NibusState.MANUAL_DRIVE;
+        }
+
         return NibusState.AUTONOMOUSLY_DRIVING;
     }
 
