@@ -26,6 +26,7 @@ import org.firstinspires.ftc.teamcode.util.OnActivatedEvaluator;
 import org.firstinspires.ftc.vision.VisionPortal;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 
 public class Nibus2000 {
 
@@ -201,9 +202,6 @@ public class Nibus2000 {
             case AUTONOMOUSLY_DRIVING:
                 nextState = evaluateDrivingAutonomously();
                 break;
-            case PROP_PIXEL_DROP:
-                nextState = evaluatePropPixelDrop();
-                break;
             case DETECT_ALLIANCE_MARKER:
                 nextState = evaluateDetectAllianceMarker();
                 break;
@@ -240,25 +238,49 @@ public class Nibus2000 {
         return NibusState.MANUAL_DRIVE;
     }
 
+    private ElapsedTime currentCommandTime = new ElapsedTime();
+    private NibusAutonomousCommand currentCommand = null;
+
     private ArrayList<NibusAutonomousCommand> commandSequence = new ArrayList<NibusAutonomousCommand>();
+    private NibusState continuationState = null;
+
 
     private NibusState evaluateDrivingAutonomously() {
-        if (driveNotBusyEvaluator.evaluate()) {
-            return NibusState.MANUAL_DRIVE;
+        if (commandSequence.size() == 0) {
+            NibusState _continuationState = continuationState;
+            continuationState = null;
+            return _continuationState == null ? NibusState.MANUAL_DRIVE : _continuationState;
         }
 
-        return NibusState.AUTONOMOUSLY_DRIVING;
-    }
+        if (currentCommand == null) {
+            currentCommandTime.reset();
+            currentCommand = commandSequence.get(0);
 
-    private NibusState evaluatePropPixelDrop() {
+            if (currentCommand.BlueGrabberState != null) {
+                blueGrabber.setPosition(currentCommand.BlueGrabberState.ServoPosition);
+            }
 
-        Vector2d targetLocation = alliancePose.getPixelTargetPosition(allianceColor, alliancePropPosition);
-        Pose2d targetPose = new Pose2d(targetLocation.getX(), targetLocation.getY(), latestPoseEstimate.getHeading());
-        Pose2d approachPose = calculateApproachPose(targetPose, -8);
-        drive.followTrajectoryAsync(
-                drive.trajectoryBuilder(drive.getPoseEstimate())
-                        .lineToSplineHeading(approachPose)
-                        .build());
+            if (currentCommand.GreenGrabberState != null) {
+                greenGrabber.setPosition(currentCommand.GreenGrabberState.ServoPosition);
+            }
+
+            if (currentCommand.CollectorState != null) {
+                applyCollectorState(currentCommand.CollectorState);
+            }
+
+            if (currentCommand.TrajectoryCreator != null) {
+                drive.followTrajectoryAsync(currentCommand.TrajectoryCreator.create());
+            }
+        }
+
+        boolean collectorSettled = currentCommand.CollectorState != null && armAndExtenderSettled();
+        boolean driveCompleted = currentCommand.TrajectoryCreator != null && !drive.isBusy();
+        boolean minTimeElapsed = currentCommandTime.milliseconds() > currentCommand.MinTimeMillis;
+        boolean commandComplete = minTimeElapsed && collectorSettled && driveCompleted;
+        if (commandComplete) {
+            commandSequence.remove(0);
+            currentCommand = null;
+        }
 
         return NibusState.AUTONOMOUSLY_DRIVING;
     }
@@ -321,14 +343,31 @@ public class Nibus2000 {
             }
 
             if (alliancePose != null) {
-                applyCollectorState(CollectorState.CLOSE_COLLECTION);
-                return NibusState.PROP_PIXEL_DROP;
+                Vector2d targetLocation = alliancePose.getPixelTargetPosition(allianceColor, alliancePropPosition);
+                Pose2d targetPose = new Pose2d(targetLocation.getX(), targetLocation.getY(), latestPoseEstimate.getHeading());
+                Pose2d approachPose = calculateApproachPose(targetPose, -8);
+
+                setAutonomousCommands(NibusState.MANUAL_DRIVE,
+                        new NibusAutonomousCommand(CollectorState.CLOSE_COLLECTION),
+                        new NibusAutonomousCommand(
+                                () -> drive.trajectoryBuilder(drive.getPoseEstimate())
+                                    .lineToSplineHeading(approachPose)
+                                    .build()),
+                        new NibusAutonomousCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.GRABBED));
+
+                return NibusState.AUTONOMOUSLY_DRIVING;
             } else {
                 return NibusState.MANUAL_DRIVE;
             }
         }
 
         return NibusState.DETECT_ALLIANCE_MARKER;
+    }
+
+    private void setAutonomousCommands(NibusState _continuationState, NibusAutonomousCommand ... commands) {
+        commandSequence.clear();
+        commandSequence.addAll(Arrays.asList(commands));
+        continuationState = _continuationState;
     }
 
     private void deinitPropFider() {
