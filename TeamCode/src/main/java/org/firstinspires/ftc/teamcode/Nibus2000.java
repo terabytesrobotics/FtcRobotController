@@ -76,13 +76,15 @@ public class Nibus2000 {
 
     private DcMotorEx extender;
 
+    private DcMotorEx launcher;
+
     //collection servos
     Servo greenGrabber;
 
     Servo blueGrabber;
 
     Servo wrist;
-
+    Servo launcherWrist;
     private CollectorState collectorState = CollectorState.DRIVING_SAFE;
 
     private OnActivatedEvaluator a1PressedEvaluator;
@@ -143,13 +145,13 @@ public class Nibus2000 {
         drive.setPoseEstimate(initialPose);
 
         driveNotBusyEvaluator = new OnActivatedEvaluator(() -> !drive.isBusy());
-
+        launcher = hardwareMap.get(DcMotorEx.class, "launcherE2");
         arm_motor0 = hardwareMap.get(DcMotorEx.class, "arm_motorE0");
         extender = hardwareMap.get(DcMotorEx.class, "extenderE1");
         greenGrabber = hardwareMap.get(Servo.class, "greenE0");
         blueGrabber = hardwareMap.get(Servo.class, "blueE1");
         wrist = hardwareMap.get(Servo.class, "redE3");
-
+        launcherWrist = hardwareMap.get(Servo.class, "launcher");
         armMin = hardwareMap.get(TouchSensor.class, "armMin1");
         extenderMin = hardwareMap.get(TouchSensor.class, "extenderMin3");
         armcontrol = new PIDController(p, i, d);
@@ -207,13 +209,20 @@ public class Nibus2000 {
     private NibusState evaluateDrivingAndScoring() {
         controlScoringSystem();
         controlDrivingFromGamepad();
+        if (gamepad1.y){
+            planeLaunch();
+        }
         if (b1PressedEvaluator.evaluate()) {
             stop();
             return NibusState.HALT_OPMODE;
         }
         return NibusState.MANUAL_DRIVE;
     }
+    private void planeLaunch() {
+        launcherWrist.setPosition(.5);
 
+        launcher.setPower(1);
+    }
     private NibusState evaluateDrivingAutonomously() {
         if (driveNotBusyEvaluator.evaluate()) {
             return NibusState.MANUAL_DRIVE;
