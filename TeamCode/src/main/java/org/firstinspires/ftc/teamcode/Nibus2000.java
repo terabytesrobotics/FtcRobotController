@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.roadrunner.geometry.Pose2d;
+import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.arcrobotics.ftclib.controller.PIDController;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
@@ -12,17 +13,19 @@ import com.qualcomm.robotcore.hardware.TouchSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.robotcore.external.hardware.camera.BuiltinCameraDirection;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.teamcode.Processors.WindowBoxesVisionProcessor;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
+import org.firstinspires.ftc.teamcode.util.AlliancePose;
 import org.firstinspires.ftc.teamcode.util.AlliancePropPosition;
 import org.firstinspires.ftc.teamcode.util.BlueGrabberState;
 import org.firstinspires.ftc.teamcode.util.CollectorState;
 import org.firstinspires.ftc.teamcode.util.GreenGrabberState;
 import org.firstinspires.ftc.teamcode.util.OnActivatedEvaluator;
 import org.firstinspires.ftc.vision.VisionPortal;
+
+import java.util.ArrayList;
 
 public class Nibus2000 {
 
@@ -58,15 +61,11 @@ public class Nibus2000 {
     private PIDController armcontrol;
 
     public static double p = 0.005, i = 0.005, d = 0.0002;
-    public static double f = 0.0;
-
 
     //Length to extend in cm
     public static double extendLength = 0;
 
     public static int extendTicTarget = 0;
-
-    public double fmax = 0;
 
     public static double armTargetDegrees = 0;
     public static double target = 0.0;
@@ -108,6 +107,7 @@ public class Nibus2000 {
     private final Gamepad gamepad2;
 
     private AllianceColor allianceColor;
+    private AlliancePose alliancePose;
     private NibusState state;
 
     private ElapsedTime timeSinceStart;
@@ -115,6 +115,8 @@ public class Nibus2000 {
     private VisionPortal visionPortal;
     private WindowBoxesVisionProcessor propFinder;
     private Pose2d latestPoseEstimate = null;
+    private int armStartingTickOffset = 0;
+    private int extenderStartingTickOffset = 0;
 
     public Nibus2000(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, Telemetry telemetry) {
         this.allianceColor = allianceColor;
@@ -123,11 +125,11 @@ public class Nibus2000 {
         this.hardwareMap = hardwareMap;
         this.telemetry = telemetry;
         this.state = NibusState.MANUAL_DRIVE;
-    }
 
-    public void init(Pose2d initialPose) {
-        latestPoseEstimate = initialPose;
+        drive = new SampleMecanumDrive(hardwareMap);
+        drive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
+        driveNotBusyEvaluator = new OnActivatedEvaluator(() -> !drive.isBusy());
         a1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.a);
         b1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.b);
         y1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.y);
@@ -139,24 +141,22 @@ public class Nibus2000 {
         y2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.y);
         lb2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.left_bumper);
         rb2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_bumper);
-
-        drive = new SampleMecanumDrive(hardwareMap);
-        drive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        drive.setPoseEstimate(initialPose);
-
-        driveNotBusyEvaluator = new OnActivatedEvaluator(() -> !drive.isBusy());
-        launcher = hardwareMap.get(DcMotorEx.class, "launcherE2");
         arm_motor0 = hardwareMap.get(DcMotorEx.class, "arm_motorE0");
         extender = hardwareMap.get(DcMotorEx.class, "extenderE1");
         greenGrabber = hardwareMap.get(Servo.class, "greenE0");
         blueGrabber = hardwareMap.get(Servo.class, "blueE1");
         wrist = hardwareMap.get(Servo.class, "redE3");
+        launcher = hardwareMap.get(DcMotorEx.class, "launcherE2");
         launcherWrist = hardwareMap.get(Servo.class, "launcher");
         armMin = hardwareMap.get(TouchSensor.class, "armMin1");
         extenderMin = hardwareMap.get(TouchSensor.class, "extenderMin3");
         armcontrol = new PIDController(p, i, d);
+    }
 
-        // MOVEMENT HAPPENS HERE
+    public void autonomousInit(AlliancePose alliancePose) {
+        this.alliancePose = alliancePose;
+        drive.setPoseEstimate((allianceColor.getAbsoluteFieldPose(alliancePose)));
+
         wrist.setPosition(.8);
         sleep(1000);
         autoHomeCollectorLoop();
@@ -165,6 +165,26 @@ public class Nibus2000 {
 
         telemetry.addData("Status", "Initialized");
         telemetry.update();
+    }
+
+    public void teleopInit(NibusSaveState saveState) {
+        arm_motor0.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        arm_motor0.setDirection(DcMotorSimple.Direction.FORWARD);
+        arm_motor0.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+
+        extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        extender.setDirection(DcMotorEx.Direction.FORWARD);
+        extender.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        extender.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+
+        if (saveState != null) {
+            drive.setPoseEstimate(saveState.Pose);
+            armStartingTickOffset = saveState.ArmPosition;
+            extenderStartingTickOffset = saveState.ExtenderPosition;
+            blueGrabberState = saveState.BlueGrabberState;
+            greenGrabberState = saveState.GreenGrabberState;
+            applyCollectorState(saveState.CollectorState);
+        }
     }
 
     public void startup(NibusState startupState) {
@@ -176,12 +196,16 @@ public class Nibus2000 {
     public boolean evaluate() {
         NibusState currentState = state;
         NibusState nextState = state;
+        latestPoseEstimate = drive.getPoseEstimate();
         switch (state) {
             case MANUAL_DRIVE:
                 nextState = evaluateDrivingAndScoring();
                 break;
             case AUTONOMOUSLY_DRIVING:
                 nextState = evaluateDrivingAndScoring();
+                break;
+            case PROP_PIXEL_DROP:
+                nextState = evaluatePropPixelDrop();
                 break;
             case DETECT_ALLIANCE_MARKER:
                 nextState = evaluateDetectAllianceMarker();
@@ -196,7 +220,6 @@ public class Nibus2000 {
 
         // Update drive on every cycle to keep the odometry position in sync at all times.
         drive.update();
-        latestPoseEstimate = drive.getPoseEstimate();
 
         // Control arm every cycle (individual states can always just set the armDegreeTarget)
         controlArmAndExtender();
@@ -221,13 +244,28 @@ public class Nibus2000 {
     private void planeLaunch() {
         launcherWrist.setPosition(.5);
         sleep(1000);
-
         launcher.setPower(1);
     }
+
+    private ArrayList<NibusAutonomousCommand> commandSequence = new ArrayList<NibusAutonomousCommand>();
+
     private NibusState evaluateDrivingAutonomously() {
         if (driveNotBusyEvaluator.evaluate()) {
             return NibusState.MANUAL_DRIVE;
         }
+
+        return NibusState.AUTONOMOUSLY_DRIVING;
+    }
+
+    private NibusState evaluatePropPixelDrop() {
+
+        Vector2d targetLocation = alliancePose.getPixelTargetPosition(allianceColor, alliancePropPosition);
+        Pose2d targetPose = new Pose2d(targetLocation.getX(), targetLocation.getY(), latestPoseEstimate.getHeading());
+        Pose2d approachPose = calculateApproachPose(targetPose, -8);
+        drive.followTrajectoryAsync(
+                drive.trajectoryBuilder(drive.getPoseEstimate())
+                        .lineToSplineHeading(approachPose)
+                        .build());
 
         return NibusState.AUTONOMOUSLY_DRIVING;
     }
@@ -264,7 +302,7 @@ public class Nibus2000 {
         // Idempotent
         visionPortal.resumeStreaming();
 
-        if (elapsedPropFrameTime.milliseconds() > FRAME_DELAY_MILLIS) {
+        if (elapsedPropFrameTime.milliseconds() > FRAME_DELAY_MILLIS && framesProcessed < (DELAY_FRAMES + PROCESS_FRAMES)) {
             elapsedPropFrameTime.reset();
             Object[] redResults = propFinder.topbox(PROP_CAMERA_WIDTH_PIXELS, PROP_CAMERA_HEIGHT_PIXELS, PROP_CAMERA_ROW_COUNT, PROP_CAMERA_COLUMN_COUNT, allianceColor);
             if (redResults.length > 0) {
@@ -288,7 +326,13 @@ public class Nibus2000 {
             } else {
                 alliancePropPosition = AlliancePropPosition.RIGHT;
             }
-            return NibusState.AUTONOMOUSLY_DRIVING;
+
+            if (alliancePose != null) {
+                applyCollectorState(CollectorState.CLOSE_COLLECTION);
+                return NibusState.PROP_PIXEL_DROP;
+            } else {
+                return NibusState.MANUAL_DRIVE;
+            }
         }
 
         return NibusState.DETECT_ALLIANCE_MARKER;
@@ -319,18 +363,15 @@ public class Nibus2000 {
     }
 
     private void controlArmAndExtender() {
-        target = ((Math.min(armTargetDegrees, ARM_MAX_ANGLE)) - ARM_DEGREE_OFFSET_FROM_HORIZONTAL) * ARM_TICKS_PER_DEGREE;
+        target = computeArmTickTarget(armTargetDegrees);
         armcontrol.setPID(p, i, d);
         armcontrol.setTolerance(ARM_TOLERANCE);
 
         int armPos = arm_motor0.getCurrentPosition();
-        int extendPos = extender.getCurrentPosition();
-        double pid = armcontrol.calculate(armPos, target);
-        double ff = ((f) + (fmax * extendPos / (EXTENDER_MAX_LENGTH * EXTENDER_TICS_PER_CM))) * Math.cos(Math.toRadians(armTargetDegrees));
-        double armpower = pid + ff;
+        double armpower = armcontrol.calculate(armPos, target);
 
         //Set extension
-        extendTicTarget = (int) ((Math.min(extendLength, EXTENDER_MAX_LENGTH)) * EXTENDER_TICS_PER_CM);
+        extendTicTarget = (int) computeExtenderTickTarget(extendLength);
         extender.setTargetPosition(extendTicTarget);
 
         if(armpower < 0 && armMin.isPressed()) armpower = 0;
@@ -342,6 +383,35 @@ public class Nibus2000 {
 
     private void controlScoringSystem() {
         controlGrabber();
+    }
+
+    private double computeArmTickTarget(double degreesOffsetFromHorizontal) {
+        return (((Math.min(degreesOffsetFromHorizontal, ARM_MAX_ANGLE)) - ARM_DEGREE_OFFSET_FROM_HORIZONTAL) * ARM_TICKS_PER_DEGREE) - armStartingTickOffset;
+    }
+
+    private double computeExtenderTickTarget(double extendLength) {
+        return ((Math.min(extendLength, EXTENDER_MAX_LENGTH)) * EXTENDER_TICS_PER_CM) - extenderStartingTickOffset;
+    }
+
+    private boolean armAndExtenderSettled() {
+        int armErrorTicks = Math.abs((int) target - arm_motor0.getCurrentPosition());
+        int extenderErrorTicks = Math.abs((int) extendTicTarget - extender.getCurrentPosition());
+        return armErrorTicks < 20 && extenderErrorTicks < 20;
+    }
+
+    private void evaluateScoringManualControls() {
+        if (a1PressedEvaluator.evaluate()) {
+            blueGrabberState = blueGrabberState.toggle();
+            greenGrabberState = greenGrabberState.toggle();
+        }
+
+        if (lb1PressedEvaluator.evaluate()) {
+            greenGrabberState = greenGrabberState.toggle();
+        }
+
+        if (rb1PressedEvaluator.evaluate()) {
+            blueGrabberState = blueGrabberState.toggle();
+        }
 
         if (a2PressedEvaluator.evaluate()) {
             collectorState = CollectorState.CLOSE_COLLECTION;
@@ -358,7 +428,10 @@ public class Nibus2000 {
         }
         telemetry.addData("Collector state", collectorState);
         telemetry.addData("Wrist pos:",wrist.getPosition());
+        applyCollectorState(collectorState);
+    }
 
+    private void applyCollectorState(CollectorState collectorState) {
         wrist.setPosition(collectorState.WristPosition);
         extendLength = collectorState.ExtenderPosition;
         armTargetDegrees = collectorState.ArmPosition;
@@ -465,5 +538,38 @@ public class Nibus2000 {
 
     public Pose2d getPoseEstimate() {
         return drive.getPoseEstimate();
+    }
+
+    public int getArmPosition() {
+        return arm_motor0.getCurrentPosition();
+    }
+
+    public int getExtenderPosition() {
+        return extender.getCurrentPosition();
+    }
+
+    public CollectorState getCollectorState() {
+        return collectorState;
+    }
+
+    public BlueGrabberState getBlueGrabberState() {
+        return blueGrabberState;
+    }
+
+    public GreenGrabberState getGreenGrabberState() {
+        return greenGrabberState;
+    }
+
+    public Pose2d calculateApproachPose(Pose2d targetPose, double offsetDistance) {
+        // Calculate offset components based on target heading
+        double offsetX = offsetDistance * Math.cos(targetPose.getHeading());
+        double offsetY = offsetDistance * Math.sin(targetPose.getHeading());
+
+        // Calculate the robot's position by subtracting the offset from the target position
+        double robotX = targetPose.getX() - offsetX;
+        double robotY = targetPose.getY() - offsetY;
+
+        // Return the robot's required pose
+        return new Pose2d(robotX, robotY, targetPose.getHeading());
     }
 }

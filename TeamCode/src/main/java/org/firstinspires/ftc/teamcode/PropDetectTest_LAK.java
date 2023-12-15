@@ -39,6 +39,7 @@ import org.firstinspires.ftc.robotcore.external.hardware.camera.BuiltinCameraDir
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibration;
 import org.firstinspires.ftc.teamcode.Processors.WindowBoxesVisionProcessor;
+import org.firstinspires.ftc.teamcode.util.AllianceColor;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
@@ -121,7 +122,7 @@ public class PropDetectTest_LAK extends LinearOpMode {
                 // Share the CPU.
                 sleep(20);*/
                 if (color=="RED") {
-                    Object redresults[] = propfinder.topbox(Width, Height, rows, cols, "RED");
+                    Object redresults[] = propfinder.topbox(Width, Height, rows, cols, AllianceColor.RED);
                     telemetry.addLine("Red Row " + redresults[0]);
                     telemetry.addLine("Red Col" + redresults[1]);
                     telemetry.addLine("Red value " + redresults[2]);
@@ -129,7 +130,7 @@ public class PropDetectTest_LAK extends LinearOpMode {
                 }
 
                 else if (color=="BLUE") {
-                                    Object blueresults[] = propfinder.topbox(Width, Height, rows, cols, "BLUE");
+                                    Object blueresults[] = propfinder.topbox(Width, Height, rows, cols, AllianceColor.BLUE);
                 telemetry.addLine("Blue Row " + blueresults[0]);
                 telemetry.addLine("Blue Col" + blueresults[1]);
                 telemetry.addLine("Blue value " + blueresults[2]);

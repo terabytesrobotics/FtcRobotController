@@ -25,6 +25,7 @@ import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibration;
 import org.firstinspires.ftc.teamcode.Processors.WindowBoxesVisionProcessor;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
+import org.firstinspires.ftc.teamcode.util.AllianceColor;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
@@ -227,7 +228,7 @@ public class RedAudience extends LinearOpMode {
         waitForStart();
 
         if (color=="RED") {
-            Object redresults[] = propfinder.topbox(WidthCam2, HeightCam2, rows, cols, "RED");
+            Object redresults[] = propfinder.topbox(WidthCam2, HeightCam2, rows, cols, AllianceColor.RED);
             if (redresults[1] instanceof Integer && (int) redresults[1] < 1 ) {
             propLocation = "left";
             }
@@ -249,7 +250,7 @@ public class RedAudience extends LinearOpMode {
         }
 
         else if (color=="BLUE") {
-            Object blueresults[] = propfinder.topbox(WidthCam2, HeightCam2, rows, cols, "BLUE");
+            Object blueresults[] = propfinder.topbox(WidthCam2, HeightCam2, rows, cols, AllianceColor.BLUE);
             if (blueresults[1] instanceof Integer && (int) blueresults[1] < 1 ) {
                 propLocation = "left";
             }
