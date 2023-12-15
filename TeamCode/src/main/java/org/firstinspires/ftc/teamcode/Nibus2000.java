@@ -121,6 +121,9 @@ public class Nibus2000 {
     private int armStartingTickOffset = 0;
     private int extenderStartingTickOffset = 0;
 
+    private int currentArmPosition = 0;
+    private int currentExtenderPosition = 0;
+
     public Nibus2000(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, Telemetry telemetry) {
         this.allianceColor = allianceColor;
         this.gamepad1 = gamepad1;
@@ -200,6 +203,15 @@ public class Nibus2000 {
     }
 
     public boolean evaluate() {
+        // Update drive on every cycle to keep the odometry position in sync at all times.
+        drive.update();
+        // Control arm and grabber every cycle
+        applyCollectorState(collectorState);
+        controlArmAndExtender();
+
+        greenGrabber.setPosition(greenGrabberState.ServoPosition);
+        blueGrabber.setPosition(blueGrabberState.ServoPosition);
+
         NibusState currentState = state;
         NibusState nextState = state;
         latestPoseEstimate = drive.getPoseEstimate();
@@ -221,14 +233,6 @@ public class Nibus2000 {
             state = nextState;
         }
 
-        // Update drive on every cycle to keep the odometry position in sync at all times.
-        drive.update();
-
-        // Control arm and grabber every cycle
-        controlArmAndExtender();
-        greenGrabber.setPosition(greenGrabberState.ServoPosition);
-        blueGrabber.setPosition(blueGrabberState.ServoPosition);
-
         runTelemetry();
 
         return state != NibusState.HALT_OPMODE;
@@ -236,6 +240,7 @@ public class Nibus2000 {
 
     private NibusState evaluateDrivingAndScoring() {
         controlDrivingFromGamepad();
+        evaluateScoringManualControls();
         if (gamepad1.y){
             planeLaunch();
         }
@@ -451,11 +456,12 @@ public class Nibus2000 {
         armcontrol.setPID(p, i, d);
         armcontrol.setTolerance(ARM_TOLERANCE);
 
-        int armPos = arm_motor0.getCurrentPosition();
-        double armpower = armcontrol.calculate(armPos, target);
+        currentArmPosition = arm_motor0.getCurrentPosition();
+        double armpower = armcontrol.calculate(currentArmPosition, target);
 
         //Set extension
         extendTicTarget = (int) computeExtenderTickTarget(extendLength);
+        currentExtenderPosition = extender.getCurrentPosition();
         extender.setTargetPosition(extendTicTarget);
 
         if(armpower < 0 && armMin.isPressed()) armpower = 0;
@@ -508,7 +514,6 @@ public class Nibus2000 {
         }
         telemetry.addData("Collector state", collectorState);
         telemetry.addData("Wrist pos:",wrist.getPosition());
-        applyCollectorState(collectorState);
     }
 
     private void applyCollectorState(CollectorState collectorState) {
@@ -622,11 +627,11 @@ public class Nibus2000 {
     }
 
     public int getArmPosition() {
-        return arm_motor0.getCurrentPosition();
+        return currentArmPosition;
     }
 
     public int getExtenderPosition() {
-        return extender.getCurrentPosition();
+        return currentExtenderPosition;
     }
 
     public CollectorState getCollectorState() {

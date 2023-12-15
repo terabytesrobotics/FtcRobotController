@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode;
 
 import android.app.Application;
 import android.content.Context;
+import android.util.Log;
 
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
@@ -96,7 +97,9 @@ public abstract class Nibus2000OpMode extends LinearOpMode {
         }
 
         try (FileOutputStream fos = context.openFileOutput(POSE_FILE, Context.MODE_PRIVATE)) {
-            fos.write(json.toString().getBytes());
+            String jsonString = json.toString();
+            Log.d("nibusSaveState", jsonString);
+            fos.write(jsonString.getBytes());
         } catch (IOException e) {
             telemetry.addData("Error", "Failed to save pose: " + e.getMessage());
             telemetry.update();
@@ -114,12 +117,13 @@ public abstract class Nibus2000OpMode extends LinearOpMode {
                 stringBuilder.append(line);
             }
 
+            String jsonString = stringBuilder.toString();
+            Log.d("nibusSaveState", jsonString);
             JSONObject json = new JSONObject(stringBuilder.toString());
             Pose2d pose = new Pose2d(
                     json.getDouble("x"),
                     json.getDouble("y"),
                     json.getDouble("heading"));
-
 
             int armPosition = json.getInt("armPosition");
             int extenderPosition = json.getInt("extenderPosition");
@@ -151,11 +155,18 @@ public abstract class Nibus2000OpMode extends LinearOpMode {
         }
         waitForStart();
         nibus.startup(startupState);
-        while (!isStopRequested() && nibus.evaluate()) { }
+
+        // TODO: need to get these before stop requested.
+        int lastArmPosition = 0;
+        int lastExtenderPosition = 0;
+        while (!isStopRequested() && nibus.evaluate()) {
+            lastArmPosition = nibus.getArmPosition();
+            lastExtenderPosition = nibus.getExtenderPosition();
+        }
         WriteNibusSaveState(
                 nibus.getPoseEstimate(),
-                nibus.getArmPosition(),
-                nibus.getExtenderPosition(),
+                lastArmPosition,
+                lastExtenderPosition,
                 nibus.getCollectorState(),
                 nibus.getBlueGrabberState(),
                 nibus.getGreenGrabberState());
