@@ -522,23 +522,6 @@ public class Nibus2000 {
         armTargetDegrees = collectorState.ArmPosition;
     }
 
-
-
-    private void evaluateGrabber() {
-        if (a1PressedEvaluator.evaluate()) {
-            blueGrabberState = blueGrabberState.toggle();
-            greenGrabberState = greenGrabberState.toggle();
-        }
-
-        if (lb1PressedEvaluator.evaluate()) {
-            greenGrabberState = greenGrabberState.toggle();
-        }
-
-        if (rb1PressedEvaluator.evaluate()) {
-            blueGrabberState = blueGrabberState.toggle();
-        }
-    }
-
     private void grabberInit() {
         blueGrabberState = BlueGrabberState.NOT_GRABBED;
         greenGrabberState = GreenGrabberState.NOT_GRABBED;
