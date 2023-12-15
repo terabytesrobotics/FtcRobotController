@@ -18,7 +18,9 @@ public enum pointsOfInterest {
     blueDiagonalAudience(-48, -24),
     blueDiagonalBack(24,24),
     midGateAuidience(-36,0),
-    midGateBack(24,0);
+    midGateBack(24,0),
+    redScoringApproach(48, -36),
+    blueScoringApprach(48, 36);
 
 
 

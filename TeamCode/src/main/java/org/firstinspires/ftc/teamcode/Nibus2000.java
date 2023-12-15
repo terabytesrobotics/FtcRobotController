@@ -208,7 +208,7 @@ public class Nibus2000 {
                 nextState = evaluateDrivingAndScoring();
                 break;
             case AUTONOMOUSLY_DRIVING:
-                nextState = evaluateDrivingAndScoring();
+                nextState = evaluateDrivingAutonomously();
                 break;
             case DETECT_ALLIANCE_MARKER:
                 nextState = evaluateDetectAllianceMarker();
@@ -224,8 +224,10 @@ public class Nibus2000 {
         // Update drive on every cycle to keep the odometry position in sync at all times.
         drive.update();
 
-        // Control arm every cycle (individual states can always just set the armDegreeTarget)
+        // Control arm and grabber every cycle
         controlArmAndExtender();
+        greenGrabber.setPosition(greenGrabberState.ServoPosition);
+        blueGrabber.setPosition(blueGrabberState.ServoPosition);
 
         runTelemetry();
 
@@ -233,7 +235,6 @@ public class Nibus2000 {
     }
 
     private NibusState evaluateDrivingAndScoring() {
-        controlScoringSystem();
         controlDrivingFromGamepad();
         if (gamepad1.y){
             planeLaunch();
@@ -338,8 +339,13 @@ public class Nibus2000 {
                 if (framesProcessed >= DELAY_FRAMES) {
                     int voteIndex = (int) redResults[1];
                     leftMidRightVotes[voteIndex]++;
+                    Log.d("nibusVision", String.format("Vision vote for %d", voteIndex));
+                } else {
+                    Log.d("nibusVision", "Delaying this frame.");
                 }
                 framesProcessed++;
+            } else {
+                Log.d("nibusVision", "No frame processed");
             }
         }
 
@@ -360,8 +366,22 @@ public class Nibus2000 {
 
             if (alliancePose != null) {
                 Vector2d targetLocation = alliancePose.getPixelTargetPosition(allianceColor, alliancePropPosition);
-                Pose2d targetPose = new Pose2d(targetLocation.getX(), targetLocation.getY(), Math.toRadians(90 + 45));
+                double targetHeading = Math.toRadians(90);
+                switch (allianceColor) {
+                    case RED:
+                        targetHeading += Math.toRadians(45);
+                    case BLUE:
+                        targetHeading -= Math.toRadians(45);
+                    default:
+                        break;
+                }
+
+                Pose2d targetPose = new Pose2d(targetLocation.getX(), targetLocation.getY(), targetHeading);
                 Pose2d approachPose = calculateApproachPose(targetPose, -8);
+
+                Vector2d waypoint1 = allianceColor.getMiddleLaneAudienceWaypoint();
+                Vector2d waypoint2 = allianceColor.getMiddleLaneBackstageWaypoint();
+                Vector2d waypoint3 = allianceColor.getScoringApproachLocation();
 
                 setAutonomousCommands(NibusState.MANUAL_DRIVE,
                         new NibusAutonomousCommand(CollectorState.CLOSE_COLLECTION),
@@ -373,15 +393,15 @@ public class Nibus2000 {
                         new NibusAutonomousCommand(CollectorState.DRIVING_SAFE),
                         new NibusAutonomousCommand(
                                 () -> drive.trajectoryBuilder(drive.getPoseEstimate())
-                                        .lineToSplineHeading(new Pose2d(-24, -8, 0))
+                                        .lineToSplineHeading(convertToPose(waypoint1, 0))
                                         .build()),
                         new NibusAutonomousCommand(
                                 () -> drive.trajectoryBuilder(drive.getPoseEstimate())
-                                        .lineToSplineHeading(new Pose2d(24, -8, 0))
+                                        .lineToSplineHeading(convertToPose(waypoint2, 0))
                                         .build()),
                         new NibusAutonomousCommand(
                                 () -> drive.trajectoryBuilder(drive.getPoseEstimate())
-                                        .lineToSplineHeading(new Pose2d(48, -36, 0))
+                                        .lineToSplineHeading(convertToPose(waypoint3, 0))
                                         .build()),
                         new NibusAutonomousCommand(CollectorState.HIGH_SCORING),
                         new NibusAutonomousCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.NOT_GRABBED),
@@ -445,10 +465,6 @@ public class Nibus2000 {
         telemetry.addData("Armpower", armpower);
     }
 
-    private void controlScoringSystem() {
-        controlGrabber();
-    }
-
     private double computeArmTickTarget(double degreesOffsetFromHorizontal) {
         return (((Math.min(degreesOffsetFromHorizontal, ARM_MAX_ANGLE)) - ARM_DEGREE_OFFSET_FROM_HORIZONTAL) * ARM_TICKS_PER_DEGREE) - armStartingTickOffset;
     }
@@ -501,7 +517,9 @@ public class Nibus2000 {
         armTargetDegrees = collectorState.ArmPosition;
     }
 
-    private void controlGrabber() {
+
+
+    private void evaluateGrabber() {
         if (a1PressedEvaluator.evaluate()) {
             blueGrabberState = blueGrabberState.toggle();
             greenGrabberState = greenGrabberState.toggle();
@@ -514,19 +532,18 @@ public class Nibus2000 {
         if (rb1PressedEvaluator.evaluate()) {
             blueGrabberState = blueGrabberState.toggle();
         }
-
-        greenGrabber.setPosition(greenGrabberState.ServoPosition);
-        blueGrabber.setPosition(blueGrabberState.ServoPosition);
     }
 
     private void grabberInit() {
         blueGrabberState = BlueGrabberState.NOT_GRABBED;
         greenGrabberState = GreenGrabberState.NOT_GRABBED;
-        controlGrabber();
+        greenGrabber.setPosition(greenGrabberState.ServoPosition);
+        blueGrabber.setPosition(blueGrabberState.ServoPosition);
         sleep(2500);
         blueGrabberState = BlueGrabberState.GRABBED;
         greenGrabberState = GreenGrabberState.GRABBED;
-        controlGrabber();
+        greenGrabber.setPosition(greenGrabberState.ServoPosition);
+        blueGrabber.setPosition(blueGrabberState.ServoPosition);
     }
 
     private void runTelemetry() {
