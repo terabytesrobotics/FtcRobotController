@@ -7,6 +7,7 @@ import android.view.SurfaceView;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibration;
+import org.firstinspires.ftc.teamcode.util.AllianceColor;
 import org.firstinspires.ftc.vision.VisionProcessor;
 import org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibration;
 import org.opencv.core.Core;
@@ -83,7 +84,7 @@ public class WindowBoxesVisionProcessor implements VisionProcessor {
     }
 
 
-    public Object[] topbox (int width,int height, int rows, int cols, String color) {
+    public Object[] topbox(int width,int height, int rows, int cols, AllianceColor color) {
         if (lastFrame == null) {
             return new Object[]{};
         }
@@ -114,12 +115,12 @@ public class WindowBoxesVisionProcessor implements VisionProcessor {
         double maxval = -1;
 
 
-        if (color == "RED") {
+        if (color == AllianceColor.RED) {
             //index 2 for RGB, 1 for ycrcb
             colorindex = 1;
 
 
-        } else if (color == "BLUE") {
+        } else if (color == AllianceColor.BLUE) {
             //index 0 for RGB, 2 for ycrcb
 
             colorindex = 2;
@@ -141,11 +142,11 @@ public class WindowBoxesVisionProcessor implements VisionProcessor {
                 Scalar avgColor = Core.mean(boxes[r][c]);
 
 
-                if (color=="RED") {
+                if (color == AllianceColor.RED) {
 
                     boxmaxes.put(r, c, avgColor.val[1]);
 
-                } else if (color=="BLUE") {
+                } else if (color == AllianceColor.BLUE) {
 
                     boxmaxes.put(r, c, avgColor.val[2]);
 

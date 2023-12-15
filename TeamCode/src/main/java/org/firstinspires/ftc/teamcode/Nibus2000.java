@@ -257,24 +257,13 @@ public class Nibus2000 {
 
         if (elapsedPropFrameTime.milliseconds() > FRAME_DELAY_MILLIS) {
             elapsedPropFrameTime.reset();
-            if (allianceColor == AllianceColor.RED) {
-                Object[] redResults = propFinder.topbox(PROP_CAMERA_WIDTH_PIXELS, PROP_CAMERA_HEIGHT_PIXELS, PROP_CAMERA_ROW_COUNT, PROP_CAMERA_COLUMN_COUNT, "RED");
-                if (redResults.length > 0) {
-                    if (framesProcessed >= DELAY_FRAMES) {
-                        int voteIndex = (int) redResults[1];
-                        leftMidRightVotes[voteIndex]++;
-                    }
-                    framesProcessed++;
+            Object[] results = propFinder.topbox(PROP_CAMERA_WIDTH_PIXELS, PROP_CAMERA_HEIGHT_PIXELS, PROP_CAMERA_ROW_COUNT, PROP_CAMERA_COLUMN_COUNT, allianceColor);
+            if (results.length > 0) {
+                if (framesProcessed >= DELAY_FRAMES) {
+                    int voteIndex = (int) results[1];
+                    leftMidRightVotes[voteIndex]++;
                 }
-            } else if (allianceColor == AllianceColor.BLUE) {
-                Object[] blueResults = propFinder.topbox(PROP_CAMERA_WIDTH_PIXELS, PROP_CAMERA_HEIGHT_PIXELS, PROP_CAMERA_ROW_COUNT, PROP_CAMERA_COLUMN_COUNT, "BLUE");
-                if (blueResults.length > 0) {
-                    if (framesProcessed >= DELAY_FRAMES) {
-                        int voteIndex = (int) blueResults[1];
-                        leftMidRightVotes[voteIndex]++;
-                    }
-                    framesProcessed++;
-                }
+                framesProcessed++;
             }
         }
 
