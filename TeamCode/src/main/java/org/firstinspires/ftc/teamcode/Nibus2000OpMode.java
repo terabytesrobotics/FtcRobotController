@@ -107,9 +107,7 @@ public abstract class Nibus2000OpMode extends LinearOpMode {
         nibus.init(startPose);
         waitForStart();
         nibus.startup(startupState);
-        while (!isStopRequested()) {
-            nibus.evaluate();
-        }
+        while (!isStopRequested() && !nibus.evaluate()) { }
         SavePoseEstimate(nibus.getPoseEstimate());
     }
 }

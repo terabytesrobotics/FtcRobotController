@@ -1,9 +1,10 @@
 package org.firstinspires.ftc.teamcode;
 
 public enum NibusState {
-    STOPPED,
-    DRIVE_AND_SCORE,
-    DETECT_ALLIANCE_MARKER;
+    MANUAL_DRIVE,
+    AUTONOMOUSLY_DRIVING,
+    DETECT_ALLIANCE_MARKER,
+    HALT_OPMODE;
 
     private NibusState() {
     }
