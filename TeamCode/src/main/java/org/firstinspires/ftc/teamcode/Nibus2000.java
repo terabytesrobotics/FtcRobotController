@@ -111,6 +111,7 @@ public class Nibus2000 {
     private ElapsedTime timeInState;
     private VisionPortal visionPortal;
     private WindowBoxesVisionProcessor propFinder;
+    private Pose2d latestPoseEstimate = null;
 
     public Nibus2000(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, Telemetry telemetry) {
         this.allianceColor = allianceColor;
@@ -122,6 +123,8 @@ public class Nibus2000 {
     }
 
     public void init(Pose2d initialPose) {
+        latestPoseEstimate = initialPose;
+
         a1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.a);
         b1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.b);
         y1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.y);
@@ -185,6 +188,10 @@ public class Nibus2000 {
             timeInState.reset();
             state = nextState;
         }
+
+        // Update drive on every cycle to keep the odometry position in sync at all times.
+        drive.update();
+        latestPoseEstimate = drive.getPoseEstimate();
 
         // Control arm every cycle (individual states can always just set the armDegreeTarget)
         controlArmAndExtender();
@@ -299,7 +306,6 @@ public class Nibus2000 {
                         -gamepad1.left_stick_y,
                         -gamepad1.left_stick_x,
                         -gamepad1.right_stick_x));
-        drive.update();
     }
 
     private void getReadyToMove() {
@@ -389,20 +395,23 @@ public class Nibus2000 {
     }
 
     private void runTelemetry() {
-        telemetry.addData("f", f);
+        telemetry.addData("x", latestPoseEstimate.getX());
+        telemetry.addData("y", latestPoseEstimate.getY());
+        telemetry.addData("heading", latestPoseEstimate.getHeading());
+//        telemetry.addData("f", f);
         //telemetry.addData("ff", ff);
         //telemetry.addData("Position", armPos);
-        telemetry.addData("propPosition", alliancePropPosition);
-        telemetry.addData("target", target);
+//        telemetry.addData("propPosition", alliancePropPosition);
+//        telemetry.addData("target", target);
         //telemetry.addData("AnglePos", (armPos / ARM_TICKS_PER_DEGREE) + ARM_DEGREE_OFFSET_FROM_HORIZONTAL);
-        telemetry.addData("angle target", armTargetDegrees);
-        telemetry.addData("Extender Tic Target", extendTicTarget);
+//        telemetry.addData("angle target", armTargetDegrees);
+//        telemetry.addData("Extender Tic Target", extendTicTarget);
         //telemetry.addData("Extender Current Tics", extendPos);
-        telemetry.addData("Extender Target Length cm", extendLength);
+//        telemetry.addData("Extender Target Length cm", extendLength);
         //telemetry.addData("Extend Current Length", extendPos / EXTENDER_TICS_PER_CM);
-        telemetry.addData("extender power", extender.getPower());
-        telemetry.addData("green",greenGrabber.getPosition());
-        telemetry.addData("blue",blueGrabber.getPosition());
+//        telemetry.addData("extender power", extender.getPower());
+//        telemetry.addData("green",greenGrabber.getPosition());
+//        telemetry.addData("blue",blueGrabber.getPosition());
         telemetry.update();
     }
 
