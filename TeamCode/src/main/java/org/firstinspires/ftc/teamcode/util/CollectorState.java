@@ -11,9 +11,6 @@ public enum CollectorState {
     HANG2(90,0,.9f),
     HANG3(75,0,.9f);
 
-
-
-
     public float WristPosition;
     public int ArmPosition;
 

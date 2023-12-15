@@ -12,6 +12,7 @@ import com.qualcomm.robotcore.hardware.TouchSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.robotcore.external.hardware.camera.BuiltinCameraDirection;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.teamcode.Processors.WindowBoxesVisionProcessor;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
@@ -178,7 +179,7 @@ public class Nibus2000 {
                 nextState = evaluateDrivingAndScoring();
                 break;
             case AUTONOMOUSLY_DRIVING:
-                nextState = evaluateDrivingAutonomously();
+                nextState = evaluateDrivingAndScoring();
                 break;
             case DETECT_ALLIANCE_MARKER:
                 nextState = evaluateDetectAllianceMarker();
@@ -198,17 +199,13 @@ public class Nibus2000 {
         // Control arm every cycle (individual states can always just set the armDegreeTarget)
         controlArmAndExtender();
 
-        // Control grabbers every cycle
-        greenGrabber.setPosition(greenGrabberState.ServoPosition);
-        blueGrabber.setPosition(blueGrabberState.ServoPosition);
-
         runTelemetry();
 
         return state != NibusState.HALT_OPMODE;
     }
 
     private NibusState evaluateDrivingAndScoring() {
-        evaluateScoringManualControls();
+        controlScoringSystem();
         controlDrivingFromGamepad();
         if (b1PressedEvaluator.evaluate()) {
             stop();
@@ -259,10 +256,10 @@ public class Nibus2000 {
 
         if (elapsedPropFrameTime.milliseconds() > FRAME_DELAY_MILLIS) {
             elapsedPropFrameTime.reset();
-            Object[] results = propFinder.topbox(PROP_CAMERA_WIDTH_PIXELS, PROP_CAMERA_HEIGHT_PIXELS, PROP_CAMERA_ROW_COUNT, PROP_CAMERA_COLUMN_COUNT, allianceColor);
-            if (results.length > 0) {
+            Object[] redResults = propFinder.topbox(PROP_CAMERA_WIDTH_PIXELS, PROP_CAMERA_HEIGHT_PIXELS, PROP_CAMERA_ROW_COUNT, PROP_CAMERA_COLUMN_COUNT, allianceColor);
+            if (redResults.length > 0) {
                 if (framesProcessed >= DELAY_FRAMES) {
-                    int voteIndex = (int) results[1];
+                    int voteIndex = (int) redResults[1];
                     leftMidRightVotes[voteIndex]++;
                 }
                 framesProcessed++;
@@ -281,7 +278,6 @@ public class Nibus2000 {
             } else {
                 alliancePropPosition = AlliancePropPosition.RIGHT;
             }
-
             return NibusState.AUTONOMOUSLY_DRIVING;
         }
 
@@ -334,19 +330,8 @@ public class Nibus2000 {
         telemetry.addData("Armpower", armpower);
     }
 
-    private void evaluateScoringManualControls() {
-        if (a1PressedEvaluator.evaluate()) {
-            blueGrabberState = blueGrabberState.toggle();
-            greenGrabberState = greenGrabberState.toggle();
-        }
-
-        if (lb1PressedEvaluator.evaluate()) {
-            greenGrabberState = greenGrabberState.toggle();
-        }
-
-        if (rb1PressedEvaluator.evaluate()) {
-            blueGrabberState = blueGrabberState.toggle();
-        }
+    private void controlScoringSystem() {
+        controlGrabber();
 
         if (a2PressedEvaluator.evaluate()) {
             collectorState = CollectorState.CLOSE_COLLECTION;
@@ -369,16 +354,32 @@ public class Nibus2000 {
         armTargetDegrees = collectorState.ArmPosition;
     }
 
+    private void controlGrabber() {
+        if (a1PressedEvaluator.evaluate()) {
+            blueGrabberState = blueGrabberState.toggle();
+            greenGrabberState = greenGrabberState.toggle();
+        }
+
+        if (lb1PressedEvaluator.evaluate()) {
+            greenGrabberState = greenGrabberState.toggle();
+        }
+
+        if (rb1PressedEvaluator.evaluate()) {
+            blueGrabberState = blueGrabberState.toggle();
+        }
+
+        greenGrabber.setPosition(greenGrabberState.ServoPosition);
+        blueGrabber.setPosition(blueGrabberState.ServoPosition);
+    }
+
     private void grabberInit() {
         blueGrabberState = BlueGrabberState.NOT_GRABBED;
         greenGrabberState = GreenGrabberState.NOT_GRABBED;
-        greenGrabber.setPosition(greenGrabberState.ServoPosition);
-        blueGrabber.setPosition(blueGrabberState.ServoPosition);
+        controlGrabber();
         sleep(2500);
         blueGrabberState = BlueGrabberState.GRABBED;
         greenGrabberState = GreenGrabberState.GRABBED;
-        greenGrabber.setPosition(greenGrabberState.ServoPosition);
-        blueGrabber.setPosition(blueGrabberState.ServoPosition);
+        controlGrabber();
     }
 
     private void runTelemetry() {
@@ -454,18 +455,5 @@ public class Nibus2000 {
 
     public Pose2d getPoseEstimate() {
         return drive.getPoseEstimate();
-    }
-
-    public Pose2d calculateApproachPose(Pose2d targetPose, double offsetDistance) {
-        // Calculate offset components based on target heading
-        double offsetX = offsetDistance * Math.cos(targetPose.getHeading());
-        double offsetY = offsetDistance * Math.sin(targetPose.getHeading());
-
-        // Calculate the robot's position by subtracting the offset from the target position
-        double robotX = targetPose.getX() - offsetX;
-        double robotY = targetPose.getY() - offsetY;
-
-        // Return the robot's required pose
-        return new Pose2d(robotX, robotY, targetPose.getHeading());
     }
 }
