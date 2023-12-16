@@ -26,6 +26,7 @@ import org.firstinspires.ftc.teamcode.util.CollectorState;
 import org.firstinspires.ftc.teamcode.util.GreenGrabberState;
 import org.firstinspires.ftc.teamcode.util.OnActivatedEvaluator;
 import org.firstinspires.ftc.vision.VisionPortal;
+import org.opencv.core.Mat;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -101,6 +102,11 @@ public class Nibus2000 {
     private OnActivatedEvaluator lb2PressedEvaluator;
     private OnActivatedEvaluator rb2PressedEvaluator;
     private OnActivatedEvaluator driveNotBusyEvaluator;
+    private OnActivatedEvaluator dpadUp2PressedEvaluator;
+    private OnActivatedEvaluator dpadDown2PressedEvaluator;
+    private OnActivatedEvaluator dpadLeft2PressedEvaluator;
+    private OnActivatedEvaluator dpadRight2PressedEvaluator;
+
     private BlueGrabberState blueGrabberState = BlueGrabberState.NOT_GRABBED;
     private GreenGrabberState greenGrabberState = GreenGrabberState.NOT_GRABBED;
 
@@ -123,6 +129,13 @@ public class Nibus2000 {
 
     private int currentArmPosition = 0;
     private int currentExtenderPosition = 0;
+    private int armTrimIncrements = 0;
+    private static final double ARM_DEGREE_TRIM_INCREMENT = 1;
+    private static final int ARM_MAX_TRIM_INCREMENTS = 10;
+    private static final double WRIST_SERVO_TRIM_INCREMENT = 0.02;
+    private static final int WRIST_MAX_TRIM_INCREMENTS = 10;
+    private int wristTrimIncrements = 0;
+
 
     public Nibus2000(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, Telemetry telemetry) {
         this.allianceColor = allianceColor;
@@ -147,6 +160,10 @@ public class Nibus2000 {
         y2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.y);
         lb2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.left_bumper);
         rb2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_bumper);
+        dpadUp2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.dpad_up);
+        dpadDown2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.dpad_down);
+        dpadLeft2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.dpad_left);
+        dpadRight2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.dpad_right);
 
         arm_motor0 = hardwareMap.get(DcMotorEx.class, "arm_motorE0");
         extender = hardwareMap.get(DcMotorEx.class, "extenderE1");
@@ -192,7 +209,7 @@ public class Nibus2000 {
             Log.d("Nibus2000", String.format("Setting extender offset ticks: %d", extenderStartingTickOffset));
             blueGrabberState = saveState.BlueGrabberState;
             greenGrabberState = saveState.GreenGrabberState;
-            applyCollectorState(saveState.CollectorState);
+            collectorState = saveState.CollectorState;
         }
     }
 
@@ -205,12 +222,7 @@ public class Nibus2000 {
     public boolean evaluate() {
         // Update drive on every cycle to keep the odometry position in sync at all times.
         drive.update();
-        // Control arm and grabber every cycle
-        applyCollectorState(collectorState);
-        controlArmAndExtender();
-
-        greenGrabber.setPosition(greenGrabberState.ServoPosition);
-        blueGrabber.setPosition(blueGrabberState.ServoPosition);
+        controlScoringSystem();
 
         NibusState currentState = state;
         NibusState nextState = state;
@@ -241,13 +253,22 @@ public class Nibus2000 {
     private NibusState evaluateDrivingAndScoring() {
         controlDrivingFromGamepad();
         evaluateScoringManualControls();
-        if (gamepad1.y){
+        if (gamepad1.y) {
             planeLaunch();
         }
-        if (b1PressedEvaluator.evaluate()) {
-            stop();
-            return NibusState.HALT_OPMODE;
+        if (dpadUp2PressedEvaluator.evaluate()) {
+            armTrimIncrements = Math.min(armTrimIncrements + 1, ARM_MAX_TRIM_INCREMENTS);
         }
+        if (dpadDown2PressedEvaluator.evaluate()) {
+            armTrimIncrements = Math.max(armTrimIncrements - 1, -ARM_MAX_TRIM_INCREMENTS);
+        }
+        if (dpadLeft2PressedEvaluator.evaluate()) {
+            wristTrimIncrements = Math.min(wristTrimIncrements + 1, WRIST_MAX_TRIM_INCREMENTS);
+        }
+        if (dpadRight2PressedEvaluator.evaluate()) {
+            wristTrimIncrements = Math.max(wristTrimIncrements - 1, -WRIST_MAX_TRIM_INCREMENTS);
+        }
+
         return NibusState.MANUAL_DRIVE;
     }
     private void planeLaunch() {
@@ -283,7 +304,7 @@ public class Nibus2000 {
 
             if (currentCommand.CollectorState != null) {
                 Log.d("evaluateDrivingAutonomously", "Setting collector state");
-                applyCollectorState(currentCommand.CollectorState);
+                collectorState = currentCommand.CollectorState;
             }
 
             if (currentCommand.TrajectoryCreator != null) {
@@ -313,19 +334,17 @@ public class Nibus2000 {
     private AlliancePropPosition alliancePropPosition = null;
     private ElapsedTime elapsedPropFrameTime = new ElapsedTime();
 
-    private void prepareToDetectAllianceMarker() {
-        framesProcessed = 0;
-        leftMidRightVotes[0] = 0;
-        leftMidRightVotes[1] = 0;
-        leftMidRightVotes[2] = 0;
-        alliancePropPosition = null;
-        elapsedPropFrameTime.reset();
-    }
-
     private NibusState evaluateDetectAllianceMarker() {
 
         // Lazy init the prop finder and vision portal
         if (propFinder == null) {
+            framesProcessed = 0;
+            leftMidRightVotes[0] = 0;
+            leftMidRightVotes[1] = 0;
+            leftMidRightVotes[2] = 0;
+            alliancePropPosition = null;
+            elapsedPropFrameTime.reset();
+
             propFinder = new WindowBoxesVisionProcessor();
         }
 
@@ -451,8 +470,17 @@ public class Nibus2000 {
         drive.update();
     }
 
-    private void controlArmAndExtender() {
-        target = computeArmTickTarget(armTargetDegrees);
+    private void controlScoringSystem() {
+        greenGrabber.setPosition(greenGrabberState.ServoPosition);
+        blueGrabber.setPosition(blueGrabberState.ServoPosition);
+
+        double wristPositionToApply = Math.min(1, Math.max(0, collectorState.WristPosition + (wristTrimIncrements * WRIST_SERVO_TRIM_INCREMENT)));
+        wrist.setPosition(wristPositionToApply);
+        extendLength = collectorState.ExtenderPosition;
+        armTargetDegrees = collectorState.ArmPosition;
+
+        double trimmedArmTargetDegrees = armTargetDegrees + (armTrimIncrements * ARM_DEGREE_TRIM_INCREMENT);
+        target = computeArmTickTarget(trimmedArmTargetDegrees);
         armcontrol.setPID(p, i, d);
         armcontrol.setTolerance(ARM_TOLERANCE);
 
@@ -514,12 +542,6 @@ public class Nibus2000 {
         }
         telemetry.addData("Collector state", collectorState);
         telemetry.addData("Wrist pos:",wrist.getPosition());
-    }
-
-    private void applyCollectorState(CollectorState collectorState) {
-        wrist.setPosition(collectorState.WristPosition);
-        extendLength = collectorState.ExtenderPosition;
-        armTargetDegrees = collectorState.ArmPosition;
     }
 
     private void grabberInit() {
