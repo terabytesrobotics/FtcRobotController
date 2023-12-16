@@ -51,6 +51,17 @@ public enum AllianceColor {
         }
     }
 
+    public Vector2d getScoringPreApproachLocation() {
+        switch (this) {
+            case RED:
+                return new Vector2d(pointsOfInterest.redScoringPreApproach.X, pointsOfInterest.redScoringPreApproach.Y);
+            case BLUE:
+                return new Vector2d(pointsOfInterest.blueScoringPreApprach.X, pointsOfInterest.blueScoringPreApprach.Y);
+            default:
+                return new Vector2d();
+        }
+    }
+
     public Vector2d getScoringApproachLocation() {
         switch (this) {
             case RED:

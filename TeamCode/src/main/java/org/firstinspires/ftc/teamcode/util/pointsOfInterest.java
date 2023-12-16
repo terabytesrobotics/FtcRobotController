@@ -21,10 +21,12 @@ public enum pointsOfInterest {
     midGateBack(24,0),
     redScoringApproach(48, -36),
     blueScoringApprach(48, 36),
-    redLeftBackstagePark(50, -12),
-    redRightBackstagePark(50, -60),
-    blueRightBackstagePark(50, 12),
-    blueLeftBackstagePark(50, 60);
+    redScoringPreApproach(48, -12),
+    blueScoringPreApprach(48, 12),
+    redLeftBackstagePark(48, -12),
+    redRightBackstagePark(48, -60),
+    blueRightBackstagePark(48, 12),
+    blueLeftBackstagePark(48, 60);
 
 
 

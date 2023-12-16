@@ -4,6 +4,7 @@ import android.util.Log;
 
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
+import com.acmerobotics.roadrunner.trajectory.Trajectory;
 import com.arcrobotics.ftclib.controller.PIDController;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
@@ -18,6 +19,7 @@ import org.apache.commons.math3.util.MathUtils;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.teamcode.Processors.WindowBoxesVisionProcessor;
+import org.firstinspires.ftc.teamcode.drive.DriveConstants;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
 import org.firstinspires.ftc.teamcode.util.AlliancePose;
@@ -134,9 +136,9 @@ public class Nibus2000 {
     private int currentExtenderPosition = 0;
     private int armTrimIncrements = 0;
     private static final double ARM_DEGREE_TRIM_INCREMENT = 1;
-    private static final int ARM_MAX_TRIM_INCREMENTS = 10;
+    private static final int ARM_MAX_TRIM_INCREMENTS = 100;
     private static final double WRIST_SERVO_TRIM_INCREMENT = 0.02;
-    private static final int WRIST_MAX_TRIM_INCREMENTS = 10;
+    private static final int WRIST_MAX_TRIM_INCREMENTS = 100;
     private int wristTrimIncrements = 0;
     private boolean launchingAirplane = false;
     private static final int END_GAME_BEGINS_MILLIS = 2 * 60 * 1000;
@@ -459,40 +461,38 @@ public class Nibus2000 {
         Pose2d approachPose = calculateApproachPose(targetPose, -8);
 
         Vector2d waypoint1 = allianceColor.getMiddleLaneAudienceWaypoint();
-        Vector2d waypoint2 = allianceColor.getMiddleLaneBackstageWaypoint();
-        Vector2d waypoint3 = allianceColor.getInnerLaneBackstageWaypoint();
-        Vector2d waypoint4 = allianceColor.getScoringApproachLocation();
+        Vector2d waypoint2 = allianceColor.getScoringPreApproachLocation();
+        Vector2d waypoint3 = allianceColor.getScoringApproachLocation();
 
         setAutonomousCommands(NibusState.MANUAL_DRIVE,
                 new NibusAutonomousCommand(CollectorState.CLOSE_COLLECTION),
                 new NibusAutonomousCommand(
-                        () -> drive.trajectoryBuilder(drive.getPoseEstimate())
-                                .lineToSplineHeading(approachPose)
-                                .build()),
+                        () -> buildAutonomousTrajectoryFromHere(approachPose)),
                 new NibusAutonomousCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.GRABBED),
                 new NibusAutonomousCommand(CollectorState.DRIVING_SAFE),
                 new NibusAutonomousCommand(
-                        () -> drive.trajectoryBuilder(drive.getPoseEstimate())
-                                .lineToSplineHeading(convertToPose(waypoint1, 0))
-                                .build()),
+                        () -> buildAutonomousTrajectoryFromHere(waypoint1, 0)),
                 new NibusAutonomousCommand(
-                        () -> drive.trajectoryBuilder(drive.getPoseEstimate())
-                                .lineToSplineHeading(convertToPose(waypoint2, 0))
-                                .build()),
+                        () -> buildAutonomousTrajectoryFromHere(waypoint2, 0)),
                 new NibusAutonomousCommand(
-                        () -> drive.trajectoryBuilder(drive.getPoseEstimate())
-                                .lineToSplineHeading(convertToPose(waypoint3, 0))
-                                .build()),
-                new NibusAutonomousCommand(
-                        () -> drive.trajectoryBuilder(drive.getPoseEstimate())
-                                .lineToSplineHeading(convertToPose(waypoint4, 0))
-                                .build()),
+                        () -> buildAutonomousTrajectoryFromHere(waypoint3, 0)),
                 new NibusAutonomousCommand(CollectorState.HIGH_SCORING),
                 new NibusAutonomousCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.NOT_GRABBED),
                 new NibusAutonomousCommand(CollectorState.DRIVING_SAFE),
-                new NibusAutonomousCommand(() -> drive.trajectoryBuilder(drive.getPoseEstimate())
-                        .lineToSplineHeading(convertToPose(endParkingLocation, 0))
-                        .build()));
+                new NibusAutonomousCommand(
+                        () -> buildAutonomousTrajectoryFromHere(endParkingLocation, 0)));
+    }
+
+    private Trajectory buildAutonomousTrajectoryFromHere(Vector2d vector2d, double heading) {
+        return buildAutonomousTrajectoryFromHere(convertToPose(vector2d, heading));
+    }
+
+    private Trajectory buildAutonomousTrajectoryFromHere(Pose2d pose2d) {
+        return drive.trajectoryBuilder(drive.getPoseEstimate())
+                .lineToSplineHeading(pose2d,
+                        SampleMecanumDrive.getVelocityConstraint(DriveConstants.MAX_VEL * .66, DriveConstants.MAX_ANG_VEL, DriveConstants.TRACK_WIDTH),
+                        SampleMecanumDrive.getAccelerationConstraint(DriveConstants.MAX_ACCEL))
+                .build();
     }
 
     private void setAutonomousCommands(NibusState _continuationState, NibusAutonomousCommand ... commands) {
