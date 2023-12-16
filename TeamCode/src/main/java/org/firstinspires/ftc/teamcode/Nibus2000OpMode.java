@@ -107,6 +107,8 @@ public abstract class Nibus2000OpMode extends LinearOpMode {
     }
 
     private NibusSaveState ReadNibusSaveState() {
+        NibusSaveState loadedState = null;
+
         try (FileInputStream fis = context.openFileInput(POSE_FILE);
              InputStreamReader isr = new InputStreamReader(fis);
              BufferedReader reader = new BufferedReader(isr)) {
@@ -119,7 +121,7 @@ public abstract class Nibus2000OpMode extends LinearOpMode {
 
             String jsonString = stringBuilder.toString();
             Log.d("nibusSaveState", jsonString);
-            JSONObject json = new JSONObject(stringBuilder.toString());
+            JSONObject json = new JSONObject(jsonString);
             Pose2d pose = new Pose2d(
                     json.getDouble("x"),
                     json.getDouble("y"),
@@ -130,14 +132,25 @@ public abstract class Nibus2000OpMode extends LinearOpMode {
             CollectorState collectorState = CollectorState.valueOf(json.getString("collectorState"));
             BlueGrabberState blueGrabberState = BlueGrabberState.valueOf(json.getString("blueGrabberState"));
             GreenGrabberState greenGrabberState = GreenGrabberState.valueOf(json.getString("greenGrabberState"));
-            return new NibusSaveState(pose, armPosition, extenderPosition, collectorState, blueGrabberState, greenGrabberState);
+
+            loadedState = new NibusSaveState(pose, armPosition, extenderPosition, collectorState, blueGrabberState, greenGrabberState);
+
         } catch (IOException | JSONException e) {
             telemetry.addData("Error", "Failed to recover pose: " + e.getMessage());
             telemetry.update();
+            return null;
         }
-        return null;
-    }
 
+        // Delete the file after the streams are closed
+        File file = new File(context.getFilesDir(), POSE_FILE);
+        if (file.delete()) {
+            Log.d("nibusSaveState", "Pose data file deleted successfully.");
+        } else {
+            Log.e("nibusSaveState", "Failed to delete pose data file.");
+        }
+
+        return loadedState;
+    }
 
     @Override
     public void runOpMode() {
