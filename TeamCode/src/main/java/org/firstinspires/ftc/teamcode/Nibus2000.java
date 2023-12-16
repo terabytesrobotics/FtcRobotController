@@ -501,18 +501,6 @@ public class Nibus2000 {
                         slowMode ? 0 : -gamepad1.right_stick_x));
     }
 
-    private void getReadyToMove() {
-        drive.setWeightedDrivePower(new Pose2d(0, 0, 0));
-        drive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-        drive.update();
-    }
-
-    private void stop() {
-        drive.setWeightedDrivePower(new Pose2d(0, 0, 0));
-        drive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        drive.update();
-    }
-
     private void controlScoringSystems() {
         greenGrabber.setPosition(greenGrabberState.ServoPosition);
         blueGrabber.setPosition(blueGrabberState.ServoPosition);
