@@ -496,7 +496,7 @@ public class Nibus2000 {
         // Apply scale and prevent rotation when right trigger is pressed
         drive.setWeightedDrivePower(
                 new Pose2d(
-                        -gamepad1.left_stick_y * Math.min(1, (scale * 2.5)),
+                        -gamepad1.left_stick_y * Math.min(1, (scale * 3)),
                         -gamepad1.left_stick_x * scale,
                         -gamepad1.right_stick_x * scale));
     }
