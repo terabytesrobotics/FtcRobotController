@@ -199,8 +199,8 @@ public class Nibus2000 {
         wrist.setPosition(.8);
         sleep(1000);
         autoHomeCollectorLoop();
-        grabberInit();
         wrist.setPosition(1);
+        grabberInit();
 
         telemetry.addData("Status", "Initialized");
         telemetry.update();
@@ -607,11 +607,29 @@ public class Nibus2000 {
     }
 
     private void grabberInit() {
+        // Initial short cycle to visually indicate ready to load pixels
         blueGrabberState = BlueGrabberState.NOT_GRABBED;
         greenGrabberState = GreenGrabberState.NOT_GRABBED;
         greenGrabber.setPosition(greenGrabberState.ServoPosition);
         blueGrabber.setPosition(blueGrabberState.ServoPosition);
-        sleep(2500);
+
+        sleep(500);
+
+        blueGrabberState = BlueGrabberState.GRABBED;
+        greenGrabberState = GreenGrabberState.GRABBED;
+        greenGrabber.setPosition(greenGrabberState.ServoPosition);
+        blueGrabber.setPosition(blueGrabberState.ServoPosition);
+
+        sleep(500);
+
+        // Then hold open for 3 seconds before closing
+        blueGrabberState = BlueGrabberState.NOT_GRABBED;
+        greenGrabberState = GreenGrabberState.NOT_GRABBED;
+        greenGrabber.setPosition(greenGrabberState.ServoPosition);
+        blueGrabber.setPosition(blueGrabberState.ServoPosition);
+
+        sleep(3000);
+
         blueGrabberState = BlueGrabberState.GRABBED;
         greenGrabberState = GreenGrabberState.GRABBED;
         greenGrabber.setPosition(greenGrabberState.ServoPosition);
