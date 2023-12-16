@@ -490,13 +490,13 @@ public class Nibus2000 {
         double scale = 1.0; // Default scale for normal driving
         boolean slowMode = gamepad1.right_trigger > 0.2;
         if (slowMode) { // Check if the right trigger is pressed
-            scale = 0.3; // Scale down speed for fine control
+            scale = 0.2; // Scale down speed for fine control
         }
 
         // Apply scale and prevent rotation when right trigger is pressed
         drive.setWeightedDrivePower(
                 new Pose2d(
-                        -gamepad1.left_stick_y * Math.min(1, (scale * 2)),
+                        -gamepad1.left_stick_y * Math.min(1, (scale * 2.5)),
                         -gamepad1.left_stick_x * scale,
                         -gamepad1.right_stick_x * scale));
     }
