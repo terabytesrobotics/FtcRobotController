@@ -138,7 +138,7 @@ public class Nibus2000 {
     private static final int WRIST_MAX_TRIM_INCREMENTS = 10;
     private int wristTrimIncrements = 0;
     private boolean launchingAirplane = false;
-    private static final int END_GAME_BEGINS_MILLIS = 2 * 60 * 1000 * 0;
+    private static final int END_GAME_BEGINS_MILLIS = 2 * 60 * 1000;
     private int launchingAirplaneTimeMillis = 0;
 
     private static final double LAUNCH_WRIST_POSITION = 0d;
