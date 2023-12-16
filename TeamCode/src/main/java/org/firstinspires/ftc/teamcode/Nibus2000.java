@@ -14,6 +14,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.TouchSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
+import org.apache.commons.math3.util.MathUtils;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.teamcode.Processors.WindowBoxesVisionProcessor;
@@ -216,16 +217,19 @@ public class Nibus2000 {
         extender.setTargetPositionTolerance(ARM_TOLERANCE);
         extender.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
 
-        if (saveState != null) {
-            drive.setPoseEstimate(saveState.Pose);
-            armStartingTickOffset = saveState.ArmPosition;
-            extenderStartingTickOffset = saveState.ExtenderPosition;
-            Log.d("Nibus2000", String.format("Setting arm offset ticks: %d", armStartingTickOffset));
-            Log.d("Nibus2000", String.format("Setting extender offset ticks: %d", extenderStartingTickOffset));
-            blueGrabberState = saveState.BlueGrabberState;
-            greenGrabberState = saveState.GreenGrabberState;
-            collectorState = saveState.CollectorState;
-        }
+//        if (saveState != null) {
+//            drive.setPoseEstimate(saveState.Pose);
+//            armStartingTickOffset = saveState.ArmPosition;
+//            extenderStartingTickOffset = saveState.ExtenderPosition;
+//            Log.d("Nibus2000", String.format("Setting arm offset ticks: %d", armStartingTickOffset));
+//            Log.d("Nibus2000", String.format("Setting extender offset ticks: %d", extenderStartingTickOffset));
+//            blueGrabberState = saveState.BlueGrabberState;
+//            greenGrabberState = saveState.GreenGrabberState;
+//            collectorState = saveState.CollectorState;
+//        } else {
+            wrist.setPosition(1);
+            autoHomeCollectorLoopFast();
+//        }
     }
 
     public void startup(NibusState startupState) {
@@ -270,16 +274,16 @@ public class Nibus2000 {
         evaluateScoringManualControls();
 
         // Safe travels
-        if (isEndgame() && y1PressedEvaluator.evaluate()) {
+        if (y1PressedEvaluator.evaluate()) {
             launchingAirplane = true;
             launchingAirplaneTimeMillis = (int) timeSinceStart.milliseconds();
         }
 
         // And good luck
-        if (isEndgame() && rs1PressedEvaluator.evaluate()) {
+        if (rs1PressedEvaluator.evaluate()) {
             endgameLiftStage = Math.min(3, endgameLiftStage + 1);
             collectorState = endgameLiftStage(endgameLiftStage);
-        } else if (isEndgame() && ls1PressedEvaluator.evaluate()) {
+        } else if (ls1PressedEvaluator.evaluate()) {
             endgameLiftStage = Math.max(0, endgameLiftStage - 1);
             collectorState = endgameLiftStage(endgameLiftStage);
         }
@@ -439,14 +443,16 @@ public class Nibus2000 {
 
     private void planAutonomousAfterPropDetect(Vector2d endParkingLocation) {
         Vector2d targetLocation = alliancePose.getPixelTargetPosition(allianceColor, alliancePropPosition);
-        double targetHeading = latestPoseEstimate.getHeading();
+        double targetHeading = 0.0;
         switch (allianceColor) {
             case RED:
-                targetHeading += Math.toRadians(45);
-            case BLUE:
-                targetHeading -= Math.toRadians(45);
-            default:
+                targetHeading = Math.toRadians(270 - 135);
                 break;
+            case BLUE:
+                targetHeading = Math.toRadians(90 + 135);
+                break;
+            default:
+                targetHeading = 0;
         }
 
         Pose2d targetPose = new Pose2d(targetLocation.getX(), targetLocation.getY(), targetHeading);
@@ -454,7 +460,8 @@ public class Nibus2000 {
 
         Vector2d waypoint1 = allianceColor.getMiddleLaneAudienceWaypoint();
         Vector2d waypoint2 = allianceColor.getMiddleLaneBackstageWaypoint();
-        Vector2d waypoint3 = allianceColor.getScoringApproachLocation();
+        Vector2d waypoint3 = allianceColor.getInnerLaneBackstageWaypoint();
+        Vector2d waypoint4 = allianceColor.getScoringApproachLocation();
 
         setAutonomousCommands(NibusState.MANUAL_DRIVE,
                 new NibusAutonomousCommand(CollectorState.CLOSE_COLLECTION),
@@ -475,6 +482,10 @@ public class Nibus2000 {
                 new NibusAutonomousCommand(
                         () -> drive.trajectoryBuilder(drive.getPoseEstimate())
                                 .lineToSplineHeading(convertToPose(waypoint3, 0))
+                                .build()),
+                new NibusAutonomousCommand(
+                        () -> drive.trajectoryBuilder(drive.getPoseEstimate())
+                                .lineToSplineHeading(convertToPose(waypoint4, 0))
                                 .build()),
                 new NibusAutonomousCommand(CollectorState.HIGH_SCORING),
                 new NibusAutonomousCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.NOT_GRABBED),
@@ -688,6 +699,36 @@ public class Nibus2000 {
         while (!armMin.isPressed()) {
             arm_motor0.setPower(-0.05);
         }
+        arm_motor0.setPower(0);
+        arm_motor0.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        arm_motor0.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+    }
+
+    private void autoHomeCollectorLoopFast() {
+        extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        extender.setDirection(DcMotorEx.Direction.FORWARD);
+        extender.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        extender.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+
+        while (!extenderMin.isPressed()) {
+            extender.setPower(-0.4);
+        }
+
+        extender.setPower(0);
+        extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        extender.setTargetPosition(0);
+        extender.setTargetPositionTolerance(ARM_TOLERANCE);
+        extender.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
+
+        //home arm
+        arm_motor0.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        arm_motor0.setDirection(DcMotorSimple.Direction.FORWARD);
+        arm_motor0.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+
+        while (!armMin.isPressed()){
+            arm_motor0.setPower(-0.30);
+        }
+
         arm_motor0.setPower(0);
         arm_motor0.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         arm_motor0.setMode(DcMotor.RunMode.RUN_USING_ENCODER);

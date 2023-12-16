@@ -40,6 +40,17 @@ public enum AllianceColor {
         }
     }
 
+    public Vector2d getInnerLaneBackstageWaypoint() {
+        switch (this) {
+            case RED:
+                return new Vector2d(pointsOfInterest.redInnerBack.X, pointsOfInterest.redInnerBack.Y);
+            case BLUE:
+                return new Vector2d(pointsOfInterest.blueInnerBack.X, pointsOfInterest.blueInnerBack.Y);
+            default:
+                return new Vector2d();
+        }
+    }
+
     public Vector2d getScoringApproachLocation() {
         switch (this) {
             case RED:
