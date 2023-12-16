@@ -106,6 +106,8 @@ public class Nibus2000 {
     private OnActivatedEvaluator dpadDown2PressedEvaluator;
     private OnActivatedEvaluator dpadLeft2PressedEvaluator;
     private OnActivatedEvaluator dpadRight2PressedEvaluator;
+    private OnActivatedEvaluator rs1PressedEvaluator;
+    private OnActivatedEvaluator ls1PressedEvaluator;
 
     private BlueGrabberState blueGrabberState = BlueGrabberState.NOT_GRABBED;
     private GreenGrabberState greenGrabberState = GreenGrabberState.NOT_GRABBED;
@@ -139,7 +141,8 @@ public class Nibus2000 {
     private static final int END_GAME_BEGINS_MILLIS = 2 * 60 * 1000 * 0;
     private int launchingAirplaneTimeMillis = 0;
 
-    private static final double LAUNCH_WRIST_POSITION = 0.5d;
+    private static final double LAUNCH_WRIST_POSITION = 0d;
+    private int endgameLiftStage = 0;
 
     public Nibus2000(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, Telemetry telemetry) {
         this.allianceColor = allianceColor;
@@ -158,6 +161,8 @@ public class Nibus2000 {
         y1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.y);
         lb1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.left_bumper);
         rb1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.right_bumper);
+        rs1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.right_stick_button);
+        ls1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.left_stick_button);
         a2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.a);
         b2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.b);
         x2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.x);
@@ -261,10 +266,22 @@ public class Nibus2000 {
     private NibusState evaluateDrivingAndScoring() {
         controlDrivingFromGamepad();
         evaluateScoringManualControls();
+
+        // Safe travels
         if (isEndgame() && y1PressedEvaluator.evaluate()) {
             launchingAirplane = true;
             launchingAirplaneTimeMillis = (int) timeSinceStart.milliseconds();
         }
+
+        // And good luck
+        if (isEndgame() && rs1PressedEvaluator.evaluate()) {
+            endgameLiftStage = Math.min(3, endgameLiftStage + 1);
+            collectorState = endgameLiftStage(endgameLiftStage);
+        } else if (isEndgame() && ls1PressedEvaluator.evaluate()) {
+            endgameLiftStage = Math.max(0, endgameLiftStage - 1);
+            collectorState = endgameLiftStage(endgameLiftStage);
+        }
+
         if (dpadUp2PressedEvaluator.evaluate()) {
             armTrimIncrements = Math.min(armTrimIncrements + 1, ARM_MAX_TRIM_INCREMENTS);
         }
@@ -279,6 +296,21 @@ public class Nibus2000 {
         }
 
         return NibusState.MANUAL_DRIVE;
+    }
+
+    private CollectorState endgameLiftStage(int stageNumber) {
+        switch (stageNumber) {
+            case 0:
+                return CollectorState.DRIVING_SAFE;
+            case 1:
+                return CollectorState.HANG1;
+            case 2:
+                return CollectorState.HANG2;
+            case 3:
+                return CollectorState.HANG3;
+            default:
+                return CollectorState.DRIVING_SAFE;
+        }
     }
 
     private ElapsedTime currentCommandTime = new ElapsedTime();
