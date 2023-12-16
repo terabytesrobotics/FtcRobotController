@@ -143,6 +143,7 @@ public class Nibus2000 {
 
     private static final double LAUNCH_WRIST_POSITION = 0d;
     private int endgameLiftStage = 0;
+    private NibusAutonomousPlan autonomousPlan = null;
 
     public Nibus2000(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, Telemetry telemetry) {
         this.allianceColor = allianceColor;
@@ -190,8 +191,9 @@ public class Nibus2000 {
         launcher.setDirection(DcMotorSimple.Direction.FORWARD);
     }
 
-    public void autonomousInit(AlliancePose alliancePose) {
+    public void autonomousInit(AlliancePose alliancePose, NibusAutonomousPlan autonomousPlan) {
         this.alliancePose = alliancePose;
+        this.autonomousPlan = autonomousPlan;
         drive.setPoseEstimate((allianceColor.getAbsoluteFieldPose(alliancePose)));
 
         wrist.setPosition(.8);
@@ -424,49 +426,8 @@ public class Nibus2000 {
 
             Log.d("evaluateDetectAllianceMarker", String.format("Detected %s", alliancePropPosition.name()));
 
-            if (alliancePose != null) {
-                Vector2d targetLocation = alliancePose.getPixelTargetPosition(allianceColor, alliancePropPosition);
-                double targetHeading = Math.toRadians(90);
-                switch (allianceColor) {
-                    case RED:
-                        targetHeading += Math.toRadians(45);
-                    case BLUE:
-                        targetHeading -= Math.toRadians(45);
-                    default:
-                        break;
-                }
-
-                Pose2d targetPose = new Pose2d(targetLocation.getX(), targetLocation.getY(), targetHeading);
-                Pose2d approachPose = calculateApproachPose(targetPose, -8);
-
-                Vector2d waypoint1 = allianceColor.getMiddleLaneAudienceWaypoint();
-                Vector2d waypoint2 = allianceColor.getMiddleLaneBackstageWaypoint();
-                Vector2d waypoint3 = allianceColor.getScoringApproachLocation();
-
-                setAutonomousCommands(NibusState.MANUAL_DRIVE,
-                        new NibusAutonomousCommand(CollectorState.CLOSE_COLLECTION),
-                        new NibusAutonomousCommand(
-                                () -> drive.trajectoryBuilder(drive.getPoseEstimate())
-                                    .lineToSplineHeading(approachPose)
-                                    .build()),
-                        new NibusAutonomousCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.GRABBED),
-                        new NibusAutonomousCommand(CollectorState.DRIVING_SAFE),
-                        new NibusAutonomousCommand(
-                                () -> drive.trajectoryBuilder(drive.getPoseEstimate())
-                                        .lineToSplineHeading(convertToPose(waypoint1, 0))
-                                        .build()),
-                        new NibusAutonomousCommand(
-                                () -> drive.trajectoryBuilder(drive.getPoseEstimate())
-                                        .lineToSplineHeading(convertToPose(waypoint2, 0))
-                                        .build()),
-                        new NibusAutonomousCommand(
-                                () -> drive.trajectoryBuilder(drive.getPoseEstimate())
-                                        .lineToSplineHeading(convertToPose(waypoint3, 0))
-                                        .build()),
-                        new NibusAutonomousCommand(CollectorState.HIGH_SCORING),
-                        new NibusAutonomousCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.NOT_GRABBED),
-                        new NibusAutonomousCommand(CollectorState.DRIVING_SAFE));
-
+            if (alliancePose != null && autonomousPlan != null) {
+                planAutonomousAfterPropDetect(autonomousPlan.getParkLocation(allianceColor));
                 return NibusState.AUTONOMOUSLY_DRIVING;
             } else {
                 return NibusState.MANUAL_DRIVE;
@@ -474,6 +435,53 @@ public class Nibus2000 {
         }
 
         return NibusState.DETECT_ALLIANCE_MARKER;
+    }
+
+    private void planAutonomousAfterPropDetect(Vector2d endParkingLocation) {
+        Vector2d targetLocation = alliancePose.getPixelTargetPosition(allianceColor, alliancePropPosition);
+        double targetHeading = latestPoseEstimate.getHeading();
+        switch (allianceColor) {
+            case RED:
+                targetHeading += Math.toRadians(45);
+            case BLUE:
+                targetHeading -= Math.toRadians(45);
+            default:
+                break;
+        }
+
+        Pose2d targetPose = new Pose2d(targetLocation.getX(), targetLocation.getY(), targetHeading);
+        Pose2d approachPose = calculateApproachPose(targetPose, -8);
+
+        Vector2d waypoint1 = allianceColor.getMiddleLaneAudienceWaypoint();
+        Vector2d waypoint2 = allianceColor.getMiddleLaneBackstageWaypoint();
+        Vector2d waypoint3 = allianceColor.getScoringApproachLocation();
+
+        setAutonomousCommands(NibusState.MANUAL_DRIVE,
+                new NibusAutonomousCommand(CollectorState.CLOSE_COLLECTION),
+                new NibusAutonomousCommand(
+                        () -> drive.trajectoryBuilder(drive.getPoseEstimate())
+                                .lineToSplineHeading(approachPose)
+                                .build()),
+                new NibusAutonomousCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.GRABBED),
+                new NibusAutonomousCommand(CollectorState.DRIVING_SAFE),
+                new NibusAutonomousCommand(
+                        () -> drive.trajectoryBuilder(drive.getPoseEstimate())
+                                .lineToSplineHeading(convertToPose(waypoint1, 0))
+                                .build()),
+                new NibusAutonomousCommand(
+                        () -> drive.trajectoryBuilder(drive.getPoseEstimate())
+                                .lineToSplineHeading(convertToPose(waypoint2, 0))
+                                .build()),
+                new NibusAutonomousCommand(
+                        () -> drive.trajectoryBuilder(drive.getPoseEstimate())
+                                .lineToSplineHeading(convertToPose(waypoint3, 0))
+                                .build()),
+                new NibusAutonomousCommand(CollectorState.HIGH_SCORING),
+                new NibusAutonomousCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.NOT_GRABBED),
+                new NibusAutonomousCommand(CollectorState.DRIVING_SAFE),
+                new NibusAutonomousCommand(() -> drive.trajectoryBuilder(drive.getPoseEstimate())
+                        .lineToSplineHeading(convertToPose(endParkingLocation, 0))
+                        .build()));
     }
 
     private void setAutonomousCommands(NibusState _continuationState, NibusAutonomousCommand ... commands) {

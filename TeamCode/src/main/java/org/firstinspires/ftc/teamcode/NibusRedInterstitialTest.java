@@ -11,6 +11,6 @@ import org.firstinspires.ftc.teamcode.util.AlliancePose;
 public class NibusRedInterstitialTest extends Nibus2000OpMode {
 
     public NibusRedInterstitialTest() {
-        super(AllianceColor.RED, AlliancePose.BACKSTAGE_START, NibusState.MANUAL_DRIVE);
+        super(AllianceColor.RED, AlliancePose.BACKSTAGE_START, NibusState.MANUAL_DRIVE, null);
     }
 }

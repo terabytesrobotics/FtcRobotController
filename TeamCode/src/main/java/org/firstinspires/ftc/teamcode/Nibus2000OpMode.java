@@ -56,6 +56,7 @@ public abstract class Nibus2000OpMode extends LinearOpMode {
     protected final Context context = AppUtil.getDefContext();
     private AlliancePose alliancePose = null;
     private NibusSaveState saveState = null;
+    private NibusAutonomousPlan autonomousPlan = null;
 
 
     public Nibus2000OpMode(AllianceColor allianceColor, NibusState startupState) {
@@ -65,11 +66,12 @@ public abstract class Nibus2000OpMode extends LinearOpMode {
         this.startupState = startupState;
     }
 
-    public Nibus2000OpMode(AllianceColor allianceColor, AlliancePose startPose, NibusState startupState) {
+    public Nibus2000OpMode(AllianceColor allianceColor, AlliancePose startPose, NibusState startupState, NibusAutonomousPlan autonomousPlan) {
         super();
         this.allianceColor = allianceColor;
         this.alliancePose = startPose;
         this.startupState = startupState;
+        this.autonomousPlan = autonomousPlan;
     }
 
     private static final String POSE_FILE = "PoseData.tmp";
@@ -162,7 +164,7 @@ public abstract class Nibus2000OpMode extends LinearOpMode {
                 telemetry);
         boolean isSlowInit = alliancePose != null;
         if (isSlowInit) {
-            nibus.autonomousInit(alliancePose);
+            nibus.autonomousInit(alliancePose, autonomousPlan);
         } else {
             nibus.teleopInit(saveState);
         }
