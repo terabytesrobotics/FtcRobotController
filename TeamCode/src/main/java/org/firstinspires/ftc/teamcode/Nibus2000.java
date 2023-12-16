@@ -135,7 +135,11 @@ public class Nibus2000 {
     private static final double WRIST_SERVO_TRIM_INCREMENT = 0.02;
     private static final int WRIST_MAX_TRIM_INCREMENTS = 10;
     private int wristTrimIncrements = 0;
+    private boolean launchingAirplane = false;
+    private static final int END_GAME_BEGINS_MILLIS = 2 * 60 * 1000 * 0;
+    private int launchingAirplaneTimeMillis = 0;
 
+    private static final double LAUNCH_WRIST_POSITION = 0.5d;
 
     public Nibus2000(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, Telemetry telemetry) {
         this.allianceColor = allianceColor;
@@ -175,6 +179,10 @@ public class Nibus2000 {
         armMin = hardwareMap.get(TouchSensor.class, "armMin1");
         extenderMin = hardwareMap.get(TouchSensor.class, "extenderMin3");
         armcontrol = new PIDController(p, i, d);
+
+        launcher.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        launcher.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        launcher.setDirection(DcMotorSimple.Direction.FORWARD);
     }
 
     public void autonomousInit(AlliancePose alliancePose) {
@@ -222,7 +230,7 @@ public class Nibus2000 {
     public boolean evaluate() {
         // Update drive on every cycle to keep the odometry position in sync at all times.
         drive.update();
-        controlScoringSystem();
+        controlScoringSystems();
 
         NibusState currentState = state;
         NibusState nextState = state;
@@ -253,8 +261,9 @@ public class Nibus2000 {
     private NibusState evaluateDrivingAndScoring() {
         controlDrivingFromGamepad();
         evaluateScoringManualControls();
-        if (gamepad1.y) {
-            planeLaunch();
+        if (isEndgame() && y1PressedEvaluator.evaluate()) {
+            launchingAirplane = true;
+            launchingAirplaneTimeMillis = (int) timeSinceStart.milliseconds();
         }
         if (dpadUp2PressedEvaluator.evaluate()) {
             armTrimIncrements = Math.min(armTrimIncrements + 1, ARM_MAX_TRIM_INCREMENTS);
@@ -270,11 +279,6 @@ public class Nibus2000 {
         }
 
         return NibusState.MANUAL_DRIVE;
-    }
-    private void planeLaunch() {
-        launcherWrist.setPosition(.5);
-        sleep(1000);
-        launcher.setPower(1);
     }
 
     private ElapsedTime currentCommandTime = new ElapsedTime();
@@ -470,7 +474,7 @@ public class Nibus2000 {
         drive.update();
     }
 
-    private void controlScoringSystem() {
+    private void controlScoringSystems() {
         greenGrabber.setPosition(greenGrabberState.ServoPosition);
         blueGrabber.setPosition(blueGrabberState.ServoPosition);
 
@@ -495,6 +499,19 @@ public class Nibus2000 {
         if(armpower < 0 && armMin.isPressed()) armpower = 0;
         arm_motor0.setPower(armpower);
         extender.setPower(EXTENDER_POWER);
+
+        if (launchingAirplane) {
+            launcherWrist.setPosition(LAUNCH_WRIST_POSITION);
+            int launchSequenceTimeMillis = (int) timeSinceStart.milliseconds() - launchingAirplaneTimeMillis;
+            if (launchSequenceTimeMillis > 1000) {
+                launcher.setPower(1);
+            }
+
+            if (launchSequenceTimeMillis > 2000) {
+                launcher.setPower(0);
+                launchingAirplane = false;
+            }
+        }
 
         telemetry.addData("Armpower", armpower);
     }
@@ -560,20 +577,6 @@ public class Nibus2000 {
         telemetry.addData("x", latestPoseEstimate.getX());
         telemetry.addData("y", latestPoseEstimate.getY());
         telemetry.addData("heading", latestPoseEstimate.getHeading());
-//        telemetry.addData("f", f);
-        //telemetry.addData("ff", ff);
-        //telemetry.addData("Position", armPos);
-//        telemetry.addData("propPosition", alliancePropPosition);
-//        telemetry.addData("target", target);
-        //telemetry.addData("AnglePos", (armPos / ARM_TICKS_PER_DEGREE) + ARM_DEGREE_OFFSET_FROM_HORIZONTAL);
-//        telemetry.addData("angle target", armTargetDegrees);
-//        telemetry.addData("Extender Tic Target", extendTicTarget);
-        //telemetry.addData("Extender Current Tics", extendPos);
-//        telemetry.addData("Extender Target Length cm", extendLength);
-        //telemetry.addData("Extend Current Length", extendPos / EXTENDER_TICS_PER_CM);
-//        telemetry.addData("extender power", extender.getPower());
-//        telemetry.addData("green",greenGrabber.getPosition());
-//        telemetry.addData("blue",blueGrabber.getPosition());
         telemetry.update();
     }
 
@@ -666,5 +669,9 @@ public class Nibus2000 {
 
     public Pose2d convertToPose(Vector2d vector2d, double heading) {
         return new Pose2d(vector2d.getX(), vector2d.getY(), heading);
+    }
+
+    private boolean isEndgame() {
+        return timeSinceStart.milliseconds() > END_GAME_BEGINS_MILLIS;
     }
 }
