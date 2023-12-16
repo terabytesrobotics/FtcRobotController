@@ -7,9 +7,9 @@ public enum CollectorState {
     LOW_SCORING(140, 0, 0.65f),
     HIGH_SCORING(120, 18, 0.75f),
     SAFE_POSITION(0, 0, 0.5f),
-    HANG1(90,5,.9f),
-    HANG2(90,0,.9f),
-    HANG3(75,0,.9f);
+    HANG1(75,5,.9f),
+    HANG2(35,5,.9f),
+    HANG3(35,0,.9f);
 
     public float WristPosition;
     public int ArmPosition;
