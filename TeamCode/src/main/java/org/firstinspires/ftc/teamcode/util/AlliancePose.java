@@ -6,11 +6,11 @@ import com.acmerobotics.roadrunner.geometry.Vector2d;
 public enum AlliancePose {
 
     BACKSTAGE_START(
-            new Pose2d(12, 63, Math.toRadians(90)),
-            new Pose2d(12, -63, Math.toRadians(270))),
+            new Pose2d(12, 64.25, Math.toRadians(90)),
+            new Pose2d(12, -64.25, Math.toRadians(270))),
     FRONTSTAGE_START(
-            new Pose2d(-36, 63, Math.toRadians(90)),
-            new Pose2d(-36, -63, Math.toRadians(270)));
+            new Pose2d(-36, 64.25, Math.toRadians(90)),
+            new Pose2d(-36, -64.25, Math.toRadians(270)));
 
     public Pose2d BluePose;
     public Pose2d RedPose;
