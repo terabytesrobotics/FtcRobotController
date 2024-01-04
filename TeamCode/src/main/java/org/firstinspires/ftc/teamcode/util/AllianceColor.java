@@ -4,8 +4,14 @@ import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
 
 public enum AllianceColor {
-    BLUE,
-    RED;
+    BLUE(-Math.toRadians(90)),
+    RED(Math.toRadians(90));
+
+    public double OperatorHeadingOffset;
+
+    AllianceColor(double operatorHeadingOffset) {
+        this.OperatorHeadingOffset = operatorHeadingOffset;
+    }
 
     public Pose2d getAbsoluteFieldPose(AlliancePose alliancePose) {
         switch (this) {

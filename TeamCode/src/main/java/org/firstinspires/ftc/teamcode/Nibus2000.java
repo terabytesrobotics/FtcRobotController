@@ -5,6 +5,7 @@ import android.util.Log;
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.acmerobotics.roadrunner.trajectory.Trajectory;
+import com.acmerobotics.roadrunner.util.Angle;
 import com.arcrobotics.ftclib.controller.PIDController;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
@@ -506,28 +507,40 @@ public class Nibus2000 {
     }
 
     private void controlDrivingFromGamepad() {
-        double scale = 1.0; // Default scale for normal driving
-        boolean slowMode = gamepad1.right_trigger > 0.2;
-        if (slowMode) { // Check if the right trigger is pressed
-            scale = 0.3; // Scale down speed for fine control
-        }
+        // Get the current heading of the robot
+        double robotHeading = drive.getPoseEstimate().getHeading();
 
-        // Apply scale and prevent rotation when right trigger is pressed
-        if (!slowMode) {
-            drive.setWeightedDrivePower(
-                    new Pose2d(
-                            -gamepad1.left_stick_y,
-                            -gamepad1.left_stick_x,
-                            -gamepad1.right_stick_x));
-        } else {
-            drive.setDrivePower(
-                    new Pose2d(
-                            -gamepad1.left_stick_y * scale,
-                            -gamepad1.left_stick_x * scale,
-                            -gamepad1.right_stick_x * scale)
-            );
-        }
+        // Get the gamepad stick inputs
+        double gamepadY = -gamepad1.left_stick_y;
+        double gamepadX = gamepad1.left_stick_x;
 
+        telemetry.addData("gamepadY", gamepadY);
+        telemetry.addData("gamepadX", gamepadX);
+
+        // Calculate the magnitude and direction of the gamepad input
+        double inputMagnitude = Math.hypot(gamepadX, gamepadY);
+        double inputOperatorHeading = Angle.normDelta(Math.atan2(gamepadY, -gamepadX) - Math.PI/2);
+        double inputFieldHeading = Angle.normDelta(inputOperatorHeading + allianceColor.OperatorHeadingOffset);
+        double robotTranslationHeading = Angle.normDelta(inputFieldHeading - robotHeading);
+
+        telemetry.addData("inputMagnitude", inputMagnitude);
+        telemetry.addData("inputOperatorHeading", inputOperatorHeading);
+        telemetry.addData("inputFieldHeading", inputFieldHeading);
+        telemetry.addData("robotTranslationHeading", robotTranslationHeading);
+
+        // Convert the polar coordinates back to Cartesian coordinates
+        double fieldRelativeY = inputMagnitude * Math.cos(robotTranslationHeading);
+        double fieldRelativeX = inputMagnitude * Math.sin(robotTranslationHeading);
+
+        // Apply scaled inputs for driving
+        double scale = gamepad1.right_trigger > 0.2 ? 0.3 : 1.0; // Slow mode scaling
+        Pose2d drivePower = new Pose2d(
+                -(fieldRelativeY * scale),
+                -(fieldRelativeX * scale),
+                -gamepad1.right_stick_x * scale
+        );
+
+        //drive.setWeightedDrivePower(drivePower);
     }
 
     private void controlScoringSystems() {
@@ -777,5 +790,15 @@ public class Nibus2000 {
 
     private boolean isEndgame() {
         return timeSinceStart.milliseconds() > END_GAME_BEGINS_MILLIS;
+    }
+
+    private double normalizeAngle(double angle) {
+        while (angle > Math.PI) {
+            angle -= 2 * Math.PI;
+        }
+        while (angle <= -Math.PI) {
+            angle += 2 * Math.PI;
+        }
+        return angle;
     }
 }
