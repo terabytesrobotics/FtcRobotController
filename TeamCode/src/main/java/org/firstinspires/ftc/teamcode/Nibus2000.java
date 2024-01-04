@@ -173,6 +173,10 @@ public class Nibus2000 {
         extender.setTargetPosition(0);
         extender.setTargetPositionTolerance(ARM_TOLERANCE);
         extender.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
+
+        // Start 0,0'd
+        drive.setPoseEstimate(new Pose2d());
+
 // TODO: Reimplement save state
 //        if (saveState != null) {
 //            drive.setPoseEstimate(saveState.Pose);
@@ -456,6 +460,7 @@ public class Nibus2000 {
         double normalizedGamepadY = -rawGamepadY; // Inverting Y to normalize direction
         double normalizedGamepadX = rawGamepadX;
 
+        telemetry.addData("robotHeading", robotHeading);
         telemetry.addData("rawGamepadY", rawGamepadY);
         telemetry.addData("rawGamepadX", rawGamepadX);
         telemetry.addData("normalizedGamepadY", normalizedGamepadY);
@@ -463,38 +468,36 @@ public class Nibus2000 {
 
         // Calculate the magnitude and direction of the gamepad input
         double inputMagnitude = Math.hypot(normalizedGamepadX, normalizedGamepadY);
-        double gamepadAngleRad = Math.atan2(normalizedGamepadY, normalizedGamepadX);
-        double operatorRelativeStickHeading = Angle.norm(gamepadAngleRad - Math.PI / 2);
+        double operatorRelativeStickHeading = Angle.norm(Math.atan2(normalizedGamepadY, normalizedGamepadX) - (Math.PI / 2));
         double operatorFieldStickHeading = Angle.norm(operatorRelativeStickHeading + allianceColor.OperatorHeadingOffset);
         double robotRelativeTranslationHeading = Angle.norm(operatorFieldStickHeading - robotHeading);
 
         telemetry.addData("inputMagnitude", inputMagnitude);
-        telemetry.addData("gamepadAngleRad", gamepadAngleRad);
         telemetry.addData("operatorRelativeStickHeading", operatorRelativeStickHeading);
         telemetry.addData("operatorFieldStickHeading", operatorFieldStickHeading);
         telemetry.addData("robotRelativeTranslationHeading", robotRelativeTranslationHeading);
 
         // Convert from gamepad stick XY polar to the field XY system.
-        double fieldX = inputMagnitude * Math.cos(robotRelativeTranslationHeading);
-        double fieldY = inputMagnitude * Math.sin(robotRelativeTranslationHeading) * -1;
+        double robotX = inputMagnitude * Math.cos(robotRelativeTranslationHeading);
+        double robotY = inputMagnitude * Math.sin(robotRelativeTranslationHeading);
 
-        telemetry.addData("fieldX", fieldX);
-        telemetry.addData("fieldY", fieldY);
+        telemetry.addData("robotX", robotX);
+        telemetry.addData("robotY", robotY);
 
         // Apply scaled inputs for driving
         double scale = gamepad1.right_trigger > 0.2 ? 0.3 : 1.0; // Slow mode scaling
-        double scaledFieldX = fieldX * scale;
-        double scaledFieldY = fieldY * scale;
+        double scaledRobotX = robotX * scale;
+        double scaledRobotY = robotY * scale;
         double scaledRotation = -gamepad1.right_stick_x * scale;
 
-        telemetry.addData("scaledFieldX", scaledFieldX);
-        telemetry.addData("scaledFieldY", scaledFieldY);
+        telemetry.addData("scaledRobotX", scaledRobotX);
+        telemetry.addData("scaledFieldY", scaledRobotY);
         telemetry.addData("scaledRotation", scaledRotation);
 
-        Pose2d drivePower = new Pose2d(scaledFieldX, scaledFieldY, scaledRotation);
+        Pose2d drivePower = new Pose2d(scaledRobotX, scaledRobotY, scaledRotation);
 
         // Uncomment the following line to actually run the motors when ready
-        //drive.setWeightedDrivePower(drivePower);
+        drive.setWeightedDrivePower(drivePower);
     }
 
     private void controlScoringSystems() {
@@ -519,6 +522,7 @@ public class Nibus2000 {
         currentExtenderPosition = extender.getCurrentPosition();
         extender.setTargetPosition(extendTicTarget);
 
+        if(Math.abs(armpower) < 0.01) armpower = 0;
         if(armpower < 0 && armMin.isPressed()) armpower = 0;
         arm_motor0.setPower(armpower);
         extender.setPower(EXTENDER_POWER);
