@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
+import static org.firstinspires.ftc.teamcode.NibusConstants.*;
+
 import android.util.Log;
 
 import com.acmerobotics.roadrunner.geometry.Pose2d;
@@ -16,7 +18,6 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.TouchSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-import org.apache.commons.math3.util.MathUtils;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.teamcode.Processors.WindowBoxesVisionProcessor;
@@ -30,124 +31,78 @@ import org.firstinspires.ftc.teamcode.util.CollectorState;
 import org.firstinspires.ftc.teamcode.util.GreenGrabberState;
 import org.firstinspires.ftc.teamcode.util.OnActivatedEvaluator;
 import org.firstinspires.ftc.vision.VisionPortal;
-import org.opencv.core.Mat;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 
 public class Nibus2000 {
 
-    public static final int ARM_TOLERANCE = 10;
+    private final int armStartingTickOffset = 0; //TODO: Reimplement saved state
+    private final int extenderStartingTickOffset = 0;
+    private final SampleMecanumDrive drive;
+    private final TouchSensor armMin;
+    private final TouchSensor extenderMin;
+    private final PIDController armcontrol;
 
-    private static final double GEAR_RATIO = 13.7d;
-
-    private static final double WORM_RATIO = 28.0d;
-
-    private static final double ARM_TICKS_PER_DEGREE = WORM_RATIO * 28.0d * GEAR_RATIO / 360.0d;
-
-    // Angle below horiontal at start in degrees.  horizontal is 0.
-    public static final double ARM_DEGREE_OFFSET_FROM_HORIZONTAL = -37d;
-
-    public static final double ARM_MAX_ANGLE = 180d;
-
-    public static final double EXTENDER_MAX_LENGTH = 19d;
-
-    public static final double EXTENDER_POWER = 0.8d;
-
-    public static final double EXTENDER_GEAR_RATIO = 5.2d;
-
-    public static final double EXTENDER_TICS_PER_CM = EXTENDER_GEAR_RATIO * 28 / 0.8;
-
-    public static int PROP_CAMERA_WIDTH_PIXELS = 640;
-    public static int PROP_CAMERA_HEIGHT_PIXELS = 480;
-    public static int PROP_CAMERA_ROW_COUNT = 3;
-    public static int PROP_CAMERA_COLUMN_COUNT = 3;
-
-    private SampleMecanumDrive drive;
-    private TouchSensor armMin;
-    private TouchSensor extenderMin;
-    private PIDController armcontrol;
-
-    public static double p = 0.005, i = 0.005, d = 0.0002;
-
-    //Length to extend in cm
-    public static double extendLength = 0;
-
-    public static int extendTicTarget = 0;
-
-    public static double armTargetDegrees = 0;
-    public static double target = 0.0;
-
-
-    private DcMotorEx arm_motor0;
-
-    private DcMotorEx extender;
-
-    private DcMotorEx launcher;
-
-    //collection servos
+    public double extendLengthCm = 0;
+    public int extendTicTarget = 0;
+    public double armTargetDegrees = 0;
+    public double target = 0.0;
+    private final DcMotorEx arm_motor0;
+    private final DcMotorEx extender;
+    private final DcMotorEx launcher;
     Servo greenGrabber;
-
     Servo blueGrabber;
-
     Servo wrist;
     Servo launcherWrist;
     private CollectorState collectorState = CollectorState.DRIVING_SAFE;
-
-    private OnActivatedEvaluator a1PressedEvaluator;
-    private OnActivatedEvaluator y1PressedEvaluator;
-    private OnActivatedEvaluator b1PressedEvaluator;
-    private OnActivatedEvaluator lb1PressedEvaluator;
-    private OnActivatedEvaluator rb1PressedEvaluator;
-    private OnActivatedEvaluator a2PressedEvaluator;
-    private OnActivatedEvaluator b2PressedEvaluator;
-    private OnActivatedEvaluator x2PressedEvaluator;
-    private OnActivatedEvaluator y2PressedEvaluator;
-    private OnActivatedEvaluator lb2PressedEvaluator;
-    private OnActivatedEvaluator rb2PressedEvaluator;
-    private OnActivatedEvaluator driveNotBusyEvaluator;
-    private OnActivatedEvaluator dpadUp2PressedEvaluator;
-    private OnActivatedEvaluator dpadDown2PressedEvaluator;
-    private OnActivatedEvaluator dpadLeft2PressedEvaluator;
-    private OnActivatedEvaluator dpadRight2PressedEvaluator;
-    private OnActivatedEvaluator rs1PressedEvaluator;
-    private OnActivatedEvaluator ls1PressedEvaluator;
-
+    private final OnActivatedEvaluator a1PressedEvaluator;
+    private final OnActivatedEvaluator y1PressedEvaluator;
+    private final OnActivatedEvaluator b1PressedEvaluator;
+    private final OnActivatedEvaluator lb1PressedEvaluator;
+    private final OnActivatedEvaluator rb1PressedEvaluator;
+    private final OnActivatedEvaluator a2PressedEvaluator;
+    private final OnActivatedEvaluator b2PressedEvaluator;
+    private final OnActivatedEvaluator x2PressedEvaluator;
+    private final OnActivatedEvaluator y2PressedEvaluator;
+    private final OnActivatedEvaluator lb2PressedEvaluator;
+    private final OnActivatedEvaluator rb2PressedEvaluator;
+    private final OnActivatedEvaluator dpadUp2PressedEvaluator;
+    private final OnActivatedEvaluator dpadDown2PressedEvaluator;
+    private final OnActivatedEvaluator dpadLeft2PressedEvaluator;
+    private final OnActivatedEvaluator dpadRight2PressedEvaluator;
+    private final OnActivatedEvaluator rs1PressedEvaluator;
+    private final OnActivatedEvaluator ls1PressedEvaluator;
     private BlueGrabberState blueGrabberState = BlueGrabberState.NOT_GRABBED;
     private GreenGrabberState greenGrabberState = GreenGrabberState.NOT_GRABBED;
-
     private final HardwareMap hardwareMap;
     private final Telemetry telemetry;
     private final Gamepad gamepad1;
     private final Gamepad gamepad2;
-
     private AllianceColor allianceColor;
     private AlliancePose alliancePose;
     private NibusState state;
-
     private ElapsedTime timeSinceStart;
     private ElapsedTime timeInState;
     private VisionPortal visionPortal;
     private WindowBoxesVisionProcessor propFinder;
     private Pose2d latestPoseEstimate = null;
-    private int armStartingTickOffset = 0;
-    private int extenderStartingTickOffset = 0;
-
     private int currentArmPosition = 0;
     private int currentExtenderPosition = 0;
     private int armTrimIncrements = 0;
-    private static final double ARM_DEGREE_TRIM_INCREMENT = 1;
-    private static final int ARM_MAX_TRIM_INCREMENTS = 100;
-    private static final double WRIST_SERVO_TRIM_INCREMENT = 0.02;
-    private static final int WRIST_MAX_TRIM_INCREMENTS = 100;
     private int wristTrimIncrements = 0;
     private boolean launchingAirplane = false;
-    private static final int END_GAME_BEGINS_MILLIS = 2 * 60 * 1000;
     private int launchingAirplaneTimeMillis = 0;
-
-    private static final double LAUNCH_WRIST_POSITION = 0d;
     private int endgameLiftStage = 0;
     private NibusAutonomousPlan autonomousPlan = null;
+    private final ElapsedTime currentCommandTime = new ElapsedTime();
+    private NibusAutonomousCommand currentCommand = null;
+    private final ArrayList<NibusAutonomousCommand> commandSequence = new ArrayList<>();
+    private NibusState continuationState = null;
+    private int framesProcessed = 0;
+    private final int[] leftMidRightVotes = new int[] { 0, 0, 0 };
+    private AlliancePropPosition alliancePropPosition = null;
+    private final ElapsedTime elapsedPropFrameTime = new ElapsedTime();
 
     public Nibus2000(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, Telemetry telemetry) {
         this.allianceColor = allianceColor;
@@ -160,7 +115,6 @@ public class Nibus2000 {
         drive = new SampleMecanumDrive(hardwareMap);
         drive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
-        driveNotBusyEvaluator = new OnActivatedEvaluator(() -> !drive.isBusy());
         a1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.a);
         b1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.b);
         y1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.y);
@@ -188,7 +142,7 @@ public class Nibus2000 {
         launcherWrist = hardwareMap.get(Servo.class, "launcher");
         armMin = hardwareMap.get(TouchSensor.class, "armMin1");
         extenderMin = hardwareMap.get(TouchSensor.class, "extenderMin3");
-        armcontrol = new PIDController(p, i, d);
+        armcontrol = new PIDController(ARM_CONTROL_P, ARM_CONTROL_I, ARM_CONTROL_D);
 
         launcher.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         launcher.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
@@ -219,7 +173,7 @@ public class Nibus2000 {
         extender.setTargetPosition(0);
         extender.setTargetPositionTolerance(ARM_TOLERANCE);
         extender.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
-
+// TODO: Reimplement save state
 //        if (saveState != null) {
 //            drive.setPoseEstimate(saveState.Pose);
 //            armStartingTickOffset = saveState.ArmPosition;
@@ -322,12 +276,6 @@ public class Nibus2000 {
         }
     }
 
-    private ElapsedTime currentCommandTime = new ElapsedTime();
-    private NibusAutonomousCommand currentCommand = null;
-
-    private ArrayList<NibusAutonomousCommand> commandSequence = new ArrayList<NibusAutonomousCommand>();
-    private NibusState continuationState = null;
-
     private NibusState evaluateDrivingAutonomously() {
         if (commandSequence.size() == 0) {
             NibusState _continuationState = continuationState;
@@ -370,14 +318,6 @@ public class Nibus2000 {
 
         return NibusState.AUTONOMOUSLY_DRIVING;
     }
-
-    private static int FRAME_DELAY_MILLIS = 100;
-    private static int DELAY_FRAMES = 10;
-    private static int PROCESS_FRAMES = 10;
-    private int framesProcessed = 0;
-    private int[] leftMidRightVotes = new int[] { 0, 0, 0 };
-    private AlliancePropPosition alliancePropPosition = null;
-    private ElapsedTime elapsedPropFrameTime = new ElapsedTime();
 
     private NibusState evaluateDetectAllianceMarker() {
 
@@ -510,36 +450,50 @@ public class Nibus2000 {
         // Get the current heading of the robot
         double robotHeading = drive.getPoseEstimate().getHeading();
 
-        // Get the gamepad stick inputs
-        double gamepadY = -gamepad1.left_stick_y;
-        double gamepadX = gamepad1.left_stick_x;
+        // Get the gamepad stick inputs and normalize them
+        double rawGamepadY = gamepad1.left_stick_y;
+        double rawGamepadX = gamepad1.left_stick_x;
+        double normalizedGamepadY = -rawGamepadY; // Inverting Y to normalize direction
+        double normalizedGamepadX = rawGamepadX;
 
-        telemetry.addData("gamepadY", gamepadY);
-        telemetry.addData("gamepadX", gamepadX);
+        telemetry.addData("rawGamepadY", rawGamepadY);
+        telemetry.addData("rawGamepadX", rawGamepadX);
+        telemetry.addData("normalizedGamepadY", normalizedGamepadY);
+        telemetry.addData("normalizedGamepadX", normalizedGamepadX);
 
         // Calculate the magnitude and direction of the gamepad input
-        double inputMagnitude = Math.hypot(gamepadX, gamepadY);
-        double inputOperatorHeading = Angle.normDelta(Math.atan2(gamepadY, -gamepadX) - Math.PI/2);
-        double inputFieldHeading = Angle.normDelta(inputOperatorHeading + allianceColor.OperatorHeadingOffset);
-        double robotTranslationHeading = Angle.normDelta(inputFieldHeading - robotHeading);
+        double inputMagnitude = Math.hypot(normalizedGamepadX, normalizedGamepadY);
+        double gamepadAngleRad = Math.atan2(normalizedGamepadY, normalizedGamepadX);
+        double operatorRelativeStickHeading = Angle.norm(gamepadAngleRad - Math.PI / 2);
+        double operatorFieldStickHeading = Angle.norm(operatorRelativeStickHeading + allianceColor.OperatorHeadingOffset);
+        double robotRelativeTranslationHeading = Angle.norm(operatorFieldStickHeading - robotHeading);
 
         telemetry.addData("inputMagnitude", inputMagnitude);
-        telemetry.addData("inputOperatorHeading", inputOperatorHeading);
-        telemetry.addData("inputFieldHeading", inputFieldHeading);
-        telemetry.addData("robotTranslationHeading", robotTranslationHeading);
+        telemetry.addData("gamepadAngleRad", gamepadAngleRad);
+        telemetry.addData("operatorRelativeStickHeading", operatorRelativeStickHeading);
+        telemetry.addData("operatorFieldStickHeading", operatorFieldStickHeading);
+        telemetry.addData("robotRelativeTranslationHeading", robotRelativeTranslationHeading);
 
-        // Convert the polar coordinates back to Cartesian coordinates
-        double fieldRelativeY = inputMagnitude * Math.cos(robotTranslationHeading);
-        double fieldRelativeX = inputMagnitude * Math.sin(robotTranslationHeading);
+        // Convert from gamepad stick XY polar to the field XY system.
+        double fieldX = inputMagnitude * Math.cos(robotRelativeTranslationHeading);
+        double fieldY = inputMagnitude * Math.sin(robotRelativeTranslationHeading) * -1;
+
+        telemetry.addData("fieldX", fieldX);
+        telemetry.addData("fieldY", fieldY);
 
         // Apply scaled inputs for driving
         double scale = gamepad1.right_trigger > 0.2 ? 0.3 : 1.0; // Slow mode scaling
-        Pose2d drivePower = new Pose2d(
-                -(fieldRelativeY * scale),
-                -(fieldRelativeX * scale),
-                -gamepad1.right_stick_x * scale
-        );
+        double scaledFieldX = fieldX * scale;
+        double scaledFieldY = fieldY * scale;
+        double scaledRotation = -gamepad1.right_stick_x * scale;
 
+        telemetry.addData("scaledFieldX", scaledFieldX);
+        telemetry.addData("scaledFieldY", scaledFieldY);
+        telemetry.addData("scaledRotation", scaledRotation);
+
+        Pose2d drivePower = new Pose2d(scaledFieldX, scaledFieldY, scaledRotation);
+
+        // Uncomment the following line to actually run the motors when ready
         //drive.setWeightedDrivePower(drivePower);
     }
 
@@ -549,19 +503,19 @@ public class Nibus2000 {
 
         double wristPositionToApply = Math.min(1, Math.max(0, collectorState.WristPosition + (wristTrimIncrements * WRIST_SERVO_TRIM_INCREMENT)));
         wrist.setPosition(wristPositionToApply);
-        extendLength = collectorState.ExtenderPosition;
+        extendLengthCm = collectorState.ExtenderPosition;
         armTargetDegrees = collectorState.ArmPosition;
 
         double trimmedArmTargetDegrees = armTargetDegrees + (armTrimIncrements * ARM_DEGREE_TRIM_INCREMENT);
         target = computeArmTickTarget(trimmedArmTargetDegrees);
-        armcontrol.setPID(p, i, d);
+        armcontrol.setPID(ARM_CONTROL_P, ARM_CONTROL_I, ARM_CONTROL_D);
         armcontrol.setTolerance(ARM_TOLERANCE);
 
         currentArmPosition = arm_motor0.getCurrentPosition();
         double armpower = armcontrol.calculate(currentArmPosition, target);
 
         //Set extension
-        extendTicTarget = (int) computeExtenderTickTarget(extendLength);
+        extendTicTarget = (int) computeExtenderTickTarget(extendLengthCm);
         currentExtenderPosition = extender.getCurrentPosition();
         extender.setTargetPosition(extendTicTarget);
 
@@ -665,12 +619,6 @@ public class Nibus2000 {
         telemetry.addData("y", latestPoseEstimate.getY());
         telemetry.addData("heading", latestPoseEstimate.getHeading());
         telemetry.update();
-    }
-
-    private static void sleep(int millis) {
-        try {
-            Thread.sleep(millis);
-        } catch (Exception e) {}
     }
 
     private void autoHomeCollectorLoop() {
@@ -790,15 +738,5 @@ public class Nibus2000 {
 
     private boolean isEndgame() {
         return timeSinceStart.milliseconds() > END_GAME_BEGINS_MILLIS;
-    }
-
-    private double normalizeAngle(double angle) {
-        while (angle > Math.PI) {
-            angle -= 2 * Math.PI;
-        }
-        while (angle <= -Math.PI) {
-            angle += 2 * Math.PI;
-        }
-        return angle;
     }
 }
