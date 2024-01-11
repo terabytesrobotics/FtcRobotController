@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode;
 
 import static org.firstinspires.ftc.teamcode.NibusConstants.*;
 
+import android.graphics.PostProcessor;
 import android.util.Log;
 
 import com.acmerobotics.roadrunner.geometry.Pose2d;
@@ -9,14 +10,17 @@ import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.acmerobotics.roadrunner.trajectory.Trajectory;
 import com.acmerobotics.roadrunner.util.Angle;
 import com.arcrobotics.ftclib.controller.PIDController;
+import com.qualcomm.hardware.rev.RevBlinkinLedDriver;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.TouchSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
+import com.qualcomm.robotcore.util.Range;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
@@ -31,9 +35,13 @@ import org.firstinspires.ftc.teamcode.util.CollectorState;
 import org.firstinspires.ftc.teamcode.util.GreenGrabberState;
 import org.firstinspires.ftc.teamcode.util.OnActivatedEvaluator;
 import org.firstinspires.ftc.vision.VisionPortal;
+import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
+import org.firstinspires.ftc.vision.apriltag.AprilTagPoseFtc;
+import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 public class Nibus2000 {
 
@@ -84,7 +92,9 @@ public class Nibus2000 {
     private NibusState state;
     private ElapsedTime timeSinceStart;
     private ElapsedTime timeInState;
-    private VisionPortal visionPortal;
+    private VisionPortal frontVisionPortal;
+    private VisionPortal backVisionPortal;
+    private AprilTagProcessor aprilTagProcessor;
     private WindowBoxesVisionProcessor propFinder;
     private Pose2d latestPoseEstimate = null;
     private int currentArmPosition = 0;
@@ -103,6 +113,10 @@ public class Nibus2000 {
     private final int[] leftMidRightVotes = new int[] { 0, 0, 0 };
     private AlliancePropPosition alliancePropPosition = null;
     private final ElapsedTime elapsedPropFrameTime = new ElapsedTime();
+    private DigitalChannel indicator1Red;
+    private DigitalChannel indicator1Green;
+    private RevBlinkinLedDriver blinkinLedDriver;
+    private PoseOfInterest nextPoseOfInterest = PoseOfInterest.RANDOM_POINT;
 
     public Nibus2000(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, Telemetry telemetry) {
         this.allianceColor = allianceColor;
@@ -114,6 +128,15 @@ public class Nibus2000 {
 
         drive = new SampleMecanumDrive(hardwareMap);
         drive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        drive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+
+        blinkinLedDriver = hardwareMap.get(RevBlinkinLedDriver.class, "blinkin");
+        blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.RAINBOW_RAINBOW_PALETTE);
+
+        indicator1Red = hardwareMap.get(DigitalChannel.class, "indicator1red");
+        indicator1Green = hardwareMap.get(DigitalChannel.class, "indicator1green");
+        indicator1Red.setMode(DigitalChannel.Mode.OUTPUT);
+        indicator1Green.setMode(DigitalChannel.Mode.OUTPUT);
 
         a1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.a);
         b1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.b);
@@ -211,8 +234,14 @@ public class Nibus2000 {
             case MANUAL_DRIVE:
                 nextState = evaluateDrivingAndScoring();
                 break;
+            case DRIVE_DIRECT_TO_POSE:
+                nextState = evaluateDriveDirectToPosition();
+                break;
             case AUTONOMOUSLY_DRIVING:
                 nextState = evaluateDrivingAutonomously();
+                break;
+            case DETECT_POSE_FROM_APRIL_TAG:
+                nextState = evaluateDetectPoseFromAprilTag();
                 break;
             case DETECT_ALLIANCE_MARKER:
                 nextState = evaluateDetectAllianceMarker();
@@ -225,19 +254,36 @@ public class Nibus2000 {
             state = nextState;
         }
 
+        boolean indicatorState = state == NibusState.DETECT_POSE_FROM_APRIL_TAG;
+        indicator1Green.setState(!indicatorState);
+        indicator1Red.setState(indicatorState);
+
         runTelemetry();
 
         return state != NibusState.HALT_OPMODE;
     }
+
+    private boolean indicator1State = false;
+    private boolean blinkinIndicatorState = false;
 
     private NibusState evaluateDrivingAndScoring() {
         controlDrivingFromGamepad();
         evaluateScoringManualControls();
 
         // Safe travels
+//        if (y1PressedEvaluator.evaluate()) {
+//            launchingAirplane = true;
+//            launchingAirplaneTimeMillis = (int) timeSinceStart.milliseconds();
+//        }
+
         if (y1PressedEvaluator.evaluate()) {
-            launchingAirplane = true;
-            launchingAirplaneTimeMillis = (int) timeSinceStart.milliseconds();
+            return NibusState.DETECT_POSE_FROM_APRIL_TAG;
+        }
+
+        if (b1PressedEvaluator.evaluate() && hasAprilTagFieldPosition) {
+            driveToPoseTarget = nextPoseOfInterest.Pose;
+            nextPoseOfInterest = nextPoseOfInterest.nextPose();
+            return NibusState.DRIVE_DIRECT_TO_POSE;
         }
 
         // And good luck
@@ -278,6 +324,44 @@ public class Nibus2000 {
             default:
                 return CollectorState.DRIVING_SAFE;
         }
+    }
+
+    private Pose2d driveToPoseTarget = null;
+    private static final double DRIVE_TO_POSE_THRESHOLD = 1.0f;
+    private NibusState evaluateDriveDirectToPosition() {
+        if (y1PressedEvaluator.evaluate() || driveToPoseTarget == null) {
+            approachSettlingTimer = null;
+            return NibusState.MANUAL_DRIVE;
+        }
+
+        double errorX = driveToPoseTarget.getX() - latestPoseEstimate.getX();
+        double errorY = driveToPoseTarget.getY() - latestPoseEstimate.getY();
+        double errorHeading = Angle.normDelta(driveToPoseTarget.getHeading() - latestPoseEstimate.getHeading());
+
+        // Use the speed and turn "gains" to calculate how we want the robot to move.
+        double x = Range.clip(errorX * SPEED_GAIN, -MAX_AUTO_SPEED, MAX_AUTO_SPEED);
+        double y = Range.clip(errorY * SPEED_GAIN, -MAX_AUTO_STRAFE, MAX_AUTO_STRAFE);
+        double theta = Range.clip(errorHeading * TURN_GAIN, -MAX_AUTO_TURN, MAX_AUTO_TURN);
+
+        drive.setWeightedDrivePower(new Pose2d(x, y, theta));
+
+        double errorMagnitude = Math.hypot(errorX, errorY);
+        if (errorMagnitude < DRIVE_TO_POSE_THRESHOLD) {
+            if (approachSettlingTimer == null) {
+                approachSettlingTimer = new ElapsedTime();
+                approachSettlingTimer.reset();
+            }
+        } else if (approachSettlingTimer != null) {
+            approachSettlingTimer.reset();
+        }
+
+        if (approachSettlingTimer != null && approachSettlingTimer.milliseconds() > APPROACH_SETTLE_TIME_MS) {
+            approachSettlingTimer = null;
+            driveToPoseTarget = null;
+            return NibusState.MANUAL_DRIVE;
+        }
+
+        return NibusState.DRIVE_DIRECT_TO_POSE;
     }
 
     private NibusState evaluateDrivingAutonomously() {
@@ -323,6 +407,137 @@ public class Nibus2000 {
         return NibusState.AUTONOMOUSLY_DRIVING;
     }
 
+    final double DISTANCE_ERROR_THRESHOLD = 0.5;
+    final double STRAFE_ERROR_THRESHOLD = Math.PI / 32;
+    final double TURN_ERROR_THRESHOLD = Math.PI / 32;
+    final double DESIRED_DISTANCE = 12.0; //  this is how close the camera should get to the target (inches)
+    final double SPEED_GAIN  =  0.1  ;   //  Forward Speed Control "Gain". eg: Ramp up to 50% power at a 25 inch error.   (0.50 / 25.0)
+    final double STRAFE_GAIN =  4/Math.PI ;   //  Strafe Speed Control "Gain".  eg: Ramp up to 25% power at a 25 degree Yaw error.   (0.25 / 25.0)
+    final double TURN_GAIN   =  4/Math.PI  ;   //  Turn Control "Gain".  eg: Ramp up to 25% power at a 25 degree error. (0.25 / 25.0)
+    final double MAX_AUTO_SPEED = 0.5;   //  Clip the approach speed to this max value (adjust for your robot)
+    final double MAX_AUTO_STRAFE= 0.5;   //  Clip the approach speed to this max value (adjust for your robot)
+    final double MAX_AUTO_TURN  = Math.PI / 2;   //  Clip the turn speed to this max value (adjust for your robot)
+    final int APPROACH_SETTLE_TIME_MS = 500;
+
+    private ElapsedTime approachSettlingTimer = null;
+    private boolean hasAprilTagFieldPosition = false;
+    private NibusState evaluateDetectPoseFromAprilTag() {
+
+        if (aprilTagProcessor == null) {
+            aprilTagProcessor = new AprilTagProcessor.Builder().build();
+        }
+
+        if (frontVisionPortal == null) {
+            frontVisionPortal = new VisionPortal.Builder()
+                    .setCamera(hardwareMap.get(WebcamName.class, "Webcam 1"))
+                    .addProcessor(aprilTagProcessor)
+                    .build();
+        }
+
+        frontVisionPortal.resumeStreaming();
+
+        AprilTagDetection approachDetection = null;
+        List<AprilTagDetection> currentDetections = aprilTagProcessor.getDetections();
+        for (AprilTagDetection detection : currentDetections) {
+            if (detection.id == 2) {
+                approachDetection = detection;
+                // Log tag detection data
+                telemetry.addData("Detected target",
+                        "X: %.1f, Y: %.1f, Z: %.1f\nYaw: %.1f, Pitch: %.1f\nRange: %.1f",
+                        detection.ftcPose.x,
+                        detection.ftcPose.y,
+                        detection.ftcPose.z,
+                        detection.ftcPose.yaw,
+                        detection.ftcPose.pitch,
+                        detection.ftcPose.range);
+
+                // Calculate robot's center position
+                Pose2d robotCenterPose = calculateCameraPose(detection.ftcPose);
+                telemetry.addData("Camera Center", "X: %.1f, Y: %.1f",
+                        robotCenterPose.getX(), robotCenterPose.getY());
+                drive.setPoseEstimate(robotCenterPose);
+            }
+        }
+
+        if (approachDetection != null) {
+
+            // Determine heading, range and Yaw (tag image rotation) error so we can use them to control the robot automatically.
+            double rangeError = (approachDetection.ftcPose.range - DESIRED_DISTANCE);
+            double headingError = Angle.normDelta(Math.toRadians(approachDetection.ftcPose.bearing));
+            double yawError = Angle.normDelta(Math.toRadians(approachDetection.ftcPose.yaw));
+
+            // Use the speed and turn "gains" to calculate how we want the robot to move.
+            double speed = Range.clip(rangeError * SPEED_GAIN, -MAX_AUTO_SPEED, MAX_AUTO_SPEED);
+            double turn = Range.clip(headingError * TURN_GAIN, -MAX_AUTO_TURN, MAX_AUTO_TURN);
+            double strafe = Range.clip(-yawError * STRAFE_GAIN, -MAX_AUTO_STRAFE, MAX_AUTO_STRAFE);
+
+            telemetry.addData("Auto", "Speed %5.2f, Strafe %5.2f, Turn %5.2f ", speed, strafe, turn);
+
+            if (Math.abs(rangeError) < DISTANCE_ERROR_THRESHOLD &&
+                    Math.abs(headingError) < TURN_ERROR_THRESHOLD &&
+                    Math.abs(yawError) < STRAFE_ERROR_THRESHOLD) {
+                if (approachSettlingTimer == null) {
+                    approachSettlingTimer = new ElapsedTime();
+                    approachSettlingTimer.reset();
+                }
+            } else if (approachSettlingTimer != null) {
+                approachSettlingTimer.reset();
+            }
+            drive.setWeightedDrivePower(new Pose2d(speed, strafe, turn));
+        } else {
+            if (approachSettlingTimer != null) {
+                approachSettlingTimer.reset();
+            }
+            drive.setWeightedDrivePower(new Pose2d());
+        }
+
+        if (y1PressedEvaluator.evaluate()) {
+            frontVisionPortal.stopStreaming();
+            approachSettlingTimer = null;
+            return NibusState.MANUAL_DRIVE;
+        }
+
+        if (approachSettlingTimer != null && approachSettlingTimer.milliseconds() > APPROACH_SETTLE_TIME_MS) {
+            drive.setPoseEstimate(new Pose2d(64.0 - 12 - 7, 35.0, 0));
+            hasAprilTagFieldPosition = true;
+            frontVisionPortal.stopStreaming();
+            approachSettlingTimer = null;
+            return NibusState.MANUAL_DRIVE;
+        }
+
+        return NibusState.DETECT_POSE_FROM_APRIL_TAG;
+    }
+
+    private Pose2d calculateCameraPose(AprilTagPoseFtc ftcPose) {
+        final double TAG_X = 64.0; // Tag's X position on field
+        final double TAG_Y = 35.0; // Tag's Y position on field
+        final double TAG_HEADING = Math.toRadians(180);
+
+        // Calculate new heading
+        double tagToCameraHeading = Angle.norm(TAG_HEADING - Angle.normDelta(Math.toRadians(ftcPose.yaw)));
+        double tagToCameraDistance = ftcPose.range;
+
+        telemetry.addData("tagToRobotHeading", Math.toDegrees(tagToCameraHeading));
+        telemetry.addData("tagToRobotDistance", tagToCameraDistance);
+
+        // Compute the x, y location
+        double cameraOffsetFieldX = tagToCameraDistance * Math.cos(tagToCameraHeading);
+        double cameraOffsetFieldY = tagToCameraDistance * Math.sin(tagToCameraHeading);
+
+        telemetry.addData("cameraOffsetFieldX", cameraOffsetFieldX);
+        telemetry.addData("cameraOffsetFieldY", cameraOffsetFieldY);
+
+        double cameraFieldX = TAG_X + cameraOffsetFieldX;
+        double cameraFieldY = TAG_Y + cameraOffsetFieldY;
+        double cameraFieldHeading = Angle.norm(tagToCameraHeading + Math.PI);
+
+        telemetry.addData("cameraFieldX", cameraFieldX);
+        telemetry.addData("cameraFieldY", cameraFieldY);
+        telemetry.addData("cameraFieldHeading", cameraFieldHeading);
+
+        return new Pose2d(cameraFieldX, cameraFieldY, cameraFieldHeading);
+    }
+
     private NibusState evaluateDetectAllianceMarker() {
 
         // Lazy init the prop finder and vision portal
@@ -337,13 +552,13 @@ public class Nibus2000 {
             propFinder = new WindowBoxesVisionProcessor();
         }
 
-        if (visionPortal == null) {
-            visionPortal = VisionPortal.easyCreateWithDefaults(
+        if (backVisionPortal == null) {
+            backVisionPortal = VisionPortal.easyCreateWithDefaults(
                     hardwareMap.get(WebcamName.class, "Webcam 2"), propFinder);
         }
 
         // Idempotent
-        visionPortal.resumeStreaming();
+        backVisionPortal.resumeStreaming();
 
         if (elapsedPropFrameTime.milliseconds() > FRAME_DELAY_MILLIS && framesProcessed < (DELAY_FRAMES + PROCESS_FRAMES)) {
             elapsedPropFrameTime.reset();
@@ -363,7 +578,7 @@ public class Nibus2000 {
         }
 
         if (framesProcessed >= DELAY_FRAMES + PROCESS_FRAMES) {
-            deinitPropFider();
+            backVisionPortal.stopStreaming();
             int leftVotes = leftMidRightVotes[0];
             int midVotes = leftMidRightVotes[1];
             int rightVotes = leftMidRightVotes[2];
@@ -444,10 +659,6 @@ public class Nibus2000 {
         commandSequence.clear();
         commandSequence.addAll(Arrays.asList(commands));
         continuationState = _continuationState;
-    }
-
-    private void deinitPropFider() {
-        visionPortal.stopStreaming();
     }
 
     private void controlDrivingFromGamepad() {
