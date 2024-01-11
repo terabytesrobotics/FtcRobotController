@@ -3,6 +3,9 @@ package org.firstinspires.ftc.teamcode.util;
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
 
+import org.firstinspires.ftc.teamcode.CenterStageAprilTags;
+import org.firstinspires.ftc.teamcode.CenterStageBackdropPosition;
+
 public enum AllianceColor {
     BLUE(Math.toRadians(270)),
     RED(Math.toRadians(90));
@@ -88,5 +91,32 @@ public enum AllianceColor {
             default:
                 return 0;
         }
+    }
+
+    public CenterStageAprilTags getAprilTagForScoringPosition(CenterStageBackdropPosition position) {
+        switch (this) {
+            case BLUE:
+                switch (position) {
+                    case LEFT:
+                        return CenterStageAprilTags.BLUE_BACKDROP_LEFT;
+                    case CENTER:
+                        return CenterStageAprilTags.BLUE_BACKDROP_CENTER;
+                    case RIGHT:
+                        return CenterStageAprilTags.BLUE_BACKDROP_RIGHT;
+                }
+                break;
+            case RED:
+                switch (position) {
+                    case LEFT:
+                        return CenterStageAprilTags.RED_BACKDROP_LEFT;
+                    case CENTER:
+                        return CenterStageAprilTags.RED_BACKDROP_CENTER;
+                    case RIGHT:
+                        return CenterStageAprilTags.RED_BACKDROP_RIGHT;
+                }
+            default:
+                return null;
+        }
+        return null;
     }
 }

@@ -65,6 +65,7 @@ public class Nibus2000 {
     Servo launcherWrist;
     private CollectorState collectorState = CollectorState.DRIVING_SAFE;
     private final OnActivatedEvaluator a1PressedEvaluator;
+    private final OnActivatedEvaluator x1PressedEvaluator;
     private final OnActivatedEvaluator y1PressedEvaluator;
     private final OnActivatedEvaluator b1PressedEvaluator;
     private final OnActivatedEvaluator lb1PressedEvaluator;
@@ -117,6 +118,8 @@ public class Nibus2000 {
     private DigitalChannel indicator1Green;
     private RevBlinkinLedDriver blinkinLedDriver;
     private PoseOfInterest nextPoseOfInterest = PoseOfInterest.RANDOM_POINT;
+    private ElapsedTime approachSettlingTimer = null;
+    private boolean hasAprilTagFieldPosition = false;
 
     public Nibus2000(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, Telemetry telemetry) {
         this.allianceColor = allianceColor;
@@ -140,6 +143,7 @@ public class Nibus2000 {
 
         a1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.a);
         b1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.b);
+        x1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.x);
         y1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.y);
         lb1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.left_bumper);
         rb1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.right_bumper);
@@ -263,9 +267,6 @@ public class Nibus2000 {
         return state != NibusState.HALT_OPMODE;
     }
 
-    private boolean indicator1State = false;
-    private boolean blinkinIndicatorState = false;
-
     private NibusState evaluateDrivingAndScoring() {
         controlDrivingFromGamepad();
         evaluateScoringManualControls();
@@ -275,6 +276,9 @@ public class Nibus2000 {
 //            launchingAirplane = true;
 //            launchingAirplaneTimeMillis = (int) timeSinceStart.milliseconds();
 //        }
+        if (x1PressedEvaluator.evaluate()) {
+
+        }
 
         if (y1PressedEvaluator.evaluate()) {
             return NibusState.DETECT_POSE_FROM_APRIL_TAG;
@@ -407,20 +411,6 @@ public class Nibus2000 {
         return NibusState.AUTONOMOUSLY_DRIVING;
     }
 
-    final double DISTANCE_ERROR_THRESHOLD = 0.5;
-    final double STRAFE_ERROR_THRESHOLD = Math.PI / 32;
-    final double TURN_ERROR_THRESHOLD = Math.PI / 32;
-    final double DESIRED_DISTANCE = 12.0; //  this is how close the camera should get to the target (inches)
-    final double SPEED_GAIN  =  0.1  ;   //  Forward Speed Control "Gain". eg: Ramp up to 50% power at a 25 inch error.   (0.50 / 25.0)
-    final double STRAFE_GAIN =  4/Math.PI ;   //  Strafe Speed Control "Gain".  eg: Ramp up to 25% power at a 25 degree Yaw error.   (0.25 / 25.0)
-    final double TURN_GAIN   =  4/Math.PI  ;   //  Turn Control "Gain".  eg: Ramp up to 25% power at a 25 degree error. (0.25 / 25.0)
-    final double MAX_AUTO_SPEED = 0.5;   //  Clip the approach speed to this max value (adjust for your robot)
-    final double MAX_AUTO_STRAFE= 0.5;   //  Clip the approach speed to this max value (adjust for your robot)
-    final double MAX_AUTO_TURN  = Math.PI / 2;   //  Clip the turn speed to this max value (adjust for your robot)
-    final int APPROACH_SETTLE_TIME_MS = 500;
-
-    private ElapsedTime approachSettlingTimer = null;
-    private boolean hasAprilTagFieldPosition = false;
     private NibusState evaluateDetectPoseFromAprilTag() {
 
         if (aprilTagProcessor == null) {
@@ -953,5 +943,21 @@ public class Nibus2000 {
 
     private boolean isEndgame() {
         return timeSinceStart.milliseconds() > END_GAME_BEGINS_MILLIS;
+    }
+
+    private boolean hasPositionEstimate() {
+        return hasAprilTagFieldPosition && latestPoseEstimate != null;
+    }
+
+    private boolean isUpstage() {
+        return hasPositionEstimate() && latestPoseEstimate.getX() < CenterStageConstants.UPSTAGE_FIELD_X;
+    }
+
+    private boolean isBackstage() {
+        return hasPositionEstimate() && latestPoseEstimate.getX() > CenterStageConstants.BACKSTAGE_FIELD_X;
+    }
+
+    private boolean isInterstage() {
+        return hasPositionEstimate() && !isUpstage() && !isBackstage();
     }
 }

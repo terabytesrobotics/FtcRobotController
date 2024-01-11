@@ -27,6 +27,17 @@ public class NibusConstants {
     public static final int FRAME_DELAY_MILLIS = 100;
     public static final int DELAY_FRAMES = 10;
     public static final int PROCESS_FRAMES = 10;
+    static final double DISTANCE_ERROR_THRESHOLD = 0.5;
+    static final double STRAFE_ERROR_THRESHOLD = Math.PI / 32;
+    static final double TURN_ERROR_THRESHOLD = Math.PI / 32;
+    static final double DESIRED_DISTANCE = 12.0; //  this is how close the camera should get to the target (inches)
+    static final double SPEED_GAIN  =  0.1  ;   //  Forward Speed Control "Gain". eg: Ramp up to 50% power at a 25 inch error.   (0.50 / 25.0)
+    static final double STRAFE_GAIN =  4/Math.PI ;   //  Strafe Speed Control "Gain".  eg: Ramp up to 25% power at a 25 degree Yaw error.   (0.25 / 25.0)
+    static final double TURN_GAIN   =  4/Math.PI  ;   //  Turn Control "Gain".  eg: Ramp up to 25% power at a 25 degree error. (0.25 / 25.0)
+    static final double MAX_AUTO_SPEED = 0.5;   //  Clip the approach speed to this max value (adjust for your robot)
+    static final double MAX_AUTO_STRAFE= 0.5;   //  Clip the approach speed to this max value (adjust for your robot)
+    static final double MAX_AUTO_TURN  = Math.PI / 2;   //  Clip the turn speed to this max value (adjust for your robot)
+    static final int APPROACH_SETTLE_TIME_MS = 500;
 
     public static void sleep(int millis) {
         try {
