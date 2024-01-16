@@ -11,9 +11,12 @@ import com.acmerobotics.roadrunner.util.Angle;
 import com.arcrobotics.ftclib.controller.PIDController;
 import com.qualcomm.hardware.rev.RevBlinkinLedDriver;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.TouchSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
 
@@ -46,21 +49,22 @@ import java.util.Queue;
 public class Nibus2000 {
 
     private final SampleMecanumDrive drive;
-//    private final TouchSensor armMin;
-//    private final TouchSensor extenderMin;
+    private final TouchSensor armMin;
+    private final TouchSensor extenderMin;
     private final PIDController armcontrol;
-
+    private final DcMotorEx armLeft;
+    private final DcMotorEx armRight;
+    private final DcMotorEx extender;
+    //private final DcMotorEx launcher;
+    //    Servo greenGrabber;
+//    Servo blueGrabber;
+//    Servo wrist;
+//    Servo launcherWrist;
     public double extendLengthCm = 0;
     public int extendTicTarget = 0;
     public double armTargetDegrees = 0;
     public double target = 0.0;
-    //private final DcMotorEx arm_motor0;
-    //private final DcMotorEx extender;
-    //private final DcMotorEx launcher;
-//    Servo greenGrabber;
-//    Servo blueGrabber;
-//    Servo wrist;
-//    Servo launcherWrist;
+
     private CollectorState collectorState = CollectorState.DRIVING_SAFE;
     private final OnActivatedEvaluator a1PressedEvaluator;
     private final OnActivatedEvaluator x1PressedEvaluator;
@@ -185,15 +189,17 @@ public class Nibus2000 {
         onEnteredUpstageEvaluator = new OnActivatedEvaluator(this::isUpstage);
         onEnteredBackstageEvaluator = new OnActivatedEvaluator(this::isBackstage);
 
-        //arm_motor0 = hardwareMap.get(DcMotorEx.class, "arm_motorE0");
-        //extender = hardwareMap.get(DcMotorEx.class, "extenderE1");
+        armMin = hardwareMap.get(TouchSensor.class, "armMin1");
+        extenderMin = hardwareMap.get(TouchSensor.class, "extenderMin3");
+        armLeft = hardwareMap.get(DcMotorEx.class, "armE0");
+        armRight = hardwareMap.get(DcMotorEx.class, "armE3");
+        extender = hardwareMap.get(DcMotorEx.class, "extenderE1");
 //        greenGrabber = hardwareMap.get(Servo.class, "greenE0");
 //        blueGrabber = hardwareMap.get(Servo.class, "blueE1");
 //        wrist = hardwareMap.get(Servo.class, "redE3");
         //launcher = hardwareMap.get(DcMotorEx.class, "launcherE2");
 //        launcherWrist = hardwareMap.get(Servo.class, "launcher");
-//        armMin = hardwareMap.get(TouchSensor.class, "armMin1");
-//        extenderMin = hardwareMap.get(TouchSensor.class, "extenderMin3");
+
         armcontrol = new PIDController(ARM_CONTROL_P, ARM_CONTROL_I, ARM_CONTROL_D);
 
         //launcher.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
@@ -218,14 +224,18 @@ public class Nibus2000 {
     }
 
     public void teleopInit(NibusSaveState saveState) {
-//        arm_motor0.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-//        arm_motor0.setDirection(DcMotorSimple.Direction.FORWARD);
-//        arm_motor0.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-//
-//        extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-//        extender.setTargetPosition(0);
-//        extender.setTargetPositionTolerance(ARM_TOLERANCE);
-//        extender.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
+        armLeft.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        armLeft.setDirection(DcMotorSimple.Direction.FORWARD);
+        armLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+
+        armRight.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        armRight.setDirection(DcMotorSimple.Direction.REVERSE);
+        armRight.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+
+        extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        extender.setTargetPosition(0);
+        extender.setTargetPositionTolerance(ARM_TOLERANCE);
+        extender.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
 
         // Start 0,0'd
         drive.setPoseEstimate(new Pose2d());
@@ -782,7 +792,7 @@ public class Nibus2000 {
         armcontrol.setPID(ARM_CONTROL_P, ARM_CONTROL_I, ARM_CONTROL_D);
         armcontrol.setTolerance(ARM_TOLERANCE);
 
-//        currentArmPosition = arm_motor0.getCurrentPosition();
+        currentArmPosition = armLeft.getCurrentPosition();
         double armpower = armcontrol.calculate(currentArmPosition, target);
 
         //Set extension
@@ -791,8 +801,9 @@ public class Nibus2000 {
         //extender.setTargetPosition(extendTicTarget);
 
         if(Math.abs(armpower) < 0.01) armpower = 0;
-//        if(armpower < 0 && armMin.isPressed()) armpower = 0;
-        //arm_motor0.setPower(armpower);
+        if(armpower < 0 && armMin.isPressed()) armpower = 0;
+        armLeft.setPower(armpower);
+        armRight.setPower(armpower);
         //extender.setPower(EXTENDER_POWER);
 
         if (launchingAirplane) {
@@ -895,79 +906,92 @@ public class Nibus2000 {
     }
 
     private void autoHomeCollectorLoop() {
-        return; //TODO reenable
-//        extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-//        extender.setDirection(DcMotorEx.Direction.FORWARD);
-//        extender.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-//        extender.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+//        return; //TODO reenable
+        extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        extender.setDirection(DcMotorEx.Direction.FORWARD);
+        extender.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        extender.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
-//        while (!extenderMin.isPressed()) {
-//            extender.setPower(-0.4);
-//        }
-//        while (extenderMin.isPressed()) {
-//            extender.setPower(0.4);
-//        }
-//        sleep(500);
+        while (!extenderMin.isPressed()) {
+            extender.setPower(-0.4);
+        }
+        while (extenderMin.isPressed()) {
+            extender.setPower(0.4);
+        }
+        sleep(500);
 
-//        while (!extenderMin.isPressed()) {
-//            extender.setPower(-0.1);
-//        }
-//        extender.setPower(0);
-//        extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-//        extender.setTargetPosition(0);
-//        extender.setTargetPositionTolerance(ARM_TOLERANCE);
-//        extender.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
+        while (!extenderMin.isPressed()) {
+            extender.setPower(-0.1);
+        }
+        extender.setPower(0);
+        extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        extender.setTargetPosition(0);
+        extender.setTargetPositionTolerance(ARM_TOLERANCE);
+        extender.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
 
-        //home arm
-//        arm_motor0.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-//        arm_motor0.setDirection(DcMotorSimple.Direction.FORWARD);
-//        arm_motor0.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        armLeft.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        armLeft.setDirection(DcMotorSimple.Direction.FORWARD);
+        armLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
-//        while (!armMin.isPressed()){
-//            arm_motor0.setPower(-0.65);
-//        }
-//        while (armMin.isPressed()){
-//            arm_motor0.setPower(0.65);
-//        }
-//        sleep(500);
+        armRight.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        armRight.setDirection(DcMotorSimple.Direction.REVERSE);
+        armRight.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
-//        while (!armMin.isPressed()) {
-//            arm_motor0.setPower(-0.05);
-//        }
-//        arm_motor0.setPower(0);
-//        arm_motor0.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-//        arm_motor0.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        while (!armMin.isPressed()){
+            armLeft.setPower(-0.65);
+            armRight.setPower(-0.65);
+        }
+        while (armMin.isPressed()){
+            armLeft.setPower(0.65);
+            armRight.setPower(0.65);
+        }
+        sleep(500);
+
+        while (!armMin.isPressed()) {
+            armLeft.setPower(-0.05);
+            armRight.setPower(-0.05);
+        }
+        armLeft.setPower(0);
+        armLeft.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        armLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+
+        armRight.setPower(0);
     }
 
     private void autoHomeCollectorLoopFast() {
-        return; //TODO reenable
-//        extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-//        extender.setDirection(DcMotorEx.Direction.FORWARD);
-//        extender.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-//        extender.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        extender.setDirection(DcMotorEx.Direction.FORWARD);
+        extender.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        extender.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
-//        while (!extenderMin.isPressed()) {
-//            extender.setPower(-0.4);
-//        }
+        while (!extenderMin.isPressed()) {
+            extender.setPower(-0.4);
+        }
 
-//        extender.setPower(0);
-//        extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-//        extender.setTargetPosition(0);
-//        extender.setTargetPositionTolerance(ARM_TOLERANCE);
-//        extender.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
+        extender.setPower(0);
+        extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        extender.setTargetPosition(0);
+        extender.setTargetPositionTolerance(ARM_TOLERANCE);
+        extender.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
 
-        //home arm
-//        arm_motor0.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-//        arm_motor0.setDirection(DcMotorSimple.Direction.FORWARD);
-//        arm_motor0.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        armLeft.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        armLeft.setDirection(DcMotorSimple.Direction.FORWARD);
+        armLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
-//        while (!armMin.isPressed()){
-//            arm_motor0.setPower(-0.30);
-//        }
+        armRight.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        armRight.setDirection(DcMotorSimple.Direction.REVERSE);
+        armRight.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
-//        arm_motor0.setPower(0);
-//        arm_motor0.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-//        arm_motor0.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        while (!armMin.isPressed()){
+            armLeft.setPower(-0.30);
+            armRight.setPower(-0.30);
+        }
+
+        armLeft.setPower(0);
+        armLeft.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        armLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+
+        armRight.setPower(0);
     }
 
     public Pose2d getPoseEstimate() {
