@@ -5,6 +5,7 @@ import com.acmerobotics.roadrunner.geometry.Vector2d;
 
 import org.firstinspires.ftc.teamcode.CenterStageAprilTags;
 import org.firstinspires.ftc.teamcode.CenterStageBackdropPosition;
+import org.firstinspires.ftc.teamcode.NibusApproach;
 
 public enum AllianceColor {
     BLUE(Math.toRadians(270)),
@@ -82,14 +83,33 @@ public enum AllianceColor {
         }
     }
 
+    public NibusApproach getScoringApproach() {
+        switch (this) {
+            case RED:
+                return NibusApproach.RED_SCORING_APPROACH;
+            case BLUE:
+            default:
+                return NibusApproach.BLUE_SCORING_APPROACH;
+        }
+    }
+
+    public NibusApproach getMainCollectApproach() {
+        switch (this) {
+            case RED:
+                return NibusApproach.RED_COLLECT_APPROACH;
+            case BLUE:
+            default:
+                return NibusApproach.BLUE_COLLECT_APPROACH;
+        }
+    }
+
     public int getAprilTagId(AlliancePropPosition alliancePropPosition) {
         switch (this) {
             case RED:
                 return alliancePropPosition.RedAprilTagId;
             case BLUE:
-                return alliancePropPosition.BlueAprilTagId;
             default:
-                return 0;
+                return alliancePropPosition.BlueAprilTagId;
         }
     }
 

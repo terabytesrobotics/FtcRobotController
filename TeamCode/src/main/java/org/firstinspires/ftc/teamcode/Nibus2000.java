@@ -19,6 +19,7 @@ import com.qualcomm.robotcore.util.Range;
 
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.robotcore.external.hardware.camera.CameraName;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.internal.camera.delegating.SwitchableCameraName;
 import org.firstinspires.ftc.teamcode.Processors.WindowBoxesVisionProcessor;
@@ -44,8 +45,6 @@ import java.util.Queue;
 
 public class Nibus2000 {
 
-    private final int armStartingTickOffset = 0; //TODO: Reimplement saved state
-    private final int extenderStartingTickOffset = 0;
     private final SampleMecanumDrive drive;
 //    private final TouchSensor armMin;
 //    private final TouchSensor extenderMin;
@@ -125,6 +124,7 @@ public class Nibus2000 {
     private ElapsedTime approachSettlingTimer = null;
     private boolean hasAprilTagFieldPosition = false;
     private Pose2d poseTarget = null;
+    private NibusApproach approachTarget = null;
     private Queue<Pose2d> poseQueue = new LinkedList<>();
     private static final int QUEUE_CAPACITY = 12;
 
@@ -159,8 +159,8 @@ public class Nibus2000 {
         indicator1Green.setMode(DigitalChannel.Mode.OUTPUT);
 
         settledAtPoseTarget = new TrueForTime(APPROACH_SETTLE_TIME_MS, () -> {
-            Pose2d error = getPoseTargetError();
-            if (poseTarget == null || latestPoseEstimate == null || error == null) return false;
+            Pose2d error = getPoseTargetError(poseTarget);
+            if (latestPoseEstimate == null || error == null) return false;
             return Math.hypot(error.getX(), error.getY()) < DRIVE_TO_POSE_THRESHOLD &&
                     Math.abs(error.getHeading()) < TURN_ERROR_THRESHOLD;
         });
@@ -229,21 +229,8 @@ public class Nibus2000 {
 
         // Start 0,0'd
         drive.setPoseEstimate(new Pose2d());
+        autoHomeCollectorLoopFast();
 
-// TODO: Reimplement save state
-//        if (saveState != null) {
-//            drive.setPoseEstimate(saveState.Pose);
-//            armStartingTickOffset = saveState.ArmPosition;
-//            extenderStartingTickOffset = saveState.ExtenderPosition;
-//            Log.d("Nibus2000", String.format("Setting arm offset ticks: %d", armStartingTickOffset));
-//            Log.d("Nibus2000", String.format("Setting extender offset ticks: %d", extenderStartingTickOffset));
-//            blueGrabberState = saveState.BlueGrabberState;
-//            greenGrabberState = saveState.GreenGrabberState;
-//            collectorState = saveState.CollectorState;
-//        } else {
-//            wrist.setPosition(1);
-            autoHomeCollectorLoopFast();
-//        }
         visionPortal.setActiveCamera(frontCamera);
         visionPortal.setProcessorEnabled(propFinder, false);
         visionPortal.setProcessorEnabled(aprilTagProcessor, true);
@@ -256,14 +243,15 @@ public class Nibus2000 {
     }
 
     public boolean evaluate() {
-        // Update drive on every cycle to keep the odometry position in sync at all times.
-        evaluatePositioningSystems();
         drive.update();
+        latestPoseEstimate = drive.getPoseEstimate();
+
+        evaluateFieldPosition();
+        evaluatePositioningSystems();
         controlScoringSystems();
 
         NibusState currentState = state;
         NibusState nextState = state;
-        latestPoseEstimate = drive.getPoseEstimate();
         switch (state) {
             case MANUAL_DRIVE:
                 nextState = evaluateDrivingAndScoring();
@@ -295,6 +283,18 @@ public class Nibus2000 {
         runTelemetry();
 
         return state != NibusState.HALT_OPMODE;
+    }
+
+    private void evaluateFieldPosition() {
+        if (onEnteredUpstageEvaluator.evaluate()) {
+            visionPortal.setActiveCamera(backCamera);
+            poseQueue.clear();
+        }
+
+        if (onEnteredBackstageEvaluator.evaluate()) {
+            visionPortal.setActiveCamera(frontCamera);
+            poseQueue.clear();
+        }
     }
 
     private void evaluatePositioningSystems() {
@@ -352,6 +352,18 @@ public class Nibus2000 {
     }
 
     private NibusState evaluateDrivingAndScoring() {
+        if (x1PressedEvaluator.evaluate() || (approachTarget != null && y2PressedEvaluator.evaluate())) {
+            if (approachTarget == null) {
+                if (isUpstage()) {
+                    approachTarget = allianceColor.getMainCollectApproach();
+                } else if (isBackstage()) {
+                    approachTarget = allianceColor.getScoringApproach();
+                }
+            } else {
+                approachTarget = null;
+            }
+        }
+
         controlDrivingFromGamepad();
         evaluateScoringManualControls();
 
@@ -422,16 +434,16 @@ public class Nibus2000 {
         }
     }
 
-    private Pose2d getPoseTargetError() {
-        if (poseTarget == null || latestPoseEstimate == null) return null;
+    private Pose2d getPoseTargetError(Pose2d poseTarget) {
+        if (latestPoseEstimate == null) return null;
         return new Pose2d(poseTarget.getX() - latestPoseEstimate.getX(),
                 poseTarget.getY() - latestPoseEstimate.getY(),
                 Angle.normDelta(poseTarget.getHeading() - latestPoseEstimate.getHeading()));
     }
 
-    private Pose2d getPoseTargetAutoDriveControl() {
-        Pose2d error = getPoseTargetError();
-        if (poseTarget == null || latestPoseEstimate == null || error == null) return new Pose2d();
+    private Pose2d getPoseTargetAutoDriveControl(Pose2d poseTarget) {
+        Pose2d error = getPoseTargetError(poseTarget);
+        if (latestPoseEstimate == null || error == null) return new Pose2d();
         return new Pose2d(
                 Range.clip(error.getX() * SPEED_GAIN, -MAX_AUTO_SPEED, MAX_AUTO_SPEED),
                 Range.clip(error.getY() * SPEED_GAIN, -MAX_AUTO_STRAFE, MAX_AUTO_STRAFE),
@@ -444,7 +456,7 @@ public class Nibus2000 {
             return NibusState.MANUAL_DRIVE;
         }
 
-        drive.setWeightedDrivePower(getPoseTargetAutoDriveControl());
+        drive.setWeightedDrivePower(getPoseTargetAutoDriveControl(poseTarget));
 
         if (settledAtPoseTarget.evaluate()) {
             poseTarget = null;
@@ -713,27 +725,47 @@ public class Nibus2000 {
         continuationState = _continuationState;
     }
 
+    private Pose2d getScaledHeadlessDriverInput(Gamepad gamepad) {
+        Vector2d inputFieldDirection = NibusHelpers.headlessLeftStickFieldDirection(gamepad1, allianceColor.OperatorHeadingOffset, latestPoseEstimate.getHeading());
+        double scale = gamepad.right_trigger > 0.2 ? 0.3 : 0.8; // Slow mode scaling
+        double scaledRobotX = inputFieldDirection.getX() * scale;
+        double scaledRobotY = inputFieldDirection.getY() * scale;
+        double scaledRotation = -gamepad.right_stick_x * scale;
+        return new Pose2d(scaledRobotX, scaledRobotY, scaledRotation);
+    }
+
     private void controlDrivingFromGamepad() {
-        Vector2d navigationDriverInputFieldDirection = NibusHelpers.headlessLeftStickFieldDirection(gamepad1, allianceColor.OperatorHeadingOffset, latestPoseEstimate.getHeading());
-        Vector2d collectDriverInputFieldDirection = NibusHelpers.headlessLeftStickFieldDirection(gamepad2, allianceColor.OperatorHeadingOffset, latestPoseEstimate.getHeading());
 
-        double scale = gamepad1.right_trigger > 0.2 ? 0.3 : 0.8; // Slow mode scaling
-        double scaledRobotX = navigationDriverInputFieldDirection.getX() * scale;
-        double scaledRobotY = navigationDriverInputFieldDirection.getY() * scale;
-        double scaledRotation = -gamepad1.right_stick_x * scale;
+        Pose2d controlPose;
 
-        if (hasPositionEstimate() && gamepad1.x) {
-            int closestLaneY = CenterStageConstants.getClosestLane(latestPoseEstimate.getY());
-            double errorY = closestLaneY - latestPoseEstimate.getY();
-            double errorHeading = Angle.normDelta(0 - latestPoseEstimate.getHeading());
+        // Navigation mode
+        if (approachTarget == null) {
 
-            double laneLockY = Range.clip(errorY * SPEED_GAIN, -MAX_AUTO_SPEED, MAX_AUTO_SPEED);
-            double laneLockRotation = Range.clip(errorHeading * TURN_GAIN, -MAX_AUTO_TURN, MAX_AUTO_TURN);
-            scaledRobotY += laneLockY;
-            scaledRotation += laneLockRotation;
+            controlPose = getScaledHeadlessDriverInput(gamepad1);
+
+            // Lane lock
+            if (hasPositionEstimate() && gamepad1.x) {
+                int closestLaneY = CenterStageConstants.getClosestLane(latestPoseEstimate.getY());
+                double errorY = closestLaneY - latestPoseEstimate.getY();
+                double errorHeading = Angle.normDelta(0 - latestPoseEstimate.getHeading());
+
+                double laneLockY = Range.clip(errorY * SPEED_GAIN, -MAX_AUTO_SPEED, MAX_AUTO_SPEED);
+                double laneLockRotation = Range.clip(errorHeading * TURN_GAIN, -MAX_AUTO_TURN, MAX_AUTO_TURN);
+                controlPose = controlPose.plus(new Pose2d(0, laneLockY, laneLockRotation));
+            }
+
+            // TODO: crossing pull
+
+        // Finesse mode
+        } else {
+            double approachAngleOffset = (-gamepad1.left_stick_y) * approachTarget.ApproachHeadingRange;
+            Pose2d approachTargetPoseWithDriverOffset = NibusHelpers.collectApproachPose(
+                    approachTarget.Pose.minus(new Pose2d(0, 0, approachAngleOffset)));
+            controlPose = getPoseTargetAutoDriveControl(approachTargetPoseWithDriverOffset);
+            controlPose = controlPose.plus(getScaledHeadlessDriverInput(gamepad2).div(2));
         }
 
-        drive.setWeightedDrivePower(new Pose2d(scaledRobotX, scaledRobotY, scaledRotation));
+        drive.setWeightedDrivePower(controlPose);
     }
 
     private void controlScoringSystems() {
@@ -780,11 +812,11 @@ public class Nibus2000 {
     }
 
     private double computeArmTickTarget(double degreesOffsetFromHorizontal) {
-        return (((Math.min(degreesOffsetFromHorizontal, ARM_MAX_ANGLE)) - ARM_DEGREE_OFFSET_FROM_HORIZONTAL) * ARM_TICKS_PER_DEGREE) - armStartingTickOffset;
+        return (((Math.min(degreesOffsetFromHorizontal, ARM_MAX_ANGLE)) - ARM_DEGREE_OFFSET_FROM_HORIZONTAL) * ARM_TICKS_PER_DEGREE);
     }
 
     private double computeExtenderTickTarget(double extendLength) {
-        return ((Math.min(extendLength, EXTENDER_MAX_LENGTH)) * EXTENDER_TICS_PER_CM) - extenderStartingTickOffset;
+        return ((Math.min(extendLength, EXTENDER_MAX_LENGTH)) * EXTENDER_TICS_PER_CM);
     }
 
     private boolean armAndExtenderSettled() {
