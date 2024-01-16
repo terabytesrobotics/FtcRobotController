@@ -27,4 +27,21 @@ public class CenterStageConstants {
     public static final Vector2d COLLECT_4 = new Vector2d(-72, -12);
     public static final Vector2d COLLECT_5 = new Vector2d(-72, -24);
     public static final Vector2d COLLECT_6 = new Vector2d(-72, -36);
+
+    public static final int[] LANES = {LANE_1_Y, LANE_2_Y, LANE_3_Y, LANE_4_Y, LANE_5_Y, LANE_6_Y};
+
+    public static int getClosestLane(double y) {
+        int closestLane = LANES[0];
+        double minDiff = Math.abs(y - closestLane);
+
+        for (int lane : LANES) {
+            double diff = Math.abs(y - lane);
+            if (diff < minDiff) {
+                minDiff = diff;
+                closestLane = lane;
+            }
+        }
+
+        return closestLane;
+    }
 }
