@@ -2,8 +2,6 @@ package org.firstinspires.ftc.teamcode;
 
 import static org.firstinspires.ftc.teamcode.NibusConstants.*;
 
-import android.graphics.Camera;
-import android.graphics.PostProcessor;
 import android.util.Log;
 
 import com.acmerobotics.roadrunner.geometry.Pose2d;
@@ -13,18 +11,16 @@ import com.acmerobotics.roadrunner.util.Angle;
 import com.arcrobotics.ftclib.controller.PIDController;
 import com.qualcomm.hardware.rev.RevBlinkinLedDriver;
 import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.DcMotorEx;
-import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
-import com.qualcomm.robotcore.hardware.Servo;
-import com.qualcomm.robotcore.hardware.TouchSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
 
+import org.firstinspires.ftc.robotcore.external.ClassFactory;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
+import org.firstinspires.ftc.robotcore.internal.camera.delegating.SwitchableCameraName;
 import org.firstinspires.ftc.teamcode.Processors.WindowBoxesVisionProcessor;
 import org.firstinspires.ftc.teamcode.drive.DriveConstants;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
@@ -35,14 +31,16 @@ import org.firstinspires.ftc.teamcode.util.BlueGrabberState;
 import org.firstinspires.ftc.teamcode.util.CollectorState;
 import org.firstinspires.ftc.teamcode.util.GreenGrabberState;
 import org.firstinspires.ftc.teamcode.util.OnActivatedEvaluator;
+import org.firstinspires.ftc.teamcode.util.TrueForTime;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
-import org.firstinspires.ftc.vision.apriltag.AprilTagPoseFtc;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Queue;
 
 public class Nibus2000 {
 
@@ -81,21 +79,26 @@ public class Nibus2000 {
     private final OnActivatedEvaluator dpadDown2PressedEvaluator;
     private final OnActivatedEvaluator dpadLeft2PressedEvaluator;
     private final OnActivatedEvaluator dpadRight2PressedEvaluator;
+    private final TrueForTime settledAtPoseTarget;
     private final OnActivatedEvaluator rs1PressedEvaluator;
     private final OnActivatedEvaluator ls1PressedEvaluator;
+
+    private final OnActivatedEvaluator onEnteredUpstageEvaluator;
+    private final OnActivatedEvaluator onEnteredBackstageEvaluator;
     private BlueGrabberState blueGrabberState = BlueGrabberState.NOT_GRABBED;
     private GreenGrabberState greenGrabberState = GreenGrabberState.NOT_GRABBED;
-    private final HardwareMap hardwareMap;
     private final Telemetry telemetry;
     private final Gamepad gamepad1;
     private final Gamepad gamepad2;
+    private final WebcamName frontCamera;
+    private final WebcamName backCamera;
+    private final SwitchableCameraName switchableCamera;
     private AllianceColor allianceColor;
     private AlliancePose alliancePose;
     private NibusState state;
     private ElapsedTime timeSinceStart;
     private ElapsedTime timeInState;
-    private VisionPortal frontVisionPortal;
-    private VisionPortal backVisionPortal;
+    private VisionPortal visionPortal;
     private AprilTagProcessor aprilTagProcessor;
     private WindowBoxesVisionProcessor propFinder;
     private Pose2d latestPoseEstimate = null;
@@ -118,17 +121,30 @@ public class Nibus2000 {
     private DigitalChannel indicator1Red;
     private DigitalChannel indicator1Green;
     private RevBlinkinLedDriver blinkinLedDriver;
-    private PoseOfInterest nextPoseOfInterest = PoseOfInterest.RANDOM_POINT;
+    private NibusApproach nextNibusApproach = null;
     private ElapsedTime approachSettlingTimer = null;
     private boolean hasAprilTagFieldPosition = false;
+    private Pose2d poseTarget = null;
+    private Queue<Pose2d> poseQueue = new LinkedList<>();
+    private static final int QUEUE_CAPACITY = 12;
 
     public Nibus2000(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, Telemetry telemetry) {
         this.allianceColor = allianceColor;
         this.gamepad1 = gamepad1;
         this.gamepad2 = gamepad2;
-        this.hardwareMap = hardwareMap;
         this.telemetry = telemetry;
         this.state = NibusState.MANUAL_DRIVE;
+
+        frontCamera = hardwareMap.get(WebcamName.class, "Webcam 1");
+        backCamera = hardwareMap.get(WebcamName.class, "Webcam 2");
+        switchableCamera = ClassFactory.getInstance().getCameraManager().nameForSwitchableCamera(frontCamera, backCamera);
+        aprilTagProcessor = new AprilTagProcessor.Builder().build();
+        propFinder = new WindowBoxesVisionProcessor();
+        visionPortal = new VisionPortal.Builder()
+                .setCamera(switchableCamera)
+                .addProcessor(propFinder)
+                .addProcessor(aprilTagProcessor)
+                .build();
 
         drive = new SampleMecanumDrive(hardwareMap);
         drive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
@@ -142,6 +158,12 @@ public class Nibus2000 {
         indicator1Red.setMode(DigitalChannel.Mode.OUTPUT);
         indicator1Green.setMode(DigitalChannel.Mode.OUTPUT);
 
+        settledAtPoseTarget = new TrueForTime(APPROACH_SETTLE_TIME_MS, () -> {
+            Pose2d error = getPoseTargetError();
+            if (poseTarget == null || latestPoseEstimate == null || error == null) return false;
+            return Math.hypot(error.getX(), error.getY()) < DRIVE_TO_POSE_THRESHOLD &&
+                    Math.abs(error.getHeading()) < TURN_ERROR_THRESHOLD;
+        });
         a1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.a);
         b1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.b);
         x1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.x);
@@ -160,6 +182,8 @@ public class Nibus2000 {
         dpadDown2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.dpad_down);
         dpadLeft2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.dpad_left);
         dpadRight2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.dpad_right);
+        onEnteredUpstageEvaluator = new OnActivatedEvaluator(this::isUpstage);
+        onEnteredBackstageEvaluator = new OnActivatedEvaluator(this::isBackstage);
 
         //arm_motor0 = hardwareMap.get(DcMotorEx.class, "arm_motorE0");
         //extender = hardwareMap.get(DcMotorEx.class, "extenderE1");
@@ -188,8 +212,9 @@ public class Nibus2000 {
 //        wrist.setPosition(1);
         grabberInit();
 
-        telemetry.addData("Status", "Initialized");
-        telemetry.update();
+        visionPortal.setActiveCamera(backCamera);
+        visionPortal.setProcessorEnabled(propFinder, true);
+        visionPortal.setProcessorEnabled(aprilTagProcessor, true);
     }
 
     public void teleopInit(NibusSaveState saveState) {
@@ -219,6 +244,9 @@ public class Nibus2000 {
 //            wrist.setPosition(1);
             autoHomeCollectorLoopFast();
 //        }
+        visionPortal.setActiveCamera(frontCamera);
+        visionPortal.setProcessorEnabled(propFinder, false);
+        visionPortal.setProcessorEnabled(aprilTagProcessor, true);
     }
 
     public void startup(NibusState startupState) {
@@ -229,6 +257,7 @@ public class Nibus2000 {
 
     public boolean evaluate() {
         // Update drive on every cycle to keep the odometry position in sync at all times.
+        evaluatePositioningSystems();
         drive.update();
         controlScoringSystems();
 
@@ -268,6 +297,60 @@ public class Nibus2000 {
         return state != NibusState.HALT_OPMODE;
     }
 
+    private void evaluatePositioningSystems() {
+        boolean usingBackCamera = visionPortal.getActiveCamera().equals(backCamera);
+        double cameraDistanceOffset = usingBackCamera ? BACK_CAMERA_OFFSET_INCHES : FRONT_CAMERA_OFFSET_INCHES;
+        double cameraAngleOffset = usingBackCamera ? Math.PI : 0;
+
+        List<AprilTagDetection> detections = aprilTagProcessor.getFreshDetections();
+        if (detections != null) {
+            for (AprilTagDetection detection : detections) {
+                Pose2d estimatedPose = calculateRobotPose(detection, cameraDistanceOffset, cameraAngleOffset);
+                if (poseQueue.size() >= QUEUE_CAPACITY) {
+                    poseQueue.poll(); // Remove the oldest element
+                }
+                poseQueue.offer(estimatedPose);
+            }
+        }
+
+        // Calculate average and variance
+        if (poseQueue.size() == QUEUE_CAPACITY) {
+            Pose2d averagePose = calculateAveragePose(poseQueue);
+            Pose2d variancePose = calculateVariancePose(poseQueue, averagePose);
+
+            // Thresholds for variance, adjust as needed
+            double translationVarianceThreshold = 1.0;
+            double headingVarianceThreshold = Math.PI / 32;
+            if (variancePose.getX() <= translationVarianceThreshold && variancePose.getY() <= translationVarianceThreshold && variancePose.getHeading() <= headingVarianceThreshold) {
+                drive.setPoseEstimate(averagePose);
+                hasAprilTagFieldPosition = true;
+                poseQueue.clear();
+            }
+        }
+    }
+
+    private Pose2d calculateAveragePose(Queue<Pose2d> poses) {
+        double sumX = 0, sumY = 0, sumHeading = 0;
+        for (Pose2d pose : poses) {
+            sumX += pose.getX();
+            sumY += pose.getY();
+            sumHeading += pose.getHeading();
+        }
+        int count = poses.size();
+        return new Pose2d(sumX / count, sumY / count, Angle.norm(sumHeading / count));
+    }
+
+    private Pose2d calculateVariancePose(Queue<Pose2d> poses, Pose2d averagePose) {
+        double varianceX = 0, varianceY = 0, varianceHeading = 0;
+        for (Pose2d pose : poses) {
+            varianceX += Math.pow(pose.getX() - averagePose.getX(), 2);
+            varianceY += Math.pow(pose.getY() - averagePose.getY(), 2);
+            varianceHeading += Math.pow(Angle.normDelta(pose.getHeading() - averagePose.getHeading()), 2);
+        }
+        int count = poses.size();
+        return new Pose2d(Math.sqrt(varianceX / count), Math.sqrt(varianceY / count), Math.sqrt(varianceHeading / count));
+    }
+
     private NibusState evaluateDrivingAndScoring() {
         controlDrivingFromGamepad();
         evaluateScoringManualControls();
@@ -278,7 +361,7 @@ public class Nibus2000 {
 //            launchingAirplaneTimeMillis = (int) timeSinceStart.milliseconds();
 //        }
 
-        if (y1PressedEvaluator.evaluate()) {
+        if (b1PressedEvaluator.evaluate()) {
             targetTag = null;
             return NibusState.DETECT_POSE_FROM_APRIL_TAG;
         }
@@ -294,8 +377,8 @@ public class Nibus2000 {
         }
 
         if (b1PressedEvaluator.evaluate() && hasAprilTagFieldPosition) {
-            driveToPoseTarget = nextPoseOfInterest.Pose;
-            nextPoseOfInterest = nextPoseOfInterest.nextPose();
+            poseTarget = nextNibusApproach.Pose;
+            nextNibusApproach = nextNibusApproach.nextPose();
             return NibusState.DRIVE_DIRECT_TO_POSE;
         }
 
@@ -339,38 +422,32 @@ public class Nibus2000 {
         }
     }
 
-    private Pose2d driveToPoseTarget = null;
-    private static final double DRIVE_TO_POSE_THRESHOLD = 1.0f;
+    private Pose2d getPoseTargetError() {
+        if (poseTarget == null || latestPoseEstimate == null) return null;
+        return new Pose2d(poseTarget.getX() - latestPoseEstimate.getX(),
+                poseTarget.getY() - latestPoseEstimate.getY(),
+                Angle.normDelta(poseTarget.getHeading() - latestPoseEstimate.getHeading()));
+    }
+
+    private Pose2d getPoseTargetAutoDriveControl() {
+        Pose2d error = getPoseTargetError();
+        if (poseTarget == null || latestPoseEstimate == null || error == null) return new Pose2d();
+        return new Pose2d(
+                Range.clip(error.getX() * SPEED_GAIN, -MAX_AUTO_SPEED, MAX_AUTO_SPEED),
+                Range.clip(error.getY() * SPEED_GAIN, -MAX_AUTO_STRAFE, MAX_AUTO_STRAFE),
+                Range.clip(error.getHeading() * TURN_GAIN, -MAX_AUTO_TURN, MAX_AUTO_TURN));
+    }
+
     private NibusState evaluateDriveDirectToPosition() {
-        if (y1PressedEvaluator.evaluate() || driveToPoseTarget == null) {
+        if (y1PressedEvaluator.evaluate() || poseTarget == null) {
             approachSettlingTimer = null;
             return NibusState.MANUAL_DRIVE;
         }
 
-        double errorX = driveToPoseTarget.getX() - latestPoseEstimate.getX();
-        double errorY = driveToPoseTarget.getY() - latestPoseEstimate.getY();
-        double errorHeading = Angle.normDelta(driveToPoseTarget.getHeading() - latestPoseEstimate.getHeading());
+        drive.setWeightedDrivePower(getPoseTargetAutoDriveControl());
 
-        // Use the speed and turn "gains" to calculate how we want the robot to move.
-        double x = Range.clip(errorX * SPEED_GAIN, -MAX_AUTO_SPEED, MAX_AUTO_SPEED);
-        double y = Range.clip(errorY * SPEED_GAIN, -MAX_AUTO_STRAFE, MAX_AUTO_STRAFE);
-        double theta = Range.clip(errorHeading * TURN_GAIN, -MAX_AUTO_TURN, MAX_AUTO_TURN);
-
-        drive.setWeightedDrivePower(new Pose2d(x, y, theta));
-
-        double errorMagnitude = Math.hypot(errorX, errorY);
-        if (errorMagnitude < DRIVE_TO_POSE_THRESHOLD) {
-            if (approachSettlingTimer == null) {
-                approachSettlingTimer = new ElapsedTime();
-                approachSettlingTimer.reset();
-            }
-        } else if (approachSettlingTimer != null) {
-            approachSettlingTimer.reset();
-        }
-
-        if (approachSettlingTimer != null && approachSettlingTimer.milliseconds() > APPROACH_SETTLE_TIME_MS) {
-            approachSettlingTimer = null;
-            driveToPoseTarget = null;
+        if (settledAtPoseTarget.evaluate()) {
+            poseTarget = null;
             return NibusState.MANUAL_DRIVE;
         }
 
@@ -421,31 +498,18 @@ public class Nibus2000 {
     }
 
     private CenterStageAprilTags targetTag = null;
-    private int nonEmptyDetections = 0;
 
     private NibusState evaluateDetectPoseFromAprilTag() {
 
-        if (aprilTagProcessor == null) {
-            aprilTagProcessor = new AprilTagProcessor.Builder().build();
-        }
-
-        if (frontVisionPortal == null) {
-            frontVisionPortal = new VisionPortal.Builder()
-                    .setCamera(hardwareMap.get(WebcamName.class, "Webcam 1"))
-                    .addProcessor(aprilTagProcessor)
-                    .build();
-        }
-
-        frontVisionPortal.resumeStreaming();
         AprilTagDetection approachDetection = null;
         List<AprilTagDetection> detections = aprilTagProcessor.getDetections();
-        telemetry.addData("Solvetimeavg", "%d", aprilTagProcessor.getPerTagAvgPoseSolveTime());
         for (AprilTagDetection detection : detections) {
             if (targetTag != null && detection.id == targetTag.Id) {
                 approachDetection = detection;
                 break;
             }
 
+            // Priority to some tags for positional approach...consider removing to focus on scoring approach use case.
             if (detection.id == 2 ||
                     detection.id == 5 ||
                     detection.id == 7 ||
@@ -488,22 +552,16 @@ public class Nibus2000 {
             drive.setWeightedDrivePower(new Pose2d());
         }
 
-        if (y1PressedEvaluator.evaluate()) {
-            frontVisionPortal.stopStreaming();
+        if (b1PressedEvaluator.evaluate()) {
             approachSettlingTimer = null;
-            approachDetection = null;
             targetTag = null;
-            nonEmptyDetections = 0;
             return NibusState.MANUAL_DRIVE;
         }
 
         if (approachSettlingTimer != null && approachSettlingTimer.milliseconds() > APPROACH_SETTLE_TIME_MS) {
             drive.setPoseEstimate(calculateRobotPoseWhenApproachToAprilTagSettled(approachDetection));
             hasAprilTagFieldPosition = true;
-            frontVisionPortal.stopStreaming();
             approachSettlingTimer = null;
-            approachDetection = null;
-            nonEmptyDetections = 0;
             targetTag = null;
             return NibusState.MANUAL_DRIVE;
         }
@@ -513,47 +571,33 @@ public class Nibus2000 {
 
     private Pose2d calculateRobotPoseWhenApproachToAprilTagSettled(AprilTagDetection detection) {
         CenterStageAprilTags tag = CenterStageAprilTags.getTag(detection.id);
-        if (tag == null) return new Pose2d(); // TODO: remove when we have braincells
+        if (tag == null) return null;
 
         double tagHeading = tag.Pose.getHeading();
         // Assume we are squared to the april tag cause we settled
-        double robotXFieldPosition = tag.Pose.getX() + ((DESIRED_DISTANCE + CAMERA_X_OFFSET_INCHES) * Math.cos(tagHeading));
+        double robotXFieldPosition = tag.Pose.getX() + ((DESIRED_DISTANCE + FRONT_CAMERA_OFFSET_INCHES) * Math.cos(tagHeading));
         double robotYFieldPosition = tag.Pose.getY();
 
         return new Pose2d(robotXFieldPosition, robotYFieldPosition, Angle.norm(tagHeading + Math.PI));
     }
 
-    private Pose2d calculateRobotPose(AprilTagPoseFtc ftcPose) {
-        final double TAG_X = 64.0; // Tag's X position on field
-        final double TAG_Y = 35.0; // Tag's Y position on field
-        final double TAG_HEADING = Math.toRadians(180);
+    private Pose2d calculateRobotPose(AprilTagDetection detection, double cameraRobotOffset, double cameraRobotHeadingOffset) {
+        CenterStageAprilTags tag = CenterStageAprilTags.getTag(detection.id);
+        if (tag == null) return null;
 
-        // Negative change in yaw is positive change in field heading
-        double normalizedYaw = -ftcPose.yaw;
+        double yaw = Math.toRadians(detection.ftcPose.yaw);
+        double bearing = Math.toRadians(detection.ftcPose.bearing);
+        double range = detection.ftcPose.range;
+        double tagToCameraHeading = Angle.norm(tag.Pose.getHeading() + bearing - yaw);
+        double cameraFieldX = tag.Pose.getX() + (range * Math.cos(tagToCameraHeading));
+        double cameraFieldY = tag.Pose.getY() + (range * Math.sin(tagToCameraHeading));
+        double cameraFieldHeading = Angle.norm(
+                tag.Pose.getHeading() + Math.PI + cameraRobotHeadingOffset - yaw);
 
-        // Calculate new heading
-        double tagToCameraHeading = Angle.norm(TAG_HEADING + Math.toRadians(normalizedYaw));
-        double tagToCameraDistance = ftcPose.range;
+        double robotFieldX = cameraFieldX - (cameraRobotOffset * Math.cos(cameraFieldHeading));
+        double robotFieldY = cameraFieldY - (cameraRobotOffset * Math.sin(cameraFieldHeading));
 
-        telemetry.addData("tagToRobotHeading", Math.toDegrees(tagToCameraHeading));
-        telemetry.addData("tagToRobotDistance", tagToCameraDistance);
-
-        // Compute the x, y location
-        double cameraOffsetFieldX = tagToCameraDistance * Math.cos(tagToCameraHeading);
-        double cameraOffsetFieldY = tagToCameraDistance * Math.sin(tagToCameraHeading);
-
-        telemetry.addData("cameraOffsetFieldX", cameraOffsetFieldX);
-        telemetry.addData("cameraOffsetFieldY", cameraOffsetFieldY);
-
-        double cameraFieldX = TAG_X + cameraOffsetFieldX;
-        double cameraFieldY = TAG_Y + cameraOffsetFieldY;
-        double cameraFieldHeading = Angle.norm(tagToCameraHeading + Math.PI);
-
-        telemetry.addData("cameraFieldX", cameraFieldX);
-        telemetry.addData("cameraFieldY", cameraFieldY);
-        telemetry.addData("cameraFieldHeading", cameraFieldHeading);
-
-        return new Pose2d(cameraFieldX, cameraFieldY, cameraFieldHeading);
+        return new Pose2d(robotFieldX, robotFieldY, cameraFieldHeading);
     }
 
     private NibusState evaluateDetectAllianceMarker() {
@@ -567,16 +611,7 @@ public class Nibus2000 {
             alliancePropPosition = null;
             elapsedPropFrameTime.reset();
 
-            propFinder = new WindowBoxesVisionProcessor();
         }
-
-        if (backVisionPortal == null) {
-            backVisionPortal = VisionPortal.easyCreateWithDefaults(
-                    hardwareMap.get(WebcamName.class, "Webcam 2"), propFinder);
-        }
-
-        // Idempotent
-        backVisionPortal.resumeStreaming();
 
         if (elapsedPropFrameTime.milliseconds() > FRAME_DELAY_MILLIS && framesProcessed < (DELAY_FRAMES + PROCESS_FRAMES)) {
             elapsedPropFrameTime.reset();
@@ -596,7 +631,6 @@ public class Nibus2000 {
         }
 
         if (framesProcessed >= DELAY_FRAMES + PROCESS_FRAMES) {
-            backVisionPortal.stopStreaming();
             int leftVotes = leftMidRightVotes[0];
             int midVotes = leftMidRightVotes[1];
             int rightVotes = leftMidRightVotes[2];
@@ -636,7 +670,7 @@ public class Nibus2000 {
         }
 
         Pose2d targetPose = new Pose2d(targetLocation.getX(), targetLocation.getY(), targetHeading);
-        Pose2d approachPose = calculateApproachPose(targetPose, -8);
+        Pose2d approachPose = NibusHelpers.collectApproachPose(targetPose);
 
         Vector2d waypoint1 = allianceColor.getMiddleLaneAudienceWaypoint();
         Vector2d waypoint2 = allianceColor.getScoringPreApproachLocation();
@@ -680,48 +714,13 @@ public class Nibus2000 {
     }
 
     private void controlDrivingFromGamepad() {
-        // Get the current heading of the robot
-        double robotHeading = drive.getPoseEstimate().getHeading();
+        Vector2d navigationDriverInputFieldDirection = NibusHelpers.headlessLeftStickFieldDirection(gamepad1, allianceColor.OperatorHeadingOffset, latestPoseEstimate.getHeading());
+        Vector2d collectDriverInputFieldDirection = NibusHelpers.headlessLeftStickFieldDirection(gamepad2, allianceColor.OperatorHeadingOffset, latestPoseEstimate.getHeading());
 
-        // Get the gamepad stick inputs and normalize them
-        double rawGamepadY = gamepad1.left_stick_y;
-        double rawGamepadX = gamepad1.left_stick_x;
-        double normalizedGamepadY = -rawGamepadY; // Inverting Y to normalize direction
-        double normalizedGamepadX = rawGamepadX;
-
-        telemetry.addData("robotHeading", robotHeading);
-        telemetry.addData("rawGamepadY", rawGamepadY);
-        telemetry.addData("rawGamepadX", rawGamepadX);
-        telemetry.addData("normalizedGamepadY", normalizedGamepadY);
-        telemetry.addData("normalizedGamepadX", normalizedGamepadX);
-
-        // Calculate the magnitude and direction of the gamepad input
-        double inputMagnitude = Math.hypot(normalizedGamepadX, normalizedGamepadY);
-        double operatorRelativeStickHeading = Angle.norm(Math.atan2(normalizedGamepadY, normalizedGamepadX) - (Math.PI / 2));
-        double operatorFieldStickHeading = Angle.norm(operatorRelativeStickHeading + allianceColor.OperatorHeadingOffset);
-        double robotRelativeTranslationHeading = Angle.norm(operatorFieldStickHeading - robotHeading);
-
-        telemetry.addData("inputMagnitude", inputMagnitude);
-        telemetry.addData("operatorRelativeStickHeading", operatorRelativeStickHeading);
-        telemetry.addData("operatorFieldStickHeading", operatorFieldStickHeading);
-        telemetry.addData("robotRelativeTranslationHeading", robotRelativeTranslationHeading);
-
-        // Convert from gamepad stick XY polar to the field XY system.
-        double robotX = inputMagnitude * Math.cos(robotRelativeTranslationHeading);
-        double robotY = inputMagnitude * Math.sin(robotRelativeTranslationHeading);
-
-        telemetry.addData("robotX", robotX);
-        telemetry.addData("robotY", robotY);
-
-        // Apply scaled inputs for driving
         double scale = gamepad1.right_trigger > 0.2 ? 0.3 : 0.8; // Slow mode scaling
-        double scaledRobotX = robotX * scale;
-        double scaledRobotY = robotY * scale;
+        double scaledRobotX = navigationDriverInputFieldDirection.getX() * scale;
+        double scaledRobotY = navigationDriverInputFieldDirection.getY() * scale;
         double scaledRotation = -gamepad1.right_stick_x * scale;
-
-        telemetry.addData("scaledRobotX", scaledRobotX);
-        telemetry.addData("scaledFieldY", scaledRobotY);
-        telemetry.addData("scaledRotation", scaledRotation);
 
         if (hasPositionEstimate() && gamepad1.x) {
             int closestLaneY = CenterStageConstants.getClosestLane(latestPoseEstimate.getY());
@@ -961,19 +960,6 @@ public class Nibus2000 {
 
     public GreenGrabberState getGreenGrabberState() {
         return greenGrabberState;
-    }
-
-    public Pose2d calculateApproachPose(Pose2d targetPose, double offsetDistance) {
-        // Calculate offset components based on target heading
-        double offsetX = offsetDistance * Math.cos(targetPose.getHeading());
-        double offsetY = offsetDistance * Math.sin(targetPose.getHeading());
-
-        // Calculate the robot's position by subtracting the offset from the target position
-        double robotX = targetPose.getX() - offsetX;
-        double robotY = targetPose.getY() - offsetY;
-
-        // Return the robot's required pose
-        return new Pose2d(robotX, robotY, targetPose.getHeading());
     }
 
     public Pose2d convertToPose(Vector2d vector2d, double heading) {

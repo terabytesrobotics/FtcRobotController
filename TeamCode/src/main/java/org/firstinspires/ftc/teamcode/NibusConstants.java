@@ -38,8 +38,10 @@ public class NibusConstants {
     static final double MAX_AUTO_STRAFE= 0.5;   //  Clip the approach speed to this max value (adjust for your robot)
     static final double MAX_AUTO_TURN  = Math.PI / 4;   //  Clip the turn speed to this max value (adjust for your robot)
     static final int APPROACH_SETTLE_TIME_MS = 750;
-
-    public static final int CAMERA_X_OFFSET_INCHES = 7;
+    public static final int FRONT_CAMERA_OFFSET_INCHES = 7;
+    public static final int BACK_CAMERA_OFFSET_INCHES = 0;
+    public static final double COLLECT_HEAD_BASE_OFFSET_X = -8;
+    public static final double DRIVE_TO_POSE_THRESHOLD = 1.0f;
 
     public static void sleep(int millis) {
         try {
