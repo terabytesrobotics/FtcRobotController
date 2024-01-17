@@ -42,6 +42,11 @@ public class NibusConstants {
     public static final int BACK_CAMERA_OFFSET_INCHES = 0;
     public static final double COLLECT_HEAD_BASE_OFFSET_X = -8;
     public static final double DRIVE_TO_POSE_THRESHOLD = 1.0f;
+    public static final int POSITION_ACQUIRED_INDICATE_MILLIS = 1000;
+    public static final int POSITION_ACQUIRED_PULSE_MILLIS = 100;
+    public static double APRIL_TAG_RECOGNITION_RANGE_THRESHOLD = 30;
+    public static double APRIL_TAG_RECOGNITION_YAW_THRESHOLD = Math.PI / 6;
+    public static double APRIL_TAG_RECOGNITION_BEARING_THRESHOLD = Math.PI / 6;
 
     public static void sleep(int millis) {
         try {
