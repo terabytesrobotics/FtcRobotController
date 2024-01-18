@@ -1,15 +1,15 @@
 package org.firstinspires.ftc.teamcode.util;
 
 public enum CollectorState {
-    CLOSE_COLLECTION(-20, 0, 0.25f),
-    FAR_COLLECTION(-15, 18, 0.22f),
-    DRIVING_SAFE(-20, 0, 0.5f),
-    LOW_SCORING(140, 0, 0.65f),
-    HIGH_SCORING(120, 18, 0.75f),
+    CLOSE_COLLECTION(-20, 0, 0.75f),
+    FAR_COLLECTION(-15, 18, 0.78f),
+    DRIVING_SAFE(-10, 10, 0.80f),
+    LOW_SCORING(140, 0, 0.35f),
+    HIGH_SCORING(120, 18, 0.25f),
     SAFE_POSITION(0, 0, 0.5f),
-    HANG1(75,8,.9f),
-    HANG2(0,12,.9f),
-    HANG3(0,0,.9f);
+    HANG1(75,8,.1f),
+    HANG2(0,12,.1f),
+    HANG3(0,0,.1f);
 
     public float WristPosition;
     public int ArmPosition;

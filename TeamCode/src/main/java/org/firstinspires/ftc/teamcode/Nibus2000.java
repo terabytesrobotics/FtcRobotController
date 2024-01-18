@@ -51,21 +51,15 @@ public class Nibus2000 {
     private final SampleMecanumDrive drive;
     private final TouchSensor armMin;
     private final TouchSensor extenderMin;
-    private final PIDController armcontrol;
+    private final PIDController armcontrol = new PIDController(ARM_CONTROL_P, ARM_CONTROL_I, ARM_CONTROL_D);
     private final DcMotorEx armLeft;
     private final DcMotorEx armRight;
     private final DcMotorEx extender;
     private final Servo wrist;
     private final Servo greenGrabber;
     private final Servo blueGrabber;
-
     //private final DcMotorEx launcher;
-
     //Servo launcherWrist;
-    public double extendLengthCm = 0;
-    public int extendTicTarget = 0;
-    public double armTargetDegrees = 0;
-    public double target = 0.0;
 
     private CollectorState collectorState = CollectorState.DRIVING_SAFE;
     private final OnActivatedEvaluator a1PressedEvaluator;
@@ -97,18 +91,18 @@ public class Nibus2000 {
     private final Gamepad gamepad2;
     private final WebcamName frontCamera;
     private final WebcamName backCamera;
-    private final SwitchableCameraName switchableCamera;
-    private AllianceColor allianceColor;
+    private final DigitalChannel indicator1Red;
+    private final DigitalChannel indicator1Green;
+    private final AllianceColor allianceColor;
+    private final VisionPortal visionPortal;
+    private final AprilTagProcessor aprilTagProcessor;
+    private final WindowBoxesVisionProcessor propFinder;
+    private final RevBlinkinLedDriver blinkinLedDriver;
     private AlliancePose alliancePose;
     private NibusState state;
     private ElapsedTime timeSinceStart;
     private ElapsedTime timeInState;
-    private VisionPortal visionPortal;
-    private AprilTagProcessor aprilTagProcessor;
-    private WindowBoxesVisionProcessor propFinder;
     private Pose2d latestPoseEstimate = null;
-    private int currentArmPosition = 0;
-    private int currentExtenderPosition = 0;
     private int armTrimIncrements = 0;
     private int wristTrimIncrements = 0;
     private boolean launchingAirplane = false;
@@ -123,17 +117,17 @@ public class Nibus2000 {
     private final int[] leftMidRightVotes = new int[] { 0, 0, 0 };
     private AlliancePropPosition alliancePropPosition = null;
     private final ElapsedTime elapsedPropFrameTime = new ElapsedTime();
-    private DigitalChannel indicator1Red;
-    private DigitalChannel indicator1Green;
-    private RevBlinkinLedDriver blinkinLedDriver;
     private NibusApproach nextNibusApproach = null;
     private ElapsedTime approachSettlingTimer = null;
     private boolean hasAprilTagFieldPosition = false;
     private double lastAprilTagFieldPositionMillis = 0;
     private Pose2d poseTarget = null;
     private NibusApproach approachTarget = null;
-    private Queue<Pose2d> poseQueue = new LinkedList<>();
-    private static final int QUEUE_CAPACITY = 12;
+    private final Queue<Pose2d> poseQueue = new LinkedList<>();
+    private double greenGrabberManualOffset = 0;
+    private double blueGrabberManualOffset = 0;
+    private boolean isCollecting;
+    private boolean isScoring;
 
     public Nibus2000(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, Telemetry telemetry) {
         this.allianceColor = allianceColor;
@@ -144,7 +138,7 @@ public class Nibus2000 {
 
         frontCamera = hardwareMap.get(WebcamName.class, "Webcam 1");
         backCamera = hardwareMap.get(WebcamName.class, "Webcam 2");
-        switchableCamera = ClassFactory.getInstance().getCameraManager().nameForSwitchableCamera(frontCamera, backCamera);
+        SwitchableCameraName switchableCamera = ClassFactory.getInstance().getCameraManager().nameForSwitchableCamera(frontCamera, backCamera);
         aprilTagProcessor = new AprilTagProcessor.Builder().build();
         propFinder = new WindowBoxesVisionProcessor();
         visionPortal = new VisionPortal.Builder()
@@ -192,6 +186,7 @@ public class Nibus2000 {
         onEnteredUpstageEvaluator = new OnActivatedEvaluator(this::isUpstage);
         onEnteredBackstageEvaluator = new OnActivatedEvaluator(this::isBackstage);
 
+        armcontrol.setTolerance(ARM_TOLERANCE);
         armMin = hardwareMap.get(TouchSensor.class, "armMin1");
         extenderMin = hardwareMap.get(TouchSensor.class, "extenderMin3");
         armLeft = hardwareMap.get(DcMotorEx.class, "armE0");
@@ -200,14 +195,19 @@ public class Nibus2000 {
         wrist = hardwareMap.get(Servo.class, "redE3");
         greenGrabber = hardwareMap.get(Servo.class, "greenE0");
         blueGrabber = hardwareMap.get(Servo.class, "blueE1");
+
         //launcher = hardwareMap.get(DcMotorEx.class, "launcherE2");
         //launcherWrist = hardwareMap.get(Servo.class, "launcher");
-
-        armcontrol = new PIDController(ARM_CONTROL_P, ARM_CONTROL_I, ARM_CONTROL_D);
-
         //launcher.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         //launcher.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         //launcher.setDirection(DcMotorSimple.Direction.FORWARD);
+    }
+
+    private void runTelemetry() {
+        telemetry.addData("x", latestPoseEstimate.getX());
+        telemetry.addData("y", latestPoseEstimate.getY());
+        telemetry.addData("heading", latestPoseEstimate.getHeading());
+        telemetry.update();
     }
 
     public void autonomousInit(AlliancePose alliancePose, NibusAutonomousPlan autonomousPlan) {
@@ -215,11 +215,11 @@ public class Nibus2000 {
         this.autonomousPlan = autonomousPlan;
         drive.setPoseEstimate((allianceColor.getAbsoluteFieldPose(alliancePose)));
 
-        wrist.setPosition(.8);
+        wrist.setPosition(.25);
         sleep(1000);
         extenderInitSequence(true);
         armInitSequence(true);
-        wrist.setPosition(1);
+        wrist.setPosition(.25);
         grabberInit();
 
         visionPortal.setActiveCamera(backCamera);
@@ -227,9 +227,9 @@ public class Nibus2000 {
         visionPortal.setProcessorEnabled(aprilTagProcessor, true);
     }
 
-    public void teleopInit(NibusSaveState saveState) {
+    public void teleopInit() {
         drive.setPoseEstimate(new Pose2d());
-        wrist.setPosition(1);
+        wrist.setPosition(.25);
 
         extenderInitSequence(false);
         armInitSequence(false);
@@ -252,10 +252,9 @@ public class Nibus2000 {
     }
 
     private void zeroExtender() {
-        extender.setPower(0);
         extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         extender.setTargetPosition(0);
-        extender.setTargetPositionTolerance(ARM_TOLERANCE);
+        extender.setTargetPositionTolerance(EXTENDER_TICK_TOLERANCE);
         extender.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
     }
 
@@ -263,6 +262,7 @@ public class Nibus2000 {
         timeSinceStart = new ElapsedTime();
         timeInState = new ElapsedTime();
         state = startupState;
+        elapsedPropFrameTime.reset();
     }
 
     public boolean evaluate() {
@@ -362,7 +362,7 @@ public class Nibus2000 {
                 }
 
                 Pose2d estimatedPose = calculateRobotPose(detection, cameraDistanceOffset, cameraAngleOffset);
-                if (poseQueue.size() >= QUEUE_CAPACITY) {
+                if (poseQueue.size() >= APRIL_TAG_QUEUE_CAPACITY) {
                     poseQueue.poll(); // Remove the oldest element
                 }
                 poseQueue.offer(estimatedPose);
@@ -370,7 +370,7 @@ public class Nibus2000 {
         }
 
         // Calculate average and variance
-        if (poseQueue.size() == QUEUE_CAPACITY) {
+        if (poseQueue.size() == APRIL_TAG_QUEUE_CAPACITY) {
             Pose2d averagePose = calculateAveragePose(poseQueue);
             Pose2d variancePose = calculateVariancePose(poseQueue, averagePose);
 
@@ -432,7 +432,6 @@ public class Nibus2000 {
         controlDrivingFromGamepad();
         evaluateScoringManualControls();
 
-        // Safe travels
 //        if (y1PressedEvaluator.evaluate()) {
 //            launchingAirplane = true;
 //            launchingAirplaneTimeMillis = (int) timeSinceStart.milliseconds();
@@ -486,14 +485,13 @@ public class Nibus2000 {
 
     private CollectorState endgameLiftStage(int stageNumber) {
         switch (stageNumber) {
-            case 0:
-                return CollectorState.DRIVING_SAFE;
             case 1:
                 return CollectorState.HANG1;
             case 2:
                 return CollectorState.HANG2;
             case 3:
                 return CollectorState.HANG3;
+            case 0:
             default:
                 return CollectorState.DRIVING_SAFE;
         }
@@ -678,24 +676,12 @@ public class Nibus2000 {
     }
 
     private NibusState evaluateDetectAllianceMarker() {
-
-        // Lazy init the prop finder and vision portal
-        if (propFinder == null) {
-            framesProcessed = 0;
-            leftMidRightVotes[0] = 0;
-            leftMidRightVotes[1] = 0;
-            leftMidRightVotes[2] = 0;
-            alliancePropPosition = null;
-            elapsedPropFrameTime.reset();
-
-        }
-
         if (elapsedPropFrameTime.milliseconds() > FRAME_DELAY_MILLIS && framesProcessed < (DELAY_FRAMES + PROCESS_FRAMES)) {
             elapsedPropFrameTime.reset();
-            Object[] redResults = propFinder.topbox(PROP_CAMERA_WIDTH_PIXELS, PROP_CAMERA_HEIGHT_PIXELS, PROP_CAMERA_ROW_COUNT, PROP_CAMERA_COLUMN_COUNT, allianceColor);
-            if (redResults.length > 0) {
+            Object[] results = propFinder.topbox(PROP_CAMERA_WIDTH_PIXELS, PROP_CAMERA_HEIGHT_PIXELS, PROP_CAMERA_ROW_COUNT, PROP_CAMERA_COLUMN_COUNT, allianceColor);
+            if (results.length > 0) {
                 if (framesProcessed >= DELAY_FRAMES) {
-                    int voteIndex = (int) redResults[1];
+                    int voteIndex = (int) results[1];
                     leftMidRightVotes[voteIndex]++;
                     Log.d("nibusVision", String.format("Vision vote for %d", voteIndex));
                 } else {
@@ -734,16 +720,15 @@ public class Nibus2000 {
 
     private void planAutonomousAfterPropDetect(Vector2d endParkingLocation) {
         Vector2d targetLocation = alliancePose.getPixelTargetPosition(allianceColor, alliancePropPosition);
-        double targetHeading = 0.0;
+        double targetHeading;
         switch (allianceColor) {
             case RED:
                 targetHeading = Math.toRadians(270 - 135);
                 break;
+            default:
             case BLUE:
                 targetHeading = Math.toRadians(90 + 135);
                 break;
-            default:
-                targetHeading = 0;
         }
 
         Pose2d targetPose = new Pose2d(targetLocation.getX(), targetLocation.getY(), targetHeading);
@@ -800,11 +785,15 @@ public class Nibus2000 {
     }
 
     private void controlDrivingFromGamepad() {
-
         Pose2d controlPose;
 
         // Navigation mode
         if (approachTarget == null) {
+
+            greenGrabberState = GreenGrabberState.GRABBED;
+            blueGrabberState = BlueGrabberState.GRABBED;
+            greenGrabberManualOffset = 0;
+            blueGrabberManualOffset = 0;
 
             controlPose = getScaledHeadlessDriverInput(gamepad1);
 
@@ -828,38 +817,47 @@ public class Nibus2000 {
                     approachTarget.Pose.minus(new Pose2d(0, 0, approachAngleOffset)));
             controlPose = getPoseTargetAutoDriveControl(approachTargetPoseWithDriverOffset);
             controlPose = controlPose.plus(getScaledHeadlessDriverInput(gamepad2).div(2));
+
+            if (isCollecting) {
+
+            }
+
+            if (isScoring) {
+
+            }
         }
 
         drive.setWeightedDrivePower(controlPose);
     }
 
+    private int armTargetPosition() {
+        double trimmedArmTargetDegrees = collectorState.ArmPosition + (armTrimIncrements * ARM_DEGREE_TRIM_INCREMENT);
+        return  (int) (((Math.min(trimmedArmTargetDegrees, ARM_MAX_ANGLE)) - ARM_DEGREE_OFFSET_FROM_HORIZONTAL) * ARM_TICKS_PER_DEGREE);
+    }
+
+    private void controlArmMotor(DcMotorEx armMotor) {
+        int armPosition = armMotor.getCurrentPosition();
+        double armPower = armcontrol.calculate(armPosition, armTargetPosition());
+        if(Math.abs(armPosition) < 0.02) armPower = 0;
+        if(armPosition < 0 && armMin.isPressed()) armPower = 0;
+        armMotor.setPower(armPower);
+    }
+
     private void controlScoringSystems() {
-        greenGrabber.setPosition(greenGrabberState.ServoPosition);
-        blueGrabber.setPosition(blueGrabberState.ServoPosition);
+        controlArmMotor(armLeft);
+        controlArmMotor(armRight);
+
+        int extenderTargetPosition = (int) ((Math.min(collectorState.ExtenderPosition, EXTENDER_MAX_LENGTH)) * EXTENDER_TICS_PER_CM);
+        extender.setTargetPosition(extenderTargetPosition);
+
+        telemetry.addData("Extender position: ", extender.getCurrentPosition());
+        telemetry.addData("Extender target position: ", extenderTargetPosition);
 
         double wristPositionToApply = Math.min(1, Math.max(0, collectorState.WristPosition + (wristTrimIncrements * WRIST_SERVO_TRIM_INCREMENT)));
         wrist.setPosition(wristPositionToApply);
-        extendLengthCm = collectorState.ExtenderPosition;
-        armTargetDegrees = collectorState.ArmPosition;
 
-        double trimmedArmTargetDegrees = armTargetDegrees + (armTrimIncrements * ARM_DEGREE_TRIM_INCREMENT);
-        target = computeArmTickTarget(trimmedArmTargetDegrees);
-        armcontrol.setPID(ARM_CONTROL_P, ARM_CONTROL_I, ARM_CONTROL_D);
-        armcontrol.setTolerance(ARM_TOLERANCE);
-
-        currentArmPosition = armLeft.getCurrentPosition();
-        double armpower = armcontrol.calculate(currentArmPosition, target);
-
-        //Set extension
-        extendTicTarget = (int) computeExtenderTickTarget(extendLengthCm);
-//        currentExtenderPosition = extender.getCurrentPosition();
-        //extender.setTargetPosition(extendTicTarget);
-
-        if(Math.abs(armpower) < 0.01) armpower = 0;
-        if(armpower < 0 && armMin.isPressed()) armpower = 0;
-        armLeft.setPower(armpower);
-        armRight.setPower(armpower);
-        //extender.setPower(EXTENDER_POWER);
+        greenGrabber.setPosition(greenGrabberState.ServoPosition + greenGrabberManualOffset);
+        blueGrabber.setPosition(blueGrabberState.ServoPosition + blueGrabberManualOffset);
 
         if (launchingAirplane) {
 //            launcherWrist.setPosition(LAUNCH_WRIST_POSITION);
@@ -873,23 +871,16 @@ public class Nibus2000 {
                 launchingAirplane = false;
             }
         }
-
-        telemetry.addData("Armpower", armpower);
-    }
-
-    private double computeArmTickTarget(double degreesOffsetFromHorizontal) {
-        return (((Math.min(degreesOffsetFromHorizontal, ARM_MAX_ANGLE)) - ARM_DEGREE_OFFSET_FROM_HORIZONTAL) * ARM_TICKS_PER_DEGREE);
-    }
-
-    private double computeExtenderTickTarget(double extendLength) {
-        return ((Math.min(extendLength, EXTENDER_MAX_LENGTH)) * EXTENDER_TICS_PER_CM);
     }
 
     private boolean armAndExtenderSettled() {
-        return true; // TODO: reenable
-//        int armErrorTicks = Math.abs((int) target - arm_motor0.getCurrentPosition());
-//        int extenderErrorTicks = Math.abs((int) extendTicTarget - extender.getCurrentPosition());
-//        return armErrorTicks < 20 && extenderErrorTicks < 20;
+        int armTargetPosition = armTargetPosition();
+        int leftArmErrorTicks = Math.abs(armTargetPosition - armLeft.getCurrentPosition());
+        int rightArmArmErrorTicks = Math.abs(armTargetPosition - armRight.getCurrentPosition());
+        int extenderErrorTicks = Math.abs(extender.getTargetPosition() - extender.getCurrentPosition());
+        return leftArmErrorTicks < ARM_TICK_TOLERANCE &&
+                rightArmArmErrorTicks < ARM_TICK_TOLERANCE &&
+                extenderErrorTicks < EXTENDER_TICK_TOLERANCE;
     }
 
     private void evaluateScoringManualControls() {
@@ -903,19 +894,6 @@ public class Nibus2000 {
 //            blueGrabberState = BlueGrabberState.GRABBED;
 //            greenGrabberState = GreenGrabberState.GRABBED;
 //        }
-
-        if (a1PressedEvaluator.evaluate() || (a2PressedEvaluator.evaluate())) {
-            blueGrabberState = blueGrabberState.toggle();
-            greenGrabberState = greenGrabberState.toggle();
-        }
-
-        if (lb1PressedEvaluator.evaluate()) {
-            greenGrabberState = greenGrabberState.toggle();
-        }
-
-        if (rb1PressedEvaluator.evaluate()) {
-            blueGrabberState = blueGrabberState.toggle();
-        }
 
         if (a2PressedEvaluator.evaluate()) {
             collectorState = CollectorState.CLOSE_COLLECTION;
@@ -965,13 +943,6 @@ public class Nibus2000 {
 //        blueGrabber.setPosition(blueGrabberState.ServoPosition);
     }
 
-    private void runTelemetry() {
-        telemetry.addData("x", latestPoseEstimate.getX());
-        telemetry.addData("y", latestPoseEstimate.getY());
-        telemetry.addData("heading", latestPoseEstimate.getHeading());
-        telemetry.update();
-    }
-
     private void extenderInitSequence(boolean slow) {
         zeroExtender();
 
@@ -984,6 +955,8 @@ public class Nibus2000 {
             extender.setPower(-0.4);
         }
 
+        extender.setPower(0);
+
         if (slow) {
             while (extenderMin.isPressed()) {
                 extender.setPower(0.4);
@@ -994,6 +967,8 @@ public class Nibus2000 {
             while (!extenderMin.isPressed()) {
                 extender.setPower(-0.1);
             }
+
+            extender.setPower(0);
         }
 
         zeroExtender();
@@ -1022,30 +997,6 @@ public class Nibus2000 {
         }
 
         zeroArmMotors();
-    }
-
-    public Pose2d getPoseEstimate() {
-        return drive.getPoseEstimate();
-    }
-
-    public int getArmPosition() {
-        return currentArmPosition;
-    }
-
-    public int getExtenderPosition() {
-        return currentExtenderPosition;
-    }
-
-    public CollectorState getCollectorState() {
-        return collectorState;
-    }
-
-    public BlueGrabberState getBlueGrabberState() {
-        return blueGrabberState;
-    }
-
-    public GreenGrabberState getGreenGrabberState() {
-        return greenGrabberState;
     }
 
     public Pose2d convertToPose(Vector2d vector2d, double heading) {

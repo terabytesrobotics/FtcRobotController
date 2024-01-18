@@ -6,7 +6,7 @@ public class NibusConstants {
     public static final double GEAR_RATIO = 13.7d;
     public static final double WORM_RATIO = 28.0d;
     public static final double ARM_TICKS_PER_DEGREE = WORM_RATIO * 28.0d * GEAR_RATIO / 360.0d;
-    public static double ARM_CONTROL_P = 0.005, ARM_CONTROL_I = 0.005, ARM_CONTROL_D = 0.0002;
+    public static double ARM_CONTROL_P = 0.005, ARM_CONTROL_I = 0.000, ARM_CONTROL_D = 0.0000;
     // Angle below horizontal at start in degrees.  horizontal is 0.
     public static final double ARM_DEGREE_OFFSET_FROM_HORIZONTAL = -37d;
     public static final double ARM_MAX_ANGLE = 180d;
@@ -47,6 +47,9 @@ public class NibusConstants {
     public static double APRIL_TAG_RECOGNITION_RANGE_THRESHOLD = 30;
     public static double APRIL_TAG_RECOGNITION_YAW_THRESHOLD = Math.PI / 6;
     public static double APRIL_TAG_RECOGNITION_BEARING_THRESHOLD = Math.PI / 6;
+    public static int ARM_TICK_TOLERANCE = 20;
+    public static int EXTENDER_TICK_TOLERANCE = 20;
+    public static final int APRIL_TAG_QUEUE_CAPACITY = 8;
 
     public static void sleep(int millis) {
         try {

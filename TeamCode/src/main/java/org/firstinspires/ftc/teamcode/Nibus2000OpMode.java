@@ -53,16 +53,13 @@ public abstract class Nibus2000OpMode extends LinearOpMode {
 
     private final AllianceColor allianceColor;
     private final NibusState startupState;
-    protected final Context context = AppUtil.getDefContext();
     private AlliancePose alliancePose = null;
-    private NibusSaveState saveState = null;
     private NibusAutonomousPlan autonomousPlan = null;
 
 
     public Nibus2000OpMode(AllianceColor allianceColor, NibusState startupState) {
         super();
         this.allianceColor = allianceColor;
-        this.saveState = ReadNibusSaveState();
         this.startupState = startupState;
     }
 
@@ -72,86 +69,6 @@ public abstract class Nibus2000OpMode extends LinearOpMode {
         this.alliancePose = startPose;
         this.startupState = startupState;
         this.autonomousPlan = autonomousPlan;
-    }
-
-    private static final String POSE_FILE = "PoseData.tmp";
-
-    private void WriteNibusSaveState(
-            Pose2d pose,
-            int armPosition,
-            int extenderPosition,
-            CollectorState collectorState,
-            BlueGrabberState blueGrabberState,
-            GreenGrabberState greenGrabberState) {
-        JSONObject json = new JSONObject();
-        try {
-            json.put("x", pose.getX());
-            json.put("y", pose.getY());
-            json.put("heading", pose.getHeading());
-            json.put("armPosition", armPosition);
-            json.put("extenderPosition", extenderPosition);
-            json.put("collectorState", collectorState.name());
-            json.put("blueGrabberState", blueGrabberState.name());
-            json.put("greenGrabberState", greenGrabberState.name());
-        } catch (JSONException e) {
-            telemetry.addData("Error", "Failed to save pose json: " + e.getMessage());
-            telemetry.update();
-        }
-
-        try (FileOutputStream fos = context.openFileOutput(POSE_FILE, Context.MODE_PRIVATE)) {
-            String jsonString = json.toString();
-            Log.d("nibusSaveState", jsonString);
-            fos.write(jsonString.getBytes());
-        } catch (IOException e) {
-            telemetry.addData("Error", "Failed to save pose: " + e.getMessage());
-            telemetry.update();
-        }
-    }
-
-    private NibusSaveState ReadNibusSaveState() {
-        NibusSaveState loadedState = null;
-
-        try (FileInputStream fis = context.openFileInput(POSE_FILE);
-             InputStreamReader isr = new InputStreamReader(fis);
-             BufferedReader reader = new BufferedReader(isr)) {
-
-            StringBuilder stringBuilder = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                stringBuilder.append(line);
-            }
-
-            String jsonString = stringBuilder.toString();
-            Log.d("nibusSaveState", jsonString);
-            JSONObject json = new JSONObject(jsonString);
-            Pose2d pose = new Pose2d(
-                    json.getDouble("x"),
-                    json.getDouble("y"),
-                    json.getDouble("heading"));
-
-            int armPosition = json.getInt("armPosition");
-            int extenderPosition = json.getInt("extenderPosition");
-            CollectorState collectorState = CollectorState.valueOf(json.getString("collectorState"));
-            BlueGrabberState blueGrabberState = BlueGrabberState.valueOf(json.getString("blueGrabberState"));
-            GreenGrabberState greenGrabberState = GreenGrabberState.valueOf(json.getString("greenGrabberState"));
-
-            loadedState = new NibusSaveState(pose, armPosition, extenderPosition, collectorState, blueGrabberState, greenGrabberState);
-
-        } catch (IOException | JSONException e) {
-            telemetry.addData("Error", "Failed to recover pose: " + e.getMessage());
-            telemetry.update();
-            return null;
-        }
-
-        // Delete the file after the streams are closed
-        File file = new File(context.getFilesDir(), POSE_FILE);
-        if (file.delete()) {
-            Log.d("nibusSaveState", "Pose data file deleted successfully.");
-        } else {
-            Log.e("nibusSaveState", "Failed to delete pose data file.");
-        }
-
-        return loadedState;
     }
 
     @Override
@@ -166,24 +83,11 @@ public abstract class Nibus2000OpMode extends LinearOpMode {
         if (isSlowInit) {
             nibus.autonomousInit(alliancePose, autonomousPlan);
         } else {
-            nibus.teleopInit(saveState);
+            nibus.teleopInit();
         }
         waitForStart();
         nibus.startup(startupState);
 
-        // TODO: need to get these before stop requested.
-        int lastArmPosition = 0;
-        int lastExtenderPosition = 0;
-        while (!isStopRequested() && nibus.evaluate()) {
-            lastArmPosition = nibus.getArmPosition();
-            lastExtenderPosition = nibus.getExtenderPosition();
-        }
-        WriteNibusSaveState(
-                nibus.getPoseEstimate(),
-                lastArmPosition,
-                lastExtenderPosition,
-                nibus.getCollectorState(),
-                nibus.getBlueGrabberState(),
-                nibus.getGreenGrabberState());
+        while (!isStopRequested() && nibus.evaluate()) {}
     }
 }
