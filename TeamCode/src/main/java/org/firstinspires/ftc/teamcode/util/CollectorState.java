@@ -1,11 +1,13 @@
 package org.firstinspires.ftc.teamcode.util;
 
 public enum CollectorState {
-    CLOSE_COLLECTION(-20, 0, 0.75f),
+    COLLECTION(-30, 18, 0.8f),
+    DRIVING_SAFE(-20, 4, 0.8f),
+    SCORING(144, 0, 0.61f),
+    SCORING_MEDIUM(131, 12, 0.53f),
+    SCORING_HIGH(111, 18, 0.45f),
     FAR_COLLECTION(-15, 18, 0.78f),
-    DRIVING_SAFE(-10, 10, 0.80f),
     LOW_SCORING(140, 0, 0.35f),
-    HIGH_SCORING(120, 18, 0.25f),
     SAFE_POSITION(0, 0, 0.5f),
     HANG1(75,8,.1f),
     HANG2(0,12,.1f),

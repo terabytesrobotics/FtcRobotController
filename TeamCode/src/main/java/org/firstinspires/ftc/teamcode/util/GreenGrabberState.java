@@ -1,8 +1,8 @@
 package org.firstinspires.ftc.teamcode.util;
 
 public enum GreenGrabberState {
-    GRABBED(0.3f),
-    NOT_GRABBED(0.02f);
+    GRABBED(0.67f),
+    NOT_GRABBED(0.3f);
 
     public float ServoPosition;
 

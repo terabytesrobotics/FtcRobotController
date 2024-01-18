@@ -58,8 +58,8 @@ public class Nibus2000 {
     private final Servo wrist;
     private final Servo greenGrabber;
     private final Servo blueGrabber;
-    //private final DcMotorEx launcher;
-    //Servo launcherWrist;
+    private final DcMotorEx launcher;
+    private final Servo launcherWrist;
 
     private CollectorState collectorState = CollectorState.DRIVING_SAFE;
     private final OnActivatedEvaluator a1PressedEvaluator;
@@ -196,14 +196,17 @@ public class Nibus2000 {
         greenGrabber = hardwareMap.get(Servo.class, "greenE0");
         blueGrabber = hardwareMap.get(Servo.class, "blueE1");
 
-        //launcher = hardwareMap.get(DcMotorEx.class, "launcherE2");
-        //launcherWrist = hardwareMap.get(Servo.class, "launcher");
-        //launcher.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        //launcher.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        //launcher.setDirection(DcMotorSimple.Direction.FORWARD);
+        launcher = hardwareMap.get(DcMotorEx.class, "launcherE2");
+        launcherWrist = hardwareMap.get(Servo.class, "launcher");
+        launcher.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        launcher.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        launcher.setDirection(DcMotorSimple.Direction.FORWARD);
     }
 
     private void runTelemetry() {
+        telemetry.addData("armTargetPosition", armTargetPosition());
+        telemetry.addData("leftArmPosition", armLeft.getCurrentPosition());
+        telemetry.addData("rightArmPosition", armRight.getCurrentPosition());
         telemetry.addData("x", latestPoseEstimate.getX());
         telemetry.addData("y", latestPoseEstimate.getY());
         telemetry.addData("heading", latestPoseEstimate.getHeading());
@@ -256,6 +259,7 @@ public class Nibus2000 {
         extender.setTargetPosition(0);
         extender.setTargetPositionTolerance(EXTENDER_TICK_TOLERANCE);
         extender.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
+        extender.setPower(EXTENDER_POWER);
     }
 
     public void startup(NibusState startupState) {
@@ -332,13 +336,11 @@ public class Nibus2000 {
         if (onEnteredUpstageEvaluator.evaluate()) {
             visionPortal.setActiveCamera(backCamera);
             poseQueue.clear();
-            collectorState = CollectorState.CLOSE_COLLECTION;
         }
 
         if (onEnteredBackstageEvaluator.evaluate()) {
             visionPortal.setActiveCamera(frontCamera);
             poseQueue.clear();
-            collectorState = CollectorState.HIGH_SCORING;
         }
     }
 
@@ -432,10 +434,10 @@ public class Nibus2000 {
         controlDrivingFromGamepad();
         evaluateScoringManualControls();
 
-//        if (y1PressedEvaluator.evaluate()) {
-//            launchingAirplane = true;
-//            launchingAirplaneTimeMillis = (int) timeSinceStart.milliseconds();
-//        }
+        if (y1PressedEvaluator.evaluate()) {
+            launchingAirplane = true;
+            launchingAirplaneTimeMillis = (int) timeSinceStart.milliseconds();
+        }
 
         if (b1PressedEvaluator.evaluate()) {
             targetTag = null;
@@ -450,12 +452,6 @@ public class Nibus2000 {
             targetTag = allianceColor.getAprilTagForScoringPosition(CenterStageBackdropPosition.RIGHT);
         } else if (x2PressedEvaluator.evaluate()) {
             targetTag = null;
-        }
-
-        if (b1PressedEvaluator.evaluate() && hasAprilTagFieldPosition) {
-            poseTarget = nextNibusApproach.Pose;
-            nextNibusApproach = nextNibusApproach.nextPose();
-            return NibusState.DRIVE_DIRECT_TO_POSE;
         }
 
         // And good luck
@@ -739,7 +735,7 @@ public class Nibus2000 {
         Vector2d waypoint3 = allianceColor.getScoringApproachLocation();
 
         setAutonomousCommands(NibusState.MANUAL_DRIVE,
-                new NibusAutonomousCommand(CollectorState.CLOSE_COLLECTION),
+                new NibusAutonomousCommand(CollectorState.COLLECTION),
                 new NibusAutonomousCommand(
                         () -> buildAutonomousTrajectoryFromHere(approachPose)),
                 new NibusAutonomousCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.GRABBED),
@@ -750,7 +746,7 @@ public class Nibus2000 {
                         () -> buildAutonomousTrajectoryFromHere(waypoint2, 0)),
                 new NibusAutonomousCommand(
                         () -> buildAutonomousTrajectoryFromHere(waypoint3, 0)),
-                new NibusAutonomousCommand(CollectorState.HIGH_SCORING),
+                new NibusAutonomousCommand(CollectorState.SCORING),
                 new NibusAutonomousCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.NOT_GRABBED),
                 new NibusAutonomousCommand(CollectorState.DRIVING_SAFE),
                 new NibusAutonomousCommand(
@@ -789,11 +785,6 @@ public class Nibus2000 {
 
         // Navigation mode
         if (approachTarget == null) {
-
-            greenGrabberState = GreenGrabberState.GRABBED;
-            blueGrabberState = BlueGrabberState.GRABBED;
-            greenGrabberManualOffset = 0;
-            blueGrabberManualOffset = 0;
 
             controlPose = getScaledHeadlessDriverInput(gamepad1);
 
@@ -835,11 +826,15 @@ public class Nibus2000 {
         return  (int) (((Math.min(trimmedArmTargetDegrees, ARM_MAX_ANGLE)) - ARM_DEGREE_OFFSET_FROM_HORIZONTAL) * ARM_TICKS_PER_DEGREE);
     }
 
+    private int armDegreeTarget(int ticks) {
+        return (int) ((ticks / ARM_TICKS_PER_DEGREE) + ARM_DEGREE_OFFSET_FROM_HORIZONTAL);
+    }
+
     private void controlArmMotor(DcMotorEx armMotor) {
         int armPosition = armMotor.getCurrentPosition();
         double armPower = armcontrol.calculate(armPosition, armTargetPosition());
-        if(Math.abs(armPosition) < 0.02) armPower = 0;
-        if(armPosition < 0 && armMin.isPressed()) armPower = 0;
+        if(Math.abs(armPower) < 0.02) armPower = 0;
+        if(armPower < 0 && armMin.isPressed()) armPower = 0;
         armMotor.setPower(armPower);
     }
 
@@ -860,14 +855,14 @@ public class Nibus2000 {
         blueGrabber.setPosition(blueGrabberState.ServoPosition + blueGrabberManualOffset);
 
         if (launchingAirplane) {
-//            launcherWrist.setPosition(LAUNCH_WRIST_POSITION);
+            launcherWrist.setPosition(LAUNCH_WRIST_POSITION);
             int launchSequenceTimeMillis = (int) timeSinceStart.milliseconds() - launchingAirplaneTimeMillis;
             if (launchSequenceTimeMillis > 1000) {
-                //launcher.setPower(1);
+                launcher.setPower(1);
             }
 
             if (launchSequenceTimeMillis > 2000) {
-                //launcher.setPower(0);
+                launcher.setPower(0);
                 launchingAirplane = false;
             }
         }
@@ -894,18 +889,36 @@ public class Nibus2000 {
 //            blueGrabberState = BlueGrabberState.GRABBED;
 //            greenGrabberState = GreenGrabberState.GRABBED;
 //        }
+        greenGrabberState = GreenGrabberState.GRABBED;
+        blueGrabberState = BlueGrabberState.GRABBED;
+        double blueGrabberActuationRange =
+                blueGrabberState.toggle().ServoPosition - blueGrabberState.ServoPosition;
+        double greenGrabberActuationRange =
+                greenGrabberState.toggle().ServoPosition - greenGrabberState.ServoPosition;
+        blueGrabberManualOffset = gamepad2.left_trigger * blueGrabberActuationRange;
+        greenGrabberManualOffset = gamepad2.right_trigger * greenGrabberActuationRange;
 
         if (a2PressedEvaluator.evaluate()) {
-            collectorState = CollectorState.CLOSE_COLLECTION;
-        } else if (b2PressedEvaluator.evaluate()) {
-            collectorState = CollectorState.FAR_COLLECTION;
-        } else if (x2PressedEvaluator.evaluate()) {
-            collectorState = CollectorState.DRIVING_SAFE;
+            if (collectorState == CollectorState.COLLECTION) {
+                collectorState = CollectorState.DRIVING_SAFE;
+            } else {
+                collectorState = CollectorState.COLLECTION;
+            }
         } else if (y2PressedEvaluator.evaluate()) {
-            collectorState = CollectorState.LOW_SCORING;
+            if (collectorState == CollectorState.SCORING) {
+                collectorState = CollectorState.DRIVING_SAFE;
+            } else {
+                collectorState = CollectorState.SCORING;
+            }
         } else if (rb2PressedEvaluator.evaluate()) {
-            collectorState = CollectorState.HIGH_SCORING;
-        } else if (lb2PressedEvaluator.evaluate()) {
+            if (collectorState == CollectorState.SCORING_MEDIUM) {
+                collectorState = CollectorState.SCORING_HIGH;
+            } else if (collectorState == CollectorState.SCORING_HIGH) {
+                collectorState = CollectorState.DRIVING_SAFE;
+            } else {
+                collectorState = CollectorState.SCORING_MEDIUM;
+            }
+        } else if (x2PressedEvaluator.evaluate()) {
             collectorState = CollectorState.DRIVING_SAFE;
         }
 
@@ -917,30 +930,30 @@ public class Nibus2000 {
         // Initial short cycle to visually indicate ready to load pixels
         blueGrabberState = BlueGrabberState.NOT_GRABBED;
         greenGrabberState = GreenGrabberState.NOT_GRABBED;
-//        greenGrabber.setPosition(greenGrabberState.ServoPosition);
-//        blueGrabber.setPosition(blueGrabberState.ServoPosition);
+        greenGrabber.setPosition(greenGrabberState.ServoPosition);
+        blueGrabber.setPosition(blueGrabberState.ServoPosition);
 
         sleep(500);
 
         blueGrabberState = BlueGrabberState.GRABBED;
         greenGrabberState = GreenGrabberState.GRABBED;
-//        greenGrabber.setPosition(greenGrabberState.ServoPosition);
-//        blueGrabber.setPosition(blueGrabberState.ServoPosition);
+        greenGrabber.setPosition(greenGrabberState.ServoPosition);
+        blueGrabber.setPosition(blueGrabberState.ServoPosition);
 
         sleep(500);
 
         // Then hold open for 3 seconds before closing
         blueGrabberState = BlueGrabberState.NOT_GRABBED;
         greenGrabberState = GreenGrabberState.NOT_GRABBED;
-//        greenGrabber.setPosition(greenGrabberState.ServoPosition);
-//        blueGrabber.setPosition(blueGrabberState.ServoPosition);
+        greenGrabber.setPosition(greenGrabberState.ServoPosition);
+        blueGrabber.setPosition(blueGrabberState.ServoPosition);
 
         sleep(3000);
 
         blueGrabberState = BlueGrabberState.GRABBED;
         greenGrabberState = GreenGrabberState.GRABBED;
-//        greenGrabber.setPosition(greenGrabberState.ServoPosition);
-//        blueGrabber.setPosition(blueGrabberState.ServoPosition);
+        greenGrabber.setPosition(greenGrabberState.ServoPosition);
+        blueGrabber.setPosition(blueGrabberState.ServoPosition);
     }
 
     private void extenderInitSequence(boolean slow) {
