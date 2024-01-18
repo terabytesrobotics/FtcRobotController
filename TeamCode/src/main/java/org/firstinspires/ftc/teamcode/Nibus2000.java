@@ -201,6 +201,8 @@ public class Nibus2000 {
         launcher.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         launcher.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         launcher.setDirection(DcMotorSimple.Direction.FORWARD);
+
+        blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.LIME);
     }
 
     private void runTelemetry() {
@@ -313,6 +315,7 @@ public class Nibus2000 {
 
         double timeSincePositionSet = (timeSinceStart.milliseconds() - lastAprilTagFieldPositionMillis);
         if (hasAprilTagFieldPosition && timeSincePositionSet < POSITION_ACQUIRED_INDICATE_MILLIS) {
+            blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.CP1_STROBE);
             if (timeSincePositionSet % (2 * POSITION_ACQUIRED_PULSE_MILLIS) > POSITION_ACQUIRED_PULSE_MILLIS) {
                 indicator1Green.setState(true);
                 indicator1Red.setState(true);
@@ -320,7 +323,12 @@ public class Nibus2000 {
                 indicator1Green.setState(false);
                 indicator1Red.setState(false);
             }
-        } else if (isUpstage()) {
+            return;
+        } else {
+            blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.LIME);
+        }
+
+        if (isUpstage()) {
             indicator1Green.setState(false);
             indicator1Red.setState(true);
         } else if (isBackstage()) {
@@ -437,11 +445,6 @@ public class Nibus2000 {
         if (y1PressedEvaluator.evaluate()) {
             launchingAirplane = true;
             launchingAirplaneTimeMillis = (int) timeSinceStart.milliseconds();
-        }
-
-        if (b1PressedEvaluator.evaluate()) {
-            targetTag = null;
-            return NibusState.DETECT_POSE_FROM_APRIL_TAG;
         }
 
         if (x2PressedEvaluator.evaluate()) {
