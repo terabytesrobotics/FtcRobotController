@@ -13,6 +13,6 @@ import org.firstinspires.ftc.teamcode.util.UpstageBackstageStart;
 public class NibusRedInterstitialTest extends Nibus2000OpMode {
 
     public NibusRedInterstitialTest() {
-        super(AllianceColor.RED, UpstageBackstageStart.BACKSTAGE_START, NibusState.MANUAL_DRIVE, null);
+        super(AllianceColor.RED, NibusState.MANUAL_DRIVE, null);
     }
 }

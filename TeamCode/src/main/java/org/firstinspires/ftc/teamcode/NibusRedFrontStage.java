@@ -11,6 +11,6 @@ import org.firstinspires.ftc.teamcode.util.UpstageBackstageStart;
 public class NibusRedFrontStage extends Nibus2000OpMode {
 
     public NibusRedFrontStage() {
-        super(AllianceColor.RED, UpstageBackstageStart.FRONTSTAGE_START, NibusState.DETECT_ALLIANCE_MARKER, NibusAutonomousPlan.START_UPSTAGE);
+        super(AllianceColor.RED, NibusState.DETECT_ALLIANCE_MARKER, NibusAutonomousPlan.START_UPSTAGE);
     }
 }

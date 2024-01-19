@@ -42,10 +42,9 @@ public abstract class Nibus2000OpMode extends LinearOpMode {
         this.startupState = startupState;
     }
 
-    public Nibus2000OpMode(AllianceColor allianceColor, UpstageBackstageStart startPose, NibusState startupState, NibusAutonomousPlan autonomousPlan) {
+    public Nibus2000OpMode(AllianceColor allianceColor, NibusState startupState, NibusAutonomousPlan autonomousPlan) {
         super();
         this.allianceColor = allianceColor;
-        this.alliancePose = startPose;
         this.startupState = startupState;
         this.autonomousPlan = autonomousPlan;
     }
