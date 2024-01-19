@@ -826,25 +826,16 @@ public class Nibus2000 {
 
     private void controlDrivingFromGamepad() {
         Pose2d controlPose;
-        if (fixedPose == null) {
-            telemetry.addData("navigateMode", true);
-            controlPose = getScaledHeadlessDriverInput(gamepad1);
+        controlPose = getScaledHeadlessDriverInput(gamepad1);
+        if (hasPositionEstimate() && gamepad1.x) {
+            int closestLaneY = CenterStageConstants.getClosestLane(latestPoseEstimate.getY());
+            double errorY = closestLaneY - latestPoseEstimate.getY();
+            double errorHeading = Angle.normDelta(0 - latestPoseEstimate.getHeading());
 
-            if (hasPositionEstimate() && gamepad1.x) {
-                int closestLaneY = CenterStageConstants.getClosestLane(latestPoseEstimate.getY());
-                double errorY = closestLaneY - latestPoseEstimate.getY();
-                double errorHeading = Angle.normDelta(0 - latestPoseEstimate.getHeading());
-
-                double laneLockY = Range.clip(errorY * SPEED_GAIN, -MAX_AUTO_SPEED, MAX_AUTO_SPEED);
-                double laneLockRotation = Range.clip(errorHeading * TURN_GAIN, -MAX_AUTO_TURN, MAX_AUTO_TURN);
-                controlPose = controlPose.plus(new Pose2d(0, laneLockY, laneLockRotation));
-            }
-        } else {
-            telemetry.addData("finesseMode", true);
-            controlPose = getPoseTargetAutoDriveControl(
-                    getRobotHeadedFinesseInput(gamepad2, fixedPose));
+            double laneLockY = Range.clip(errorY * SPEED_GAIN, -MAX_AUTO_SPEED, MAX_AUTO_SPEED);
+            double laneLockRotation = Range.clip(errorHeading * TURN_GAIN, -MAX_AUTO_TURN, MAX_AUTO_TURN);
+            controlPose = controlPose.plus(new Pose2d(0, laneLockY, laneLockRotation));
         }
-
         drive.setWeightedDrivePower(controlPose);
     }
 
@@ -1061,9 +1052,6 @@ public class Nibus2000 {
 
     public void shutDown() {
         drive.setWeightedDrivePower(new Pose2d());
-        visionPortal.stopStreaming();
         visionPortal.close();
-        backCamera.close();
-        frontCamera.close();
     }
 }

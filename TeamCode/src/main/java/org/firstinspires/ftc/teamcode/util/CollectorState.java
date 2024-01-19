@@ -1,7 +1,7 @@
 package org.firstinspires.ftc.teamcode.util;
 
 public enum CollectorState {
-    COLLECTION(-31, 18, 0.86f),
+    COLLECTION(-32, 18, 0.86f),
     DRIVING_SAFE(-20, 4, 0.8f),
     SCORING(144, 0, 0.61f),
     SCORING_MEDIUM(131, 12, 0.53f),
