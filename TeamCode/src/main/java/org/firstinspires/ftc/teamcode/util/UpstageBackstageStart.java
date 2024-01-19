@@ -3,8 +3,7 @@ package org.firstinspires.ftc.teamcode.util;
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
 
-public enum AlliancePose {
-
+public enum UpstageBackstageStart {
     BACKSTAGE_START(
             new Pose2d(12, 64.25, Math.toRadians(90)),
             new Pose2d(12, -64.25, Math.toRadians(270))),
@@ -15,7 +14,7 @@ public enum AlliancePose {
     public Pose2d BluePose;
     public Pose2d RedPose;
 
-    AlliancePose(Pose2d bluePose, Pose2d redPose) {
+    UpstageBackstageStart(Pose2d bluePose, Pose2d redPose) {
         this.BluePose = bluePose;
         this.RedPose = redPose;
     }
@@ -42,6 +41,26 @@ public enum AlliancePose {
                 }
             default:
                 return new Vector2d();
+        }
+    }
+
+    public double getPixelDropApproachHeading(AllianceColor allianceColor) {
+        switch (this) {
+            case BACKSTAGE_START:
+                return Math.toRadians(180);
+            case FRONTSTAGE_START:
+            default:
+                double targetHeading;
+                switch (allianceColor) {
+                    case RED:
+                        targetHeading = Math.toRadians(270 - 135);
+                        break;
+                    default:
+                    case BLUE:
+                        targetHeading = Math.toRadians(90 + 135);
+                        break;
+                }
+                return targetHeading;
         }
     }
 }

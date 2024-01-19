@@ -29,7 +29,7 @@ import org.firstinspires.ftc.teamcode.Processors.WindowBoxesVisionProcessor;
 import org.firstinspires.ftc.teamcode.drive.DriveConstants;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
-import org.firstinspires.ftc.teamcode.util.AlliancePose;
+import org.firstinspires.ftc.teamcode.util.UpstageBackstageStart;
 import org.firstinspires.ftc.teamcode.util.AlliancePropPosition;
 import org.firstinspires.ftc.teamcode.util.BlueGrabberState;
 import org.firstinspires.ftc.teamcode.util.CollectorState;
@@ -98,7 +98,7 @@ public class Nibus2000 {
     private final AprilTagProcessor aprilTagProcessor;
     private final WindowBoxesVisionProcessor propFinder;
     private final RevBlinkinLedDriver blinkinLedDriver;
-    private AlliancePose alliancePose;
+    private UpstageBackstageStart alliancePose;
     private NibusState state;
     private ElapsedTime timeSinceStart;
     private ElapsedTime timeInState;
@@ -110,8 +110,9 @@ public class Nibus2000 {
     private int endgameLiftStage = 0;
     private NibusAutonomousPlan autonomousPlan = null;
     private final ElapsedTime currentCommandTime = new ElapsedTime();
-    private NibusAutonomousCommand currentCommand = null;
-    private final ArrayList<NibusAutonomousCommand> commandSequence = new ArrayList<>();
+    private final ElapsedTime currentCommandSettledTime = new ElapsedTime();
+    private NibusCommand currentCommand = null;
+    private final ArrayList<NibusCommand> commandSequence = new ArrayList<>();
     private NibusState continuationState = null;
     private int framesProcessed = 0;
     private final int[] leftMidRightVotes = new int[] { 0, 0, 0 };
@@ -158,12 +159,7 @@ public class Nibus2000 {
         indicator1Red.setMode(DigitalChannel.Mode.OUTPUT);
         indicator1Green.setMode(DigitalChannel.Mode.OUTPUT);
 
-        settledAtPoseTarget = new TrueForTime(APPROACH_SETTLE_TIME_MS, () -> {
-            Pose2d error = getPoseTargetError(poseTarget);
-            if (latestPoseEstimate == null || error == null) return false;
-            return Math.hypot(error.getX(), error.getY()) < DRIVE_TO_POSE_THRESHOLD &&
-                    Math.abs(error.getHeading()) < TURN_ERROR_THRESHOLD;
-        });
+        settledAtPoseTarget = new TrueForTime(APPROACH_SETTLE_TIME_MS, this::isAtPoseTarget);
         a1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.a);
         b1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.b);
         x1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.x);
@@ -216,7 +212,7 @@ public class Nibus2000 {
         telemetry.update();
     }
 
-    public void autonomousInit(AlliancePose alliancePose, NibusAutonomousPlan autonomousPlan) {
+    public void autonomousInit(UpstageBackstageStart alliancePose, NibusAutonomousPlan autonomousPlan) {
         this.alliancePose = alliancePose;
         this.autonomousPlan = autonomousPlan;
         drive.setPoseEstimate((allianceColor.getAbsoluteFieldPose(alliancePose)));
@@ -406,12 +402,12 @@ public class Nibus2000 {
         return new Pose2d(Math.sqrt(varianceX / count), Math.sqrt(varianceY / count), Math.sqrt(varianceHeading / count));
     }
 
-    private void applyCrudeHeadlessHeadingFromDriverPerspective(double driverHeading) {
+    private void applyCrudeHeadlessHeadingFromDriverPerspective(double driverPerceivedHeading) {
         drive.setPoseEstimate(
                 new Pose2d(
                         latestPoseEstimate.getX(),
                         latestPoseEstimate.getY(),
-                        Angle.norm(allianceColor.OperatorHeadingOffset + driverHeading)));
+                        allianceColor.OperatorHeadingOffset - driverPerceivedHeading));
     }
 
     private NibusState evaluateDrivingAndScoring() {
@@ -496,6 +492,17 @@ public class Nibus2000 {
         }
     }
 
+    private boolean isAtPoseTarget() {
+        return isAtPoseTarget(poseTarget);
+    }
+
+    private boolean isAtPoseTarget(Pose2d target) {
+        Pose2d error = getPoseTargetError(target);
+        if (latestPoseEstimate == null || error == null) return false;
+        return Math.hypot(error.getX(), error.getY()) < DRIVE_TO_POSE_THRESHOLD &&
+                Math.abs(error.getHeading()) < TURN_ERROR_THRESHOLD;
+    }
+
     private Pose2d getPoseTargetError(Pose2d poseTarget) {
         if (latestPoseEstimate == null) return null;
         return new Pose2d(poseTarget.getX() - latestPoseEstimate.getX(),
@@ -529,14 +536,17 @@ public class Nibus2000 {
     }
 
     private NibusState evaluateDrivingAutonomously() {
+        final int SETTLE_TIME_MILLIS = 250;
+
         if (commandSequence.size() == 0) {
             NibusState _continuationState = continuationState;
             continuationState = null;
+            currentCommandTime.reset();
+            currentCommandSettledTime.reset();
             return _continuationState == null ? NibusState.MANUAL_DRIVE : _continuationState;
         }
 
         if (currentCommand == null) {
-            currentCommandTime.reset();
             currentCommand = commandSequence.get(0);
 
             if (currentCommand.BlueGrabberState != null) {
@@ -556,13 +566,22 @@ public class Nibus2000 {
                 Log.d("evaluateDrivingAutonomously", "Following trajectory async");
                 drive.followTrajectoryAsync(currentCommand.TrajectoryCreator.create());
             }
+
+            if (currentCommand.DriveDirectToPose != null) {
+                Log.d("evaluateDrivingAutonomously", "Driving dirct to pose");
+                drive.setWeightedDrivePower(getPoseTargetAutoDriveControl(currentCommand.DriveDirectToPose));
+            }
         }
 
         boolean collectorSettled = currentCommand.CollectorState == null || armAndExtenderSettled();
-        boolean driveCompleted = currentCommand.TrajectoryCreator == null || !drive.isBusy();
-        boolean minTimeElapsed = currentCommandTime.milliseconds() > currentCommand.MinTimeMillis;
-        boolean commandComplete = minTimeElapsed && collectorSettled && driveCompleted;
-        if (commandComplete) {
+        boolean trajectoryCompleted = currentCommand.TrajectoryCreator == null || !drive.isBusy();
+        boolean driveCompleted = currentCommand.DriveDirectToPose == null || isAtPoseTarget(currentCommand.DriveDirectToPose);
+        boolean settledRightNow = collectorSettled && trajectoryCompleted && driveCompleted;
+
+        boolean minTimeElapsed = currentCommandTime.milliseconds() > SETTLE_TIME_MILLIS;
+        if (!settledRightNow) {
+            currentCommandSettledTime.reset();
+        } else if (minTimeElapsed && currentCommandSettledTime.milliseconds() > SETTLE_TIME_MILLIS) {
             Log.d("evaluateDrivingAutonomously", "Command completed, popping command");
             commandSequence.remove(0);
             currentCommand = null;
@@ -707,7 +726,9 @@ public class Nibus2000 {
             Log.d("evaluateDetectAllianceMarker", String.format("Detected %s", alliancePropPosition.name()));
 
             if (alliancePose != null && autonomousPlan != null) {
-                planAutonomousAfterPropDetect(autonomousPlan.getParkLocation(allianceColor));
+                setAutonomousCommands(
+                        NibusState.MANUAL_DRIVE,
+                        autonomousPlan.autonomousCommandsAfterPropDetect(allianceColor, alliancePropPosition));
                 return NibusState.AUTONOMOUSLY_DRIVING;
             } else {
                 return NibusState.MANUAL_DRIVE;
@@ -715,45 +736,6 @@ public class Nibus2000 {
         }
 
         return NibusState.DETECT_ALLIANCE_MARKER;
-    }
-
-    private void planAutonomousAfterPropDetect(Vector2d endParkingLocation) {
-        Vector2d targetLocation = alliancePose.getPixelTargetPosition(allianceColor, alliancePropPosition);
-        double targetHeading;
-        switch (allianceColor) {
-            case RED:
-                targetHeading = Math.toRadians(270 - 135);
-                break;
-            default:
-            case BLUE:
-                targetHeading = Math.toRadians(90 + 135);
-                break;
-        }
-
-        Pose2d targetPose = new Pose2d(targetLocation.getX(), targetLocation.getY(), targetHeading);
-        Pose2d approachPose = NibusHelpers.collectApproachPose(targetPose);
-
-        Vector2d waypoint1 = allianceColor.getMiddleLaneAudienceWaypoint();
-        Vector2d waypoint2 = allianceColor.getScoringPreApproachLocation();
-        Vector2d waypoint3 = allianceColor.getScoringApproachLocation();
-
-        setAutonomousCommands(NibusState.MANUAL_DRIVE,
-                new NibusAutonomousCommand(CollectorState.COLLECTION),
-                new NibusAutonomousCommand(
-                        () -> buildAutonomousTrajectoryFromHere(approachPose)),
-                new NibusAutonomousCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.GRABBED),
-                new NibusAutonomousCommand(CollectorState.DRIVING_SAFE),
-                new NibusAutonomousCommand(
-                        () -> buildAutonomousTrajectoryFromHere(waypoint1, 0)),
-                new NibusAutonomousCommand(
-                        () -> buildAutonomousTrajectoryFromHere(waypoint2, 0)),
-                new NibusAutonomousCommand(
-                        () -> buildAutonomousTrajectoryFromHere(waypoint3, 0)),
-                new NibusAutonomousCommand(CollectorState.SCORING),
-                new NibusAutonomousCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.NOT_GRABBED),
-                new NibusAutonomousCommand(CollectorState.DRIVING_SAFE),
-                new NibusAutonomousCommand(
-                        () -> buildAutonomousTrajectoryFromHere(endParkingLocation, 0)));
     }
 
     private Trajectory buildAutonomousTrajectoryFromHere(Vector2d vector2d, double heading) {
@@ -768,9 +750,9 @@ public class Nibus2000 {
                 .build();
     }
 
-    private void setAutonomousCommands(NibusState _continuationState, NibusAutonomousCommand ... commands) {
+    private void setAutonomousCommands(NibusState _continuationState, List<NibusCommand> commands) {
         commandSequence.clear();
-        commandSequence.addAll(Arrays.asList(commands));
+        commandSequence.addAll(commands);
         continuationState = _continuationState;
     }
 
@@ -983,6 +965,7 @@ public class Nibus2000 {
 
         zeroExtender();
     }
+
 
     private void armInitSequence(boolean slow) {
         zeroArmMotors();

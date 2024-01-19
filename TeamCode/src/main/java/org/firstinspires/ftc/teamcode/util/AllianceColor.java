@@ -17,7 +17,7 @@ public enum AllianceColor {
         this.OperatorHeadingOffset = operatorHeadingOffset;
     }
 
-    public Pose2d getAbsoluteFieldPose(AlliancePose alliancePose) {
+    public Pose2d getAbsoluteFieldPose(UpstageBackstageStart alliancePose) {
         switch (this) {
             case RED:
                 return alliancePose.RedPose;
@@ -31,9 +31,9 @@ public enum AllianceColor {
     public Vector2d getMiddleLaneAudienceWaypoint() {
         switch (this) {
             case RED:
-                return new Vector2d(pointsOfInterest.redGateAudience.X, pointsOfInterest.redGateAudience.Y);
+                return new Vector2d(PointOfInterest.redGateAudience.X, PointOfInterest.redGateAudience.Y);
             case BLUE:
-                return new Vector2d(pointsOfInterest.blueGateAudience.X, pointsOfInterest.blueGateAudience.Y);
+                return new Vector2d(PointOfInterest.blueGateAudience.X, PointOfInterest.blueGateAudience.Y);
             default:
                 return new Vector2d();
         }
@@ -42,9 +42,9 @@ public enum AllianceColor {
     public Vector2d getMiddleLaneBackstageWaypoint() {
         switch (this) {
             case RED:
-                return new Vector2d(pointsOfInterest.redGateBack.X, pointsOfInterest.redGateBack.Y);
+                return new Vector2d(PointOfInterest.redGateBack.X, PointOfInterest.redGateBack.Y);
             case BLUE:
-                return new Vector2d(pointsOfInterest.blueGateBack.X, pointsOfInterest.blueGateBack.Y);
+                return new Vector2d(PointOfInterest.blueGateBack.X, PointOfInterest.blueGateBack.Y);
             default:
                 return new Vector2d();
         }
@@ -53,9 +53,9 @@ public enum AllianceColor {
     public Vector2d getInnerLaneBackstageWaypoint() {
         switch (this) {
             case RED:
-                return new Vector2d(pointsOfInterest.redInnerBack.X, pointsOfInterest.redInnerBack.Y);
+                return new Vector2d(PointOfInterest.redInnerBack.X, PointOfInterest.redInnerBack.Y);
             case BLUE:
-                return new Vector2d(pointsOfInterest.blueInnerBack.X, pointsOfInterest.blueInnerBack.Y);
+                return new Vector2d(PointOfInterest.blueInnerBack.X, PointOfInterest.blueInnerBack.Y);
             default:
                 return new Vector2d();
         }
@@ -64,9 +64,9 @@ public enum AllianceColor {
     public Vector2d getScoringPreApproachLocation() {
         switch (this) {
             case RED:
-                return new Vector2d(pointsOfInterest.redScoringPreApproach.X, pointsOfInterest.redScoringPreApproach.Y);
+                return new Vector2d(PointOfInterest.redScoringPreApproach.X, PointOfInterest.redScoringPreApproach.Y);
             case BLUE:
-                return new Vector2d(pointsOfInterest.blueScoringPreApprach.X, pointsOfInterest.blueScoringPreApprach.Y);
+                return new Vector2d(PointOfInterest.blueScoringPreApprach.X, PointOfInterest.blueScoringPreApprach.Y);
             default:
                 return new Vector2d();
         }
@@ -75,9 +75,9 @@ public enum AllianceColor {
     public Vector2d getScoringApproachLocation() {
         switch (this) {
             case RED:
-                return new Vector2d(pointsOfInterest.redScoringApproach.X, pointsOfInterest.redScoringApproach.Y);
+                return new Vector2d(PointOfInterest.redScoringApproach.X, PointOfInterest.redScoringApproach.Y);
             case BLUE:
-                return new Vector2d(pointsOfInterest.blueScoringApprach.X, pointsOfInterest.blueScoringApprach.Y);
+                return new Vector2d(PointOfInterest.blueScoringApprach.X, PointOfInterest.blueScoringApprach.Y);
             default:
                 return new Vector2d();
         }

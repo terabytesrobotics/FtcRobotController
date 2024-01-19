@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode.util;
 
-public enum pointsOfInterest {
+public enum PointOfInterest {
     blueOuterAudience(-36, 60),
     blueOuterBack(12, 60),
     blueInnerAudience(-36,36),
@@ -36,7 +36,7 @@ public enum pointsOfInterest {
     public double X;
     public double Y;
 
-    pointsOfInterest(double x, double y) {
+    PointOfInterest(double x, double y) {
         X = x;
         Y = y;
     }

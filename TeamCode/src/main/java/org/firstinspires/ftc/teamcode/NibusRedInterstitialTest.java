@@ -5,7 +5,7 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
-import org.firstinspires.ftc.teamcode.util.AlliancePose;
+import org.firstinspires.ftc.teamcode.util.UpstageBackstageStart;
 
 @Config
 @Autonomous(name="Red Interstitial Test")
@@ -13,6 +13,6 @@ import org.firstinspires.ftc.teamcode.util.AlliancePose;
 public class NibusRedInterstitialTest extends Nibus2000OpMode {
 
     public NibusRedInterstitialTest() {
-        super(AllianceColor.RED, AlliancePose.BACKSTAGE_START, NibusState.MANUAL_DRIVE, null);
+        super(AllianceColor.RED, UpstageBackstageStart.BACKSTAGE_START, NibusState.MANUAL_DRIVE, null);
     }
 }

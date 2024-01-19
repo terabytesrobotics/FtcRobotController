@@ -6,7 +6,7 @@ import org.firstinspires.ftc.teamcode.util.BlueGrabberState;
 import org.firstinspires.ftc.teamcode.util.CollectorState;
 import org.firstinspires.ftc.teamcode.util.GreenGrabberState;
 
-public class NibusAutonomousCommand {
+public class NibusCommand {
 
     public final CollectorState CollectorState;
     public final TrajectoryCreator TrajectoryCreator;
@@ -16,7 +16,7 @@ public class NibusAutonomousCommand {
     public final GreenGrabberState GreenGrabberState;
     public final Pose2d DriveDirectToPose;
 
-    public NibusAutonomousCommand(TrajectoryCreator trajectoryCreator) {
+    public NibusCommand(TrajectoryCreator trajectoryCreator) {
         CollectorState = null;
         TrajectoryCreator = trajectoryCreator;
         MinTimeMillis = 250;
@@ -25,7 +25,7 @@ public class NibusAutonomousCommand {
         DriveDirectToPose = null;
     }
 
-    public NibusAutonomousCommand(CollectorState collectorState) {
+    public NibusCommand(CollectorState collectorState) {
         CollectorState = collectorState;
         TrajectoryCreator = null;
         MinTimeMillis = 250;
@@ -34,7 +34,7 @@ public class NibusAutonomousCommand {
         DriveDirectToPose = null;
     }
 
-    public NibusAutonomousCommand(BlueGrabberState blueGrabberState, GreenGrabberState greenGrabberState) {
+    public NibusCommand(BlueGrabberState blueGrabberState, GreenGrabberState greenGrabberState) {
         CollectorState = null;
         TrajectoryCreator = null;
         MinTimeMillis = 250;
@@ -43,7 +43,7 @@ public class NibusAutonomousCommand {
         DriveDirectToPose = null;
     }
 
-    public NibusAutonomousCommand(Pose2d driveDirectToPose) {
+    public NibusCommand(Pose2d driveDirectToPose) {
         CollectorState = null;
         TrajectoryCreator = null;
         MinTimeMillis = 250;
