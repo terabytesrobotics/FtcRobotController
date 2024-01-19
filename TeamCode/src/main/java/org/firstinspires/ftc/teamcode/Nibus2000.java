@@ -230,7 +230,7 @@ public class Nibus2000 {
 
         visionPortal.setActiveCamera(backCamera);
         visionPortal.setProcessorEnabled(propFinder, true);
-        visionPortal.setProcessorEnabled(aprilTagProcessor, true);
+        visionPortal.setProcessorEnabled(aprilTagProcessor, false);
     }
 
     public void teleopInit() {
@@ -277,7 +277,6 @@ public class Nibus2000 {
         latestPoseEstimate = drive.getPoseEstimate();
 
         evaluateIndicatorLights();
-        evaluateFieldPosition();
         evaluatePositioningSystems();
         controlScoringSystems();
 
@@ -319,9 +318,11 @@ public class Nibus2000 {
             if (timeSincePositionSet % (2 * POSITION_ACQUIRED_PULSE_MILLIS) > POSITION_ACQUIRED_PULSE_MILLIS) {
                 indicator1Green.setState(true);
                 indicator1Red.setState(true);
+                blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.CP1_STROBE);
             } else {
                 indicator1Green.setState(false);
                 indicator1Red.setState(false);
+                blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.LIME);
             }
         } else {
             blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.LIME);
@@ -336,24 +337,6 @@ public class Nibus2000 {
         } else {
             indicator1Green.setState(false);
             indicator1Red.setState(false);
-        }
-
-        if (fixedPose != null) {
-            blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.CP1_STROBE);
-        } else {
-            blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.LIME);
-        }
-    }
-
-    private void evaluateFieldPosition() {
-        if (onEnteredUpstageEvaluator.evaluate()) {
-            visionPortal.setActiveCamera(backCamera);
-            poseQueue.clear();
-        }
-
-        if (onEnteredBackstageEvaluator.evaluate()) {
-            visionPortal.setActiveCamera(frontCamera);
-            poseQueue.clear();
         }
     }
 
