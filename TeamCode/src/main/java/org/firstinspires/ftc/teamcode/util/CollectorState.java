@@ -9,9 +9,9 @@ public enum CollectorState {
     FAR_COLLECTION(-15, 18, 0.78f),
     LOW_SCORING(140, 0, 0.35f),
     SAFE_POSITION(0, 0, 0.5f),
-    HANG1(75,8,.1f),
-    HANG2(0,12,.1f),
-    HANG3(0,0,.1f);
+    HANG1(75,8, .7f),
+    HANG2(75,0,.7f),
+    HANG3(0,0,.7f);
 
     public float WristPosition;
     public int ArmPosition;

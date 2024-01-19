@@ -89,5 +89,6 @@ public abstract class Nibus2000OpMode extends LinearOpMode {
         nibus.startup(startupState);
 
         while (!isStopRequested() && nibus.evaluate()) {}
+        nibus.shutDown();
     }
 }

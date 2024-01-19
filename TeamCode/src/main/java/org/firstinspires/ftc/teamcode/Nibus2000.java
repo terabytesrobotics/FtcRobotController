@@ -205,6 +205,8 @@ public class Nibus2000 {
     }
 
     private void runTelemetry() {
+        telemetry.addData("fixedPose", fixedPose);
+        telemetry.addData("nibusState", state);
         telemetry.addData("armTargetPosition", armTargetPosition());
         telemetry.addData("leftArmPosition", armLeft.getCurrentPosition());
         telemetry.addData("rightArmPosition", armRight.getCurrentPosition());
@@ -321,7 +323,6 @@ public class Nibus2000 {
                 indicator1Green.setState(false);
                 indicator1Red.setState(false);
             }
-            return;
         } else {
             blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.LIME);
         }
@@ -422,7 +423,27 @@ public class Nibus2000 {
         return new Pose2d(Math.sqrt(varianceX / count), Math.sqrt(varianceY / count), Math.sqrt(varianceHeading / count));
     }
 
+    private void applyCrudeHeadlessHeadingFromDriverPerspective(double driverHeading) {
+        drive.setPoseEstimate(
+                new Pose2d(
+                        latestPoseEstimate.getX(),
+                        latestPoseEstimate.getY(),
+                        Angle.norm(allianceColor.OperatorHeadingOffset + driverHeading)));
+    }
+
     private NibusState evaluateDrivingAndScoring() {
+        if (!hasAprilTagFieldPosition) {
+            if (gamepad1.dpad_up) {
+                applyCrudeHeadlessHeadingFromDriverPerspective(0);
+            } else if (gamepad1.dpad_left) {
+                applyCrudeHeadlessHeadingFromDriverPerspective(Math.toRadians(90));
+            } else if (gamepad1.dpad_right) {
+                applyCrudeHeadlessHeadingFromDriverPerspective(Math.toRadians(180));
+            } else if (gamepad1.dpad_down) {
+                applyCrudeHeadlessHeadingFromDriverPerspective(Math.toRadians(270));
+            }
+        }
+
         if (hasAprilTagFieldPosition && lb1PressedEvaluator.evaluate()) {
             if (fixedPose == null) {
                 fixedPose = latestPoseEstimate;
@@ -806,6 +827,7 @@ public class Nibus2000 {
     private void controlDrivingFromGamepad() {
         Pose2d controlPose;
         if (fixedPose == null) {
+            telemetry.addData("navigateMode", true);
             controlPose = getScaledHeadlessDriverInput(gamepad1);
 
             if (hasPositionEstimate() && gamepad1.x) {
@@ -818,6 +840,7 @@ public class Nibus2000 {
                 controlPose = controlPose.plus(new Pose2d(0, laneLockY, laneLockRotation));
             }
         } else {
+            telemetry.addData("finesseMode", true);
             controlPose = getPoseTargetAutoDriveControl(
                     getRobotHeadedFinesseInput(gamepad2, fixedPose));
         }
@@ -828,10 +851,6 @@ public class Nibus2000 {
     private int armTargetPosition() {
         double trimmedArmTargetDegrees = collectorState.ArmPosition + (armTrimIncrements * ARM_DEGREE_TRIM_INCREMENT);
         return  (int) (((Math.min(trimmedArmTargetDegrees, ARM_MAX_ANGLE)) - ARM_DEGREE_OFFSET_FROM_HORIZONTAL) * ARM_TICKS_PER_DEGREE);
-    }
-
-    private int armDegreeTarget(int ticks) {
-        return (int) ((ticks / ARM_TICKS_PER_DEGREE) + ARM_DEGREE_OFFSET_FROM_HORIZONTAL);
     }
 
     private void controlArmMotor(DcMotorEx armMotor) {
@@ -1038,5 +1057,13 @@ public class Nibus2000 {
 
     private boolean isInterstage() {
         return hasPositionEstimate() && !isUpstage() && !isBackstage();
+    }
+
+    public void shutDown() {
+        drive.setWeightedDrivePower(new Pose2d());
+        visionPortal.stopStreaming();
+        visionPortal.close();
+        backCamera.close();
+        frontCamera.close();
     }
 }
