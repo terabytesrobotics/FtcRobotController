@@ -13,10 +13,13 @@ public enum CollectorState {
     HANG2(75,0,.7f),
     HANG3(0,0,.7f);
 
-    public float WristPosition;
-    public int ArmPosition;
+    public final float WristPosition;
+    public final int ArmPosition;
 
-    public int ExtenderPosition;
+    public final int ExtenderPosition;
+
+    public int ArmNudges = 0;
+    public int WristNudges = 0;
 
     private CollectorState(int armPosition, int extenderPosition, float wristPosition) {
         this.ArmPosition = armPosition;

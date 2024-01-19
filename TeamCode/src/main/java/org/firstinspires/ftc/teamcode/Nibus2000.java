@@ -103,8 +103,6 @@ public class Nibus2000 {
     private ElapsedTime timeSinceStart;
     private ElapsedTime timeInState;
     private Pose2d latestPoseEstimate = null;
-    private int armTrimIncrements = 0;
-    private int wristTrimIncrements = 0;
     private boolean launchingAirplane = false;
     private int launchingAirplaneTimeMillis = 0;
     private int endgameLiftStage = 0;
@@ -463,16 +461,16 @@ public class Nibus2000 {
         }
 
         if (dpadUp2PressedEvaluator.evaluate()) {
-            armTrimIncrements = Math.min(armTrimIncrements + 1, ARM_MAX_TRIM_INCREMENTS);
+            collectorState.ArmNudges = Math.min(collectorState.ArmNudges + 1, ARM_MAX_TRIM_INCREMENTS);
         }
         if (dpadDown2PressedEvaluator.evaluate()) {
-            armTrimIncrements = Math.max(armTrimIncrements - 1, -ARM_MAX_TRIM_INCREMENTS);
+            collectorState.ArmNudges = Math.max(collectorState.ArmNudges - 1, -ARM_MAX_TRIM_INCREMENTS);
         }
         if (dpadLeft2PressedEvaluator.evaluate()) {
-            wristTrimIncrements = Math.min(wristTrimIncrements + 1, WRIST_MAX_TRIM_INCREMENTS);
+            collectorState.WristNudges = Math.min(collectorState.WristNudges + 1, WRIST_MAX_TRIM_INCREMENTS);
         }
         if (dpadRight2PressedEvaluator.evaluate()) {
-            wristTrimIncrements = Math.max(wristTrimIncrements - 1, -WRIST_MAX_TRIM_INCREMENTS);
+            collectorState.WristNudges = Math.max(collectorState.WristNudges - 1, -WRIST_MAX_TRIM_INCREMENTS);
         }
 
         return NibusState.MANUAL_DRIVE;
@@ -805,7 +803,7 @@ public class Nibus2000 {
     }
 
     private int armTargetPosition() {
-        double trimmedArmTargetDegrees = collectorState.ArmPosition + (armTrimIncrements * ARM_DEGREE_TRIM_INCREMENT);
+        double trimmedArmTargetDegrees = collectorState.ArmPosition + (collectorState.ArmNudges * ARM_DEGREE_TRIM_INCREMENT);
         return  (int) (((Math.min(trimmedArmTargetDegrees, ARM_MAX_ANGLE)) - ARM_DEGREE_OFFSET_FROM_HORIZONTAL) * ARM_TICKS_PER_DEGREE);
     }
 
@@ -827,7 +825,7 @@ public class Nibus2000 {
         telemetry.addData("Extender position: ", extender.getCurrentPosition());
         telemetry.addData("Extender target position: ", extenderTargetPosition);
 
-        double wristPositionToApply = Math.min(1, Math.max(0, collectorState.WristPosition + (wristTrimIncrements * WRIST_SERVO_TRIM_INCREMENT)));
+        double wristPositionToApply = Math.min(1, Math.max(0, collectorState.WristPosition + (collectorState.WristNudges * WRIST_SERVO_TRIM_INCREMENT)));
         wrist.setPosition(wristPositionToApply);
 
         greenGrabber.setPosition(greenGrabberState.ServoPosition + greenGrabberManualOffset);
