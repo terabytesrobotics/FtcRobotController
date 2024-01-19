@@ -126,6 +126,7 @@ public class Nibus2000 {
     private final Queue<Pose2d> poseQueue = new LinkedList<>();
     private double greenGrabberManualOffset = 0;
     private double blueGrabberManualOffset = 0;
+    private Pose2d fixedPose = null;
     private boolean isCollecting;
     private boolean isScoring;
 
@@ -152,8 +153,6 @@ public class Nibus2000 {
         drive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
         blinkinLedDriver = hardwareMap.get(RevBlinkinLedDriver.class, "blinkin");
-        blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.RAINBOW_RAINBOW_PALETTE);
-
         indicator1Red = hardwareMap.get(DigitalChannel.class, "indicator1red");
         indicator1Green = hardwareMap.get(DigitalChannel.class, "indicator1green");
         indicator1Red.setMode(DigitalChannel.Mode.OUTPUT);
@@ -315,7 +314,6 @@ public class Nibus2000 {
 
         double timeSincePositionSet = (timeSinceStart.milliseconds() - lastAprilTagFieldPositionMillis);
         if (hasAprilTagFieldPosition && timeSincePositionSet < POSITION_ACQUIRED_INDICATE_MILLIS) {
-            blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.CP1_STROBE);
             if (timeSincePositionSet % (2 * POSITION_ACQUIRED_PULSE_MILLIS) > POSITION_ACQUIRED_PULSE_MILLIS) {
                 indicator1Green.setState(true);
                 indicator1Red.setState(true);
@@ -337,6 +335,12 @@ public class Nibus2000 {
         } else {
             indicator1Green.setState(false);
             indicator1Red.setState(false);
+        }
+
+        if (fixedPose != null) {
+            blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.CP1_STROBE);
+        } else {
+            blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.LIME);
         }
     }
 
@@ -419,25 +423,17 @@ public class Nibus2000 {
     }
 
     private NibusState evaluateDrivingAndScoring() {
-//        if (x1PressedEvaluator.evaluate()) {
-//            if (approachTarget == null) {
-//                if (isUpstage()) {
-//                    approachTarget = allianceColor.getMainCollectApproach();
-//                    collectorState = CollectorState.CLOSE_COLLECTION;
-//                } else if (isBackstage()) {
-//                    approachTarget = allianceColor.getScoringApproach();
-//                    collectorState = CollectorState.HIGH_SCORING;
-//                }
-//            } else {
-//                approachTarget = null;
-//                collectorState = CollectorState.SAFE_POSITION;
-//            }
-//        }
-//
-//        if (approachTarget != null && y2PressedEvaluator.evaluate()) {
-//            approachTarget = null;
-//            collectorState = CollectorState.SAFE_POSITION;
-//        }
+        if (hasAprilTagFieldPosition && lb1PressedEvaluator.evaluate()) {
+            if (fixedPose == null) {
+                fixedPose = latestPoseEstimate;
+            } else {
+                fixedPose = null;
+            }
+        }
+
+        if (fixedPose != null && lb2PressedEvaluator.evaluate()) {
+            fixedPose = null;
+        }
 
         controlDrivingFromGamepad();
         evaluateScoringManualControls();
@@ -783,15 +779,35 @@ public class Nibus2000 {
         return new Pose2d(scaledRobotX, scaledRobotY, scaledRotation);
     }
 
+    private Pose2d getRobotHeadedFinesseInput(Gamepad gamepad, Pose2d fixedPose) {
+        final double FORWARD_ALLOWANCE = 18;
+        final double LATERAL_ALLOWANCE = 6;
+        final double THETA_ALLOWANCE = Math.PI / 4;
+
+        double forwardHeading = isUpstage() ?
+                Angle.norm(fixedPose.getHeading() + Math.PI) :
+                fixedPose.getHeading();
+        double desiredForwardOffset = -gamepad.left_stick_y * FORWARD_ALLOWANCE;
+        double desiredLateralOffset = gamepad.left_stick_x * LATERAL_ALLOWANCE;
+        double desiredAngleOffset = -gamepad.right_stick_x * THETA_ALLOWANCE;
+
+        double withForwardX = fixedPose.getX() + (desiredForwardOffset * Math.cos(forwardHeading));
+        double withForwardY = fixedPose.getY() + (desiredForwardOffset * Math.sin(forwardHeading));
+
+        double orthogonalDirection = Angle.norm(forwardHeading + (Math.PI / 2));
+        double desiredX = withForwardX + (desiredLateralOffset * Math.cos(orthogonalDirection));
+        double desiredY = withForwardY + (desiredLateralOffset * Math.sin(orthogonalDirection));
+
+        double desiredHeading = Angle.norm(fixedPose.getHeading() + desiredAngleOffset);
+
+        return new Pose2d(desiredX, desiredY, desiredHeading);
+    }
+
     private void controlDrivingFromGamepad() {
         Pose2d controlPose;
-
-        // Navigation mode
-        if (approachTarget == null) {
-
+        if (fixedPose == null) {
             controlPose = getScaledHeadlessDriverInput(gamepad1);
 
-            // Lane lock
             if (hasPositionEstimate() && gamepad1.x) {
                 int closestLaneY = CenterStageConstants.getClosestLane(latestPoseEstimate.getY());
                 double errorY = closestLaneY - latestPoseEstimate.getY();
@@ -801,24 +817,9 @@ public class Nibus2000 {
                 double laneLockRotation = Range.clip(errorHeading * TURN_GAIN, -MAX_AUTO_TURN, MAX_AUTO_TURN);
                 controlPose = controlPose.plus(new Pose2d(0, laneLockY, laneLockRotation));
             }
-
-            // TODO: crossing pull
-
-        // Finesse mode
         } else {
-            double approachAngleOffset = (-gamepad1.left_stick_y) * approachTarget.ApproachHeadingRange;
-            Pose2d approachTargetPoseWithDriverOffset = NibusHelpers.collectApproachPose(
-                    approachTarget.Pose.minus(new Pose2d(0, 0, approachAngleOffset)));
-            controlPose = getPoseTargetAutoDriveControl(approachTargetPoseWithDriverOffset);
-            controlPose = controlPose.plus(getScaledHeadlessDriverInput(gamepad2).div(2));
-
-            if (isCollecting) {
-
-            }
-
-            if (isScoring) {
-
-            }
+            controlPose = getPoseTargetAutoDriveControl(
+                    getRobotHeadedFinesseInput(gamepad2, fixedPose));
         }
 
         drive.setWeightedDrivePower(controlPose);
