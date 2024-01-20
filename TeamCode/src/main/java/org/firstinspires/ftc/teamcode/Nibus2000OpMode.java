@@ -32,7 +32,7 @@ public abstract class Nibus2000OpMode extends LinearOpMode {
 
     private final AllianceColor allianceColor;
     private final NibusState startupState;
-    private UpstageBackstageStart alliancePose = null;
+    private Pose2d startPose = null;
     private NibusAutonomousPlan autonomousPlan = null;
 
 
@@ -47,6 +47,7 @@ public abstract class Nibus2000OpMode extends LinearOpMode {
         this.allianceColor = allianceColor;
         this.startupState = startupState;
         this.autonomousPlan = autonomousPlan;
+        this.startPose = allianceColor.getAbsoluteFieldPose(autonomousPlan.StartingPosition);
     }
 
     @Override
@@ -57,9 +58,9 @@ public abstract class Nibus2000OpMode extends LinearOpMode {
                 gamepad2,
                 hardwareMap,
                 telemetry);
-        boolean isSlowInit = alliancePose != null;
+        boolean isSlowInit = startPose != null;
         if (isSlowInit) {
-            nibus.autonomousInit(alliancePose, autonomousPlan);
+            nibus.autonomousInit(startPose, autonomousPlan);
         } else {
             nibus.teleopInit();
         }

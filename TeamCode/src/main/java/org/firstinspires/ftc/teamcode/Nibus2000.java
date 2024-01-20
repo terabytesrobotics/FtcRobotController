@@ -98,7 +98,6 @@ public class Nibus2000 {
     private final AprilTagProcessor aprilTagProcessor;
     private final WindowBoxesVisionProcessor propFinder;
     private final RevBlinkinLedDriver blinkinLedDriver;
-    private UpstageBackstageStart alliancePose;
     private NibusState state;
     private ElapsedTime timeSinceStart;
     private ElapsedTime timeInState;
@@ -210,10 +209,9 @@ public class Nibus2000 {
         telemetry.update();
     }
 
-    public void autonomousInit(UpstageBackstageStart alliancePose, NibusAutonomousPlan autonomousPlan) {
-        this.alliancePose = alliancePose;
+    public void autonomousInit(Pose2d startPose, NibusAutonomousPlan autonomousPlan) {
         this.autonomousPlan = autonomousPlan;
-        drive.setPoseEstimate((allianceColor.getAbsoluteFieldPose(alliancePose)));
+        drive.setPoseEstimate(startPose);
 
         wrist.setPosition(.25);
         sleep(1000);
@@ -511,9 +509,19 @@ public class Nibus2000 {
     private Pose2d getPoseTargetAutoDriveControl(Pose2d poseTarget) {
         Pose2d error = getPoseTargetError(poseTarget);
         if (latestPoseEstimate == null || error == null) return new Pose2d();
+
+        double robotHeading = latestPoseEstimate.getHeading();
+
+        double translationErrorMagnitude = Math.hypot(error.getX(), error.getY());
+        double translationErrorFieldHeading = Math.atan2(error.getY(), error.getX());
+
+        double adjustedHeading = translationErrorFieldHeading - robotHeading;
+        double robotXErrorMagnitude = translationErrorMagnitude * Math.cos(adjustedHeading);
+        double robotYErrorMagnitude = translationErrorMagnitude * Math.sin(adjustedHeading);
+
         return new Pose2d(
-                Range.clip(error.getX() * SPEED_GAIN, -MAX_AUTO_SPEED, MAX_AUTO_SPEED),
-                Range.clip(error.getY() * SPEED_GAIN, -MAX_AUTO_STRAFE, MAX_AUTO_STRAFE),
+                Range.clip(robotXErrorMagnitude * SPEED_GAIN, -MAX_AUTO_SPEED, MAX_AUTO_SPEED),
+                Range.clip(robotYErrorMagnitude * SPEED_GAIN, -MAX_AUTO_STRAFE, MAX_AUTO_STRAFE),
                 Range.clip(error.getHeading() * TURN_GAIN, -MAX_AUTO_TURN, MAX_AUTO_TURN));
     }
 
@@ -566,8 +574,8 @@ public class Nibus2000 {
             }
 
             if (currentCommand.DriveDirectToPose != null) {
-                Log.d("evaluateDrivingAutonomously", "Driving dirct to pose");
-                drive.setWeightedDrivePower(getPoseTargetAutoDriveControl(currentCommand.DriveDirectToPose));
+                //Log.d("evaluateDrivingAutonomously", "Driving dirct to pose");
+                //drive.setWeightedDrivePower(getPoseTargetAutoDriveControl(currentCommand.DriveDirectToPose));
             }
         }
 
@@ -723,7 +731,7 @@ public class Nibus2000 {
 
             Log.d("evaluateDetectAllianceMarker", String.format("Detected %s", alliancePropPosition.name()));
 
-            if (alliancePose != null && autonomousPlan != null) {
+            if (autonomousPlan != null) {
                 setAutonomousCommands(
                         NibusState.MANUAL_DRIVE,
                         autonomousPlan.autonomousCommandsAfterPropDetect(allianceColor, alliancePropPosition));
@@ -856,16 +864,6 @@ public class Nibus2000 {
     }
 
     private void evaluateScoringManualControls() {
-//        if (approachTarget != null) {
-//            if (isUpstage()) {
-//
-//            } else if (isBackstage()) {
-//
-//            }
-//        } else {
-//            blueGrabberState = BlueGrabberState.GRABBED;
-//            greenGrabberState = GreenGrabberState.GRABBED;
-//        }
         greenGrabberState = GreenGrabberState.GRABBED;
         blueGrabberState = BlueGrabberState.GRABBED;
         double blueGrabberActuationRange =
