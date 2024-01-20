@@ -410,24 +410,11 @@ public class Nibus2000 {
         return new Pose2d(Math.sqrt(varianceX / count), Math.sqrt(varianceY / count), Math.sqrt(varianceHeading / count));
     }
 
-    private void applyCrudeHeadlessHeadingFromDriverPerspective(double driverPerceivedHeading) {
-        drive.setPoseEstimate(
-                new Pose2d(
-                        latestPoseEstimate.getX(),
-                        latestPoseEstimate.getY(),
-                        allianceColor.OperatorHeadingOffset - driverPerceivedHeading));
-    }
-
     private NibusState evaluateDrivingAndScoring() {
         if (!hasAprilTagFieldPosition) {
             if (gamepad1.dpad_up) {
-                applyCrudeHeadlessHeadingFromDriverPerspective(0);
-            } else if (gamepad1.dpad_left) {
-                applyCrudeHeadlessHeadingFromDriverPerspective(Math.toRadians(90));
-            } else if (gamepad1.dpad_right) {
-                applyCrudeHeadlessHeadingFromDriverPerspective(Math.toRadians(180));
-            } else if (gamepad1.dpad_down) {
-                applyCrudeHeadlessHeadingFromDriverPerspective(Math.toRadians(270));
+                drive.setPoseEstimate(
+                        new Pose2d(0, 0, allianceColor.OperatorHeadingOffset));
             }
         }
 

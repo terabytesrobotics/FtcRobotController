@@ -22,7 +22,7 @@ public enum NibusAutonomousPlan {
     START_FRONTSTAGE(
             Math.toRadians(0),
             UpstageBackstageStart.FRONTSTAGE_START,
-            NibusAutonomousParkDirection.PARK_OUTSIDE);
+            NibusAutonomousParkDirection.PARK_INSIDE);
 
     public final double CollectorHeadingDuringPixelDrop;
     public final UpstageBackstageStart StartingPosition;
@@ -35,7 +35,16 @@ public enum NibusAutonomousPlan {
     }
 
     public Pose2d pixelDropApproachPose(AllianceColor allianceColor, AlliancePropPosition detectedPosition, double collectorHeading) {
+        double LEFT_GRABBER_Y_OFFSET = 2;
+
         Vector2d targetLocation = StartingPosition.getPixelTargetPosition(allianceColor, detectedPosition);
+
+        // TODO: This is a hack that's coupled to our specific approach direction
+        // TODO: DOES NOT GENERALIZE
+        if (detectedPosition == AlliancePropPosition.MID) {
+            targetLocation = targetLocation.plus(new Vector2d(0, LEFT_GRABBER_Y_OFFSET));
+        }
+
         double placementOrientation = Angle.norm(collectorHeading + Math.PI);
         Pose2d targetPose = new Pose2d(targetLocation.getX(), targetLocation.getY(), placementOrientation);
         return NibusHelpers.collectApproachPose(targetPose);
@@ -67,14 +76,12 @@ public enum NibusAutonomousPlan {
         double backstageSideMiddleLaneOrientation = Angle.norm(audienceSideMiddleLaneOrientation + (rotationDirection * Math.PI / 2));
 
         Pose2d pose1 = new Pose2d(audienceSideMiddleLane.getX(), audienceSideMiddleLane.getY(), audienceSideMiddleLaneOrientation);
-        Pose2d pose2 = new Pose2d(backstageSideMiddleLane.getX(), backstageSideMiddleLane.getY(), backstageSideMiddleLaneOrientation);
-        Pose2d pose3 = new Pose2d(backstageSideMiddleLane.getX(), scoringApproach.getY(), backstageSideMiddleLaneOrientation);
+        Pose2d pose2 = new Pose2d(scoringApproach.getX(), backstageSideMiddleLane.getY(), backstageSideMiddleLaneOrientation);
         Pose2d pose4 = new Pose2d(scoringApproach.getX(), scoringApproach.getY(), 0);
 
         ArrayList<Pose2d> poses = new ArrayList<>();
         poses.add(pose1);
         poses.add(pose2);
-        poses.add(pose3);
         poses.add(pose4);
 
         ArrayList<NibusCommand> commands = new ArrayList<>();
