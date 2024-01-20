@@ -574,6 +574,8 @@ public class Nibus2000 {
 
         if (currentCommand == null) {
             currentCommand = commandSequence.get(0);
+            currentCommandTime.reset();
+            currentCommandSettledTime.reset();
 
             if (currentCommand.BlueGrabberState != null) {
                 blueGrabberState = currentCommand.BlueGrabberState;
