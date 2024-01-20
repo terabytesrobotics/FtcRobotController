@@ -105,14 +105,14 @@ public enum NibusAutonomousPlan {
         List<NibusCommand> afterPixelDropCommands = afterPixelDropCommands(allianceColor);
 
         List<NibusCommand> commands = new ArrayList<>(prePlaceCommands);
-        commands.add(new NibusCommand(approachPose, CollectorState.COLLECTION));
-        commands.add(new NibusCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.GRABBED));
-        commands.add(new NibusCommand(CollectorState.DRIVING_SAFE));
-        commands.addAll(afterPixelDropCommands);
-        commands.add(new NibusCommand(CollectorState.SCORING));
-        commands.add(new NibusCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.NOT_GRABBED));
-        commands.add(new NibusCommand(CollectorState.DRIVING_SAFE));
-        commands.add(new NibusCommand(getParkPose(allianceColor)));
+//        commands.add(new NibusCommand(approachPose, CollectorState.COLLECTION));
+//        commands.add(new NibusCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.GRABBED));
+//        commands.add(new NibusCommand(CollectorState.DRIVING_SAFE));
+//        commands.addAll(afterPixelDropCommands);
+//        commands.add(new NibusCommand(CollectorState.SCORING));
+//        commands.add(new NibusCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.NOT_GRABBED));
+//        commands.add(new NibusCommand(CollectorState.DRIVING_SAFE));
+//        commands.add(new NibusCommand(getParkPose(allianceColor)));
         return commands;
     }
 
@@ -129,7 +129,7 @@ public enum NibusAutonomousPlan {
         List<NibusCommand> commands = new ArrayList<NibusCommand>();
         Pose2d pose0 = new Pose2d(
                 startingPosition.getX(),
-                startingPosition.getY() + (yDirection * INITIAL_NUDGE_Y),
+                startingPosition.getY() - (yDirection * INITIAL_NUDGE_Y),
                 startingPosition.getHeading());
 
         Pose2d pose1 = new Pose2d(
@@ -139,7 +139,7 @@ public enum NibusAutonomousPlan {
 
         Pose2d pose2 = new Pose2d(
                 pose1.getX(),
-                pose1.getY() + (yDirection * INITIAL_FORWARD_MOVE_Y),
+                pose1.getY() - (yDirection * INITIAL_FORWARD_MOVE_Y),
                 startingPosition.getHeading());
 
         Pose2d pose3 = new Pose2d(
@@ -148,9 +148,9 @@ public enum NibusAutonomousPlan {
                 placementOrientation);
 
         commands.add(new NibusCommand(pose0));
-        commands.add(new NibusCommand(pose1));
-        commands.add(new NibusCommand(pose2));
-        commands.add(new NibusCommand(pose3));
+//        commands.add(new NibusCommand(pose1));
+//        commands.add(new NibusCommand(pose2));
+//        commands.add(new NibusCommand(pose3));
 
         return commands;
     }
