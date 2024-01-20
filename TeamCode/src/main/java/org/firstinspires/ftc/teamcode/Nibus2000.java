@@ -592,11 +592,11 @@ public class Nibus2000 {
                 Log.d("evaluateDrivingAutonomously", "Following trajectory async");
                 drive.followTrajectoryAsync(currentCommand.TrajectoryCreator.create());
             }
+        }
 
-            if (currentCommand.DriveDirectToPose != null) {
-                //Log.d("evaluateDrivingAutonomously", "Driving dirct to pose");
-                //drive.setWeightedDrivePower(getPoseTargetAutoDriveControl(currentCommand.DriveDirectToPose));
-            }
+        if (currentCommand.DriveDirectToPose != null) {
+            drive.setWeightedDrivePower(
+                    getPoseTargetAutoDriveControl(currentCommand.DriveDirectToPose));
         }
 
         boolean collectorSettled = currentCommand.CollectorState == null || armAndExtenderSettled();
@@ -609,6 +609,7 @@ public class Nibus2000 {
             currentCommandSettledTime.reset();
         } else if (minTimeElapsed && currentCommandSettledTime.milliseconds() > SETTLE_TIME_MILLIS) {
             Log.d("evaluateDrivingAutonomously", "Command completed, popping command");
+            drive.setWeightedDrivePower(new Pose2d());
             commandSequence.remove(0);
             currentCommand = null;
         }

@@ -10,8 +10,6 @@ public class NibusCommand {
 
     public final CollectorState CollectorState;
     public final TrajectoryCreator TrajectoryCreator;
-    public final int MinTimeMillis;
-
     public final BlueGrabberState BlueGrabberState;
     public final GreenGrabberState GreenGrabberState;
     public final Pose2d DriveDirectToPose;
@@ -19,7 +17,6 @@ public class NibusCommand {
     public NibusCommand(TrajectoryCreator trajectoryCreator) {
         CollectorState = null;
         TrajectoryCreator = trajectoryCreator;
-        MinTimeMillis = 250;
         BlueGrabberState = null;
         GreenGrabberState = null;
         DriveDirectToPose = null;
@@ -28,7 +25,6 @@ public class NibusCommand {
     public NibusCommand(CollectorState collectorState) {
         CollectorState = collectorState;
         TrajectoryCreator = null;
-        MinTimeMillis = 250;
         BlueGrabberState = null;
         GreenGrabberState = null;
         DriveDirectToPose = null;
@@ -37,7 +33,6 @@ public class NibusCommand {
     public NibusCommand(BlueGrabberState blueGrabberState, GreenGrabberState greenGrabberState) {
         CollectorState = null;
         TrajectoryCreator = null;
-        MinTimeMillis = 250;
         BlueGrabberState = blueGrabberState;
         GreenGrabberState = greenGrabberState;
         DriveDirectToPose = null;
@@ -46,7 +41,14 @@ public class NibusCommand {
     public NibusCommand(Pose2d driveDirectToPose) {
         CollectorState = null;
         TrajectoryCreator = null;
-        MinTimeMillis = 250;
+        BlueGrabberState = null;
+        GreenGrabberState = null;
+        DriveDirectToPose = driveDirectToPose;
+    }
+
+    public NibusCommand(Pose2d driveDirectToPose, CollectorState collectorState) {
+        CollectorState = collectorState;
+        TrajectoryCreator = null;
         BlueGrabberState = null;
         GreenGrabberState = null;
         DriveDirectToPose = driveDirectToPose;
