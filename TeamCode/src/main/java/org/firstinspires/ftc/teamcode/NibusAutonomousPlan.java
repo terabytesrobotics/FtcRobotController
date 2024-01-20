@@ -108,11 +108,11 @@ public enum NibusAutonomousPlan {
         commands.add(new NibusCommand(approachPose, CollectorState.COLLECTION));
         commands.add(new NibusCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.GRABBED));
         commands.add(new NibusCommand(CollectorState.DRIVING_SAFE));
-//        commands.addAll(afterPixelDropCommands);
-//        commands.add(new NibusCommand(CollectorState.SCORING));
-//        commands.add(new NibusCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.NOT_GRABBED));
-//        commands.add(new NibusCommand(CollectorState.DRIVING_SAFE));
-//        commands.add(new NibusCommand(getParkPose(allianceColor)));
+        commands.addAll(afterPixelDropCommands);
+        commands.add(new NibusCommand(CollectorState.SCORING));
+        commands.add(new NibusCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.NOT_GRABBED));
+        commands.add(new NibusCommand(CollectorState.DRIVING_SAFE));
+        commands.add(new NibusCommand(getParkPose(allianceColor)));
         return commands;
     }
 
