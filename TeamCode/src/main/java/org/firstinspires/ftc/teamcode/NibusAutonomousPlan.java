@@ -105,9 +105,9 @@ public enum NibusAutonomousPlan {
         List<NibusCommand> afterPixelDropCommands = afterPixelDropCommands(allianceColor);
 
         List<NibusCommand> commands = new ArrayList<>(prePlaceCommands);
-//        commands.add(new NibusCommand(approachPose, CollectorState.COLLECTION));
-//        commands.add(new NibusCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.GRABBED));
-//        commands.add(new NibusCommand(CollectorState.DRIVING_SAFE));
+        commands.add(new NibusCommand(approachPose, CollectorState.COLLECTION));
+        commands.add(new NibusCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.GRABBED));
+        commands.add(new NibusCommand(CollectorState.DRIVING_SAFE));
 //        commands.addAll(afterPixelDropCommands);
 //        commands.add(new NibusCommand(CollectorState.SCORING));
 //        commands.add(new NibusCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.NOT_GRABBED));
@@ -148,9 +148,9 @@ public enum NibusAutonomousPlan {
                 placementOrientation);
 
         commands.add(new NibusCommand(pose0));
-//        commands.add(new NibusCommand(pose1));
-//        commands.add(new NibusCommand(pose2));
-//        commands.add(new NibusCommand(pose3));
+        commands.add(new NibusCommand(pose1));
+        commands.add(new NibusCommand(pose2));
+        commands.add(new NibusCommand(pose3));
 
         return commands;
     }
