@@ -299,6 +299,9 @@ public class Nibus2000 {
             case DETECT_ALLIANCE_MARKER:
                 nextState = evaluateDetectAllianceMarker();
                 break;
+            case STOPPED_UNTIL_END:
+                // Hold the drive still.
+                drive.setWeightedDrivePower(new Pose2d());
             default:
                 break;
         }
@@ -756,7 +759,7 @@ public class Nibus2000 {
 
             if (autonomousPlan != null) {
                 setAutonomousCommands(
-                        NibusState.MANUAL_DRIVE,
+                        NibusState.STOPPED_UNTIL_END,
                         autonomousPlan.autonomousCommandsAfterPropDetect(allianceColor, alliancePropPosition));
                 return NibusState.AUTONOMOUSLY_DRIVING;
             } else {
