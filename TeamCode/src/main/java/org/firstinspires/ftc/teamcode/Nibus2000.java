@@ -2,7 +2,9 @@ package org.firstinspires.ftc.teamcode;
 
 import static org.firstinspires.ftc.teamcode.NibusConstants.*;
 
+import android.util.ArrayMap;
 import android.util.Log;
+import android.util.Pair;
 
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
@@ -42,8 +44,10 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Queue;
 
 public class Nibus2000 {
@@ -125,8 +129,8 @@ public class Nibus2000 {
     private double greenGrabberManualOffset = 0;
     private double blueGrabberManualOffset = 0;
     private Pose2d fixedPose = null;
-    private boolean isCollecting;
-    private boolean isScoring;
+    private final Map<CollectorState, Integer> armNudgesPerPosition = new HashMap<CollectorState, Integer>();
+    private final Map<CollectorState, Integer> wristNudgesPerPosition = new HashMap<CollectorState, Integer>();
 
     public Nibus2000(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, Telemetry telemetry) {
         this.allianceColor = allianceColor;
@@ -195,6 +199,11 @@ public class Nibus2000 {
         launcher.setDirection(DcMotorSimple.Direction.FORWARD);
 
         blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.LIME);
+
+        for (CollectorState state : CollectorState.values()) {
+            armNudgesPerPosition.put(state, 0);
+            wristNudgesPerPosition.put(state, 0);
+        }
     }
 
     private void runTelemetry() {
@@ -458,17 +467,28 @@ public class Nibus2000 {
             collectorState = endgameLiftStage(endgameLiftStage);
         }
 
+        Integer armNudgeCountBoxed = armNudgesPerPosition.getOrDefault(collectorState, 0);
+        Integer wristNudgeCountBoxed = wristNudgesPerPosition.getOrDefault(collectorState, 0);
+        int armNudgeCount = armNudgeCountBoxed == null ? 0 : armNudgeCountBoxed;
+        int wristNudgeCount = wristNudgeCountBoxed == null ? 0 : wristNudgeCountBoxed;
         if (dpadUp2PressedEvaluator.evaluate()) {
-            collectorState.ArmNudges = Math.min(collectorState.ArmNudges + 1, ARM_MAX_TRIM_INCREMENTS);
+            armNudgesPerPosition.put(collectorState,
+                    Math.min(armNudgeCount + 1, ARM_MAX_TRIM_INCREMENTS));
         }
+
         if (dpadDown2PressedEvaluator.evaluate()) {
-            collectorState.ArmNudges = Math.max(collectorState.ArmNudges - 1, -ARM_MAX_TRIM_INCREMENTS);
+            armNudgesPerPosition.put(collectorState,
+                    Math.max(armNudgeCount - 1, -ARM_MAX_TRIM_INCREMENTS));
         }
+
         if (dpadLeft2PressedEvaluator.evaluate()) {
-            collectorState.WristNudges = Math.min(collectorState.WristNudges + 1, WRIST_MAX_TRIM_INCREMENTS);
+            wristNudgesPerPosition.put(collectorState,
+                    Math.min(wristNudgeCount + 1, WRIST_MAX_TRIM_INCREMENTS));
         }
+
         if (dpadRight2PressedEvaluator.evaluate()) {
-            collectorState.WristNudges = Math.max(collectorState.WristNudges - 1, -WRIST_MAX_TRIM_INCREMENTS);
+            wristNudgesPerPosition.put(collectorState,
+                    Math.max(wristNudgeCount - 1, -WRIST_MAX_TRIM_INCREMENTS));
         }
 
         return NibusState.MANUAL_DRIVE;
@@ -811,7 +831,9 @@ public class Nibus2000 {
     }
 
     private int armTargetPosition() {
-        double trimmedArmTargetDegrees = collectorState.ArmPosition + (collectorState.ArmNudges * ARM_DEGREE_TRIM_INCREMENT);
+        Integer armNudgeCountBoxed = armNudgesPerPosition.getOrDefault(collectorState, 0);
+        int armNudgeCount = armNudgeCountBoxed == null ? 0 : armNudgeCountBoxed;
+        double trimmedArmTargetDegrees = collectorState.ArmPosition + (armNudgeCount * ARM_DEGREE_TRIM_INCREMENT);
         return  (int) (((Math.min(trimmedArmTargetDegrees, ARM_MAX_ANGLE)) - ARM_DEGREE_OFFSET_FROM_HORIZONTAL) * ARM_TICKS_PER_DEGREE);
     }
 
@@ -833,7 +855,9 @@ public class Nibus2000 {
         telemetry.addData("Extender position: ", extender.getCurrentPosition());
         telemetry.addData("Extender target position: ", extenderTargetPosition);
 
-        double wristPositionToApply = Math.min(1, Math.max(0, collectorState.WristPosition + (collectorState.WristNudges * WRIST_SERVO_TRIM_INCREMENT)));
+        Integer wristNudgeCountBoxed = wristNudgesPerPosition.getOrDefault(collectorState, 0);
+        int wristNudgeCount = wristNudgeCountBoxed == null ? 0 : wristNudgeCountBoxed;
+        double wristPositionToApply = Math.min(1, Math.max(0, collectorState.WristPosition + (wristNudgeCount * WRIST_SERVO_TRIM_INCREMENT)));
         wrist.setPosition(wristPositionToApply);
 
         greenGrabber.setPosition(greenGrabberState.ServoPosition + greenGrabberManualOffset);
