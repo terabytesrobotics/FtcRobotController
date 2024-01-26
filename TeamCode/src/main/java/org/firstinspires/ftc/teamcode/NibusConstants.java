@@ -40,7 +40,7 @@ public class NibusConstants {
     static final int APPROACH_SETTLE_TIME_MS = 750;
     public static final int FRONT_CAMERA_OFFSET_INCHES = 7;
     public static final int BACK_CAMERA_OFFSET_INCHES = 0;
-    public static final double COLLECT_HEAD_BASE_OFFSET_X = -13;
+    public static final double COLLECT_HEAD_BASE_OFFSET_X = -14;
     public static final double DRIVE_TO_POSE_THRESHOLD = 1.25f;
     public static final int POSITION_ACQUIRED_INDICATE_MILLIS = 1000;
     public static final int POSITION_ACQUIRED_PULSE_MILLIS = 100;

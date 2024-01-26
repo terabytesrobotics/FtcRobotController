@@ -5,7 +5,7 @@ import com.acmerobotics.roadrunner.geometry.Vector2d;
 
 public enum AlliancePropPosition {
     LEFT(1, 4,
-            new Vector2d(23, 30),
+            new Vector2d(25, 30),
             new Vector2d(0, -30),
             new Vector2d(-25, 30),
             new Vector2d(-48, -30)),
@@ -16,7 +16,7 @@ public enum AlliancePropPosition {
             new Vector2d(-36, -24)),
     RIGHT(3, 6,
             new Vector2d(0, 30),
-            new Vector2d(23, -30),
+            new Vector2d(25, -30),
             new Vector2d(-48, 30),
             new Vector2d(-25, -30));
 

@@ -16,34 +16,30 @@ import java.util.List;
 
 public enum NibusAutonomousPlan {
     START_BACKSTAGE(
-            Math.toRadians(180),
             UpstageBackstageStart.BACKSTAGE_START,
-            NibusAutonomousParkDirection.PARK_INSIDE),
+            NibusAutonomousParkDirection.PARK_OUTSIDE),
     START_FRONTSTAGE(
-            Math.toRadians(0),
             UpstageBackstageStart.FRONTSTAGE_START,
             NibusAutonomousParkDirection.PARK_INSIDE);
 
-    public final double CollectorHeadingDuringPixelDrop;
     public final UpstageBackstageStart StartingPosition;
     public final NibusAutonomousParkDirection ParkDirection;
 
-    NibusAutonomousPlan(double collectorHeadingDuringPixelDrop, UpstageBackstageStart startingPosition, NibusAutonomousParkDirection parkDirection) {
-        this.CollectorHeadingDuringPixelDrop = collectorHeadingDuringPixelDrop;
+    NibusAutonomousPlan(UpstageBackstageStart startingPosition, NibusAutonomousParkDirection parkDirection) {
         this.StartingPosition = startingPosition;
         this.ParkDirection = parkDirection;
     }
 
     public Pose2d pixelDropApproachPose(AllianceColor allianceColor, AlliancePropPosition detectedPosition, double collectorHeading) {
-        double LEFT_GRABBER_Y_OFFSET = 2;
+        //double LEFT_GRABBER_Y_OFFSET = 1;
 
         Vector2d targetLocation = StartingPosition.getPixelTargetPosition(allianceColor, detectedPosition);
 
         // TODO: This is a hack that's coupled to our specific approach direction
         // TODO: DOES NOT GENERALIZE
-        if (detectedPosition == AlliancePropPosition.MID) {
-            targetLocation = targetLocation.plus(new Vector2d(0, LEFT_GRABBER_Y_OFFSET));
-        }
+//        if (detectedPosition == AlliancePropPosition.MID) {
+//            targetLocation = targetLocation.plus(new Vector2d(0, LEFT_GRABBER_Y_OFFSET));
+//        }
 
         double placementOrientation = Angle.norm(collectorHeading + Math.PI);
         Pose2d targetPose = new Pose2d(targetLocation.getX(), targetLocation.getY(), placementOrientation);
@@ -70,10 +66,11 @@ public enum NibusAutonomousPlan {
         Vector2d backstageSideMiddleLane = allianceColor.getMiddleLaneBackstageWaypoint();
         Vector2d scoringApproach = allianceColor.getScoringApproachLocation();
 
-        double expectedDropOrientation = Math.toRadians(180);
-        double rotationDirection = allianceColor == AllianceColor.BLUE ? 1 : -1;
-        double audienceSideMiddleLaneOrientation = Angle.norm(expectedDropOrientation + (rotationDirection * Math.PI / 2));
-        double backstageSideMiddleLaneOrientation = Angle.norm(audienceSideMiddleLaneOrientation + (rotationDirection * Math.PI / 2));
+        double expectedRobotDropOrientation = Angle.norm(getCollectorHeadingDuringPixelDrop(allianceColor) + Math.PI);
+        double desiredTraverseLaneOrientation = Math.toRadians(0);
+        double deltaFromDesired = Angle.normDelta(desiredTraverseLaneOrientation - expectedRobotDropOrientation);
+        double audienceSideMiddleLaneOrientation = Angle.norm(expectedRobotDropOrientation + (deltaFromDesired / 2));
+        double backstageSideMiddleLaneOrientation = Angle.norm(audienceSideMiddleLaneOrientation + (deltaFromDesired / 2));
 
         Pose2d pose1 = new Pose2d(audienceSideMiddleLane.getX(), audienceSideMiddleLane.getY(), audienceSideMiddleLaneOrientation);
         Pose2d pose2 = new Pose2d(scoringApproach.getX(), backstageSideMiddleLane.getY(), backstageSideMiddleLaneOrientation);
@@ -107,7 +104,7 @@ public enum NibusAutonomousPlan {
     }
 
     public List<NibusCommand> autonomousCommandsAfterPropDetect(AllianceColor allianceColor, AlliancePropPosition alliancePropPosition) {
-        Pose2d approachPose = pixelDropApproachPose(allianceColor, alliancePropPosition, CollectorHeadingDuringPixelDrop);
+        Pose2d approachPose = pixelDropApproachPose(allianceColor, alliancePropPosition, getCollectorHeadingDuringPixelDrop(allianceColor));
         List<NibusCommand> prePlaceCommands = getPrePlaceCommands(allianceColor);
         List<NibusCommand> afterPixelDropCommands = afterPixelDropCommands(allianceColor);
 
@@ -126,11 +123,11 @@ public enum NibusAutonomousPlan {
     private List<NibusCommand> getPrePlaceCommands(AllianceColor allianceColor) {
         double INITIAL_NUDGE_Y = 2;
         double INITIAL_LATERAL_MOVE_X = 12;
-        double INITIAL_FORWARD_MOVE_Y = 20;
+        double INITIAL_FORWARD_MOVE_Y = 40;
 
         double xDirection = this == START_BACKSTAGE ? 1 : -1;
         double yDirection = allianceColor == AllianceColor.BLUE ? 1 : -1;
-        double placementOrientation = Angle.norm(CollectorHeadingDuringPixelDrop + Math.PI);
+        double placementOrientation = Angle.norm(getCollectorHeadingDuringPixelDrop(allianceColor) + Math.PI);
         Pose2d startingPosition = allianceColor == AllianceColor.BLUE ? StartingPosition.BluePose : StartingPosition.RedPose;
 
         List<NibusCommand> commands = new ArrayList<NibusCommand>();
@@ -160,5 +157,27 @@ public enum NibusAutonomousPlan {
         commands.add(new NibusCommand(pose3));
 
         return commands;
+    }
+
+    public double getCollectorHeadingDuringPixelDrop(AllianceColor allianceColor) {
+        switch (this) {
+            case START_FRONTSTAGE:
+                switch (allianceColor) {
+                    case RED:
+                        return Math.toRadians(315);
+                    case BLUE:
+                    default:
+                        return Math.toRadians(45);
+                }
+            case START_BACKSTAGE:
+            default:
+                switch (allianceColor) {
+                    case RED:
+                        return Math.toRadians(225);
+                    case BLUE:
+                    default:
+                        return Math.toRadians(135);
+                }
+        }
     }
 }
