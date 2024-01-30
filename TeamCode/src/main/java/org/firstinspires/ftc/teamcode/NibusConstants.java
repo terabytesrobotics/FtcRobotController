@@ -30,17 +30,22 @@ public class NibusConstants {
     static final double DISTANCE_ERROR_THRESHOLD = 0.5;
     static final double STRAFE_ERROR_THRESHOLD = Math.PI / 32;
     static final double TURN_ERROR_THRESHOLD = Math.PI / 32;
-    static final double DESIRED_DISTANCE = 8.0; //  this is how close the camera should get to the target (inches)
-    static final double SPEED_GAIN  =  0.1;   //  Forward Speed Control "Gain". eg: Ramp up to 50% power at a 25 inch error.   (0.50 / 25.0)
-    static final double STRAFE_GAIN =  1.5/Math.PI ;   //  Strafe Speed Control "Gain".  eg: Ramp up to 25% power at a 25 degree Yaw error.   (0.25 / 25.0)
-    static final double TURN_GAIN   =  2.15/Math.PI  ;   //  Turn Control "Gain".  eg: Ramp up to 25% power at a 25 degree error. (0.25 / 25.0)
-    static final double MAX_AUTO_SPEED = 0.5;   //  Clip the approach speed to this max value (adjust for your robot)
-    static final double MAX_AUTO_STRAFE = 0.5;   //  Clip the approach speed to this max value (adjust for your robot)
-    static final double MAX_AUTO_TURN  = Math.PI / 3.5;   //  Clip the turn speed to this max value (adjust for your robot)
-    static final int APPROACH_SETTLE_TIME_MS = 750;
+    static final double DESIRED_DISTANCE = 8.0;
+    static final double SPEED_GAIN  =  0.1;
+    static final double STRAFE_GAIN =  .01 / (Math.PI / 180);
+    static final double TURN_GAIN =  .0125 / (Math.PI / 180);
+    static final double MAX_AUTO_SPEED = 0.575;
+    static final double MAX_AUTO_STRAFE = 0.575;
+    static final double MAX_AUTO_TURN  = 0.9;
+    static final int APPROACH_SETTLE_TIME_MS = 500;
     public static final int FRONT_CAMERA_OFFSET_INCHES = 7;
+    public static final double FRONT_CAMERA_IDEAL_COLLECTION_DISTANCE = 14;
+
     public static final int BACK_CAMERA_OFFSET_INCHES = 0;
     public static final double COLLECT_HEAD_BASE_OFFSET_X = -14;
+    public static final double COLLECT_HEAD_BLUE_GRABBER_OFFSET_Y = 2;
+    public static final double COLLECT_HEAD_GREEN_GRABBER_OFFSET_Y = -2;
+    public static final double COLLECT_HEAD_HEADING_OFFSET = Math.PI;
     public static final double DRIVE_TO_POSE_THRESHOLD = 1.25f;
     public static final int POSITION_ACQUIRED_INDICATE_MILLIS = 1000;
     public static final int POSITION_ACQUIRED_PULSE_MILLIS = 100;
@@ -50,6 +55,8 @@ public class NibusConstants {
     public static int ARM_TICK_TOLERANCE = 20;
     public static int EXTENDER_TICK_TOLERANCE = 20;
     public static final int APRIL_TAG_QUEUE_CAPACITY = 8;
+    public static final double SLOW_MODE_SCALE = 0.3;
+    public static final double FAST_MODE_SCALE = 1;
 
     public static void sleep(int millis) {
         try {

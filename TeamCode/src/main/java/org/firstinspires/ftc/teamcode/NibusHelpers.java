@@ -22,20 +22,23 @@ public class NibusHelpers {
         return new Vector2d(robotX, robotY);
     }
 
-    public static Pose2d approachPose(Pose2d targetPose, double offsetDistance) {
-        // Calculate offset components based on target heading
-        double offsetX = offsetDistance * Math.cos(targetPose.getHeading());
-        double offsetY = offsetDistance * Math.sin(targetPose.getHeading());
-
-        // Calculate the robot's position by subtracting the offset from the target position
-        double robotX = targetPose.getX() - offsetX;
-        double robotY = targetPose.getY() - offsetY;
-
-        // Return the robot's required pose
-        return new Pose2d(robotX, robotY, targetPose.getHeading());
+    public static Pose2d robotPose(Pose2d appendagePose, double inlineOffset, double orthogonalOffset) {
+        double appendageHeading = appendagePose.getHeading();
+        double headingOffset = Math.atan2(inlineOffset, orthogonalOffset);
+        double distance = Math.hypot(inlineOffset, orthogonalOffset);
+        double robotHeading = Angle.norm(appendageHeading - headingOffset);
+        double robotX = appendagePose.getX() - (distance * Math.cos(robotHeading));
+        double robotY = appendagePose.getY() - (distance * Math.sin(robotHeading));
+        return new Pose2d(robotX, robotY, robotHeading);
     }
 
-    public static Pose2d collectApproachPose(Pose2d targetPose) {
-        return approachPose(targetPose, NibusConstants.COLLECT_HEAD_BASE_OFFSET_X);
+    public static Pose2d appendagePose(Pose2d robotPose, double inlineOffset, double orthogonalOffset) {
+        double robotHeading = robotPose.getHeading();
+        double headingOffset = Math.atan2(inlineOffset, orthogonalOffset);
+        double appendageHeading = Angle.norm(robotHeading + headingOffset);
+        double distance = Math.hypot(inlineOffset, orthogonalOffset);
+        double appendageX = robotPose.getX() + (distance * Math.cos(appendageHeading));
+        double appendageY = robotPose.getY() + (distance * Math.sin(appendageHeading));
+        return new Pose2d(appendageX, appendageY, appendageHeading);
     }
 }

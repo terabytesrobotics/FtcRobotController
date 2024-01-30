@@ -122,21 +122,30 @@ public enum AllianceColor {
                     case CENTER:
                         return CenterStageAprilTags.BLUE_BACKDROP_CENTER;
                     case RIGHT:
+                    default:
                         return CenterStageAprilTags.BLUE_BACKDROP_RIGHT;
                 }
-                break;
             case RED:
+            default:
                 switch (position) {
                     case LEFT:
                         return CenterStageAprilTags.RED_BACKDROP_LEFT;
                     case CENTER:
                         return CenterStageAprilTags.RED_BACKDROP_CENTER;
                     case RIGHT:
+                    default:
                         return CenterStageAprilTags.RED_BACKDROP_RIGHT;
                 }
-            default:
-                return null;
         }
-        return null;
+    }
+
+    public CenterStageAprilTags getAprilTagForBackdropApproach() {
+        switch (this) {
+            case BLUE:
+                return CenterStageAprilTags.BLUE_BACKDROP_CENTER;
+            case RED:
+            default:
+                return CenterStageAprilTags.RED_BACKDROP_CENTER;
+        }
     }
 }

@@ -2,9 +2,7 @@ package org.firstinspires.ftc.teamcode;
 
 import static org.firstinspires.ftc.teamcode.NibusConstants.*;
 
-import android.util.ArrayMap;
 import android.util.Log;
-import android.util.Pair;
 
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
@@ -31,7 +29,6 @@ import org.firstinspires.ftc.teamcode.Processors.WindowBoxesVisionProcessor;
 import org.firstinspires.ftc.teamcode.drive.DriveConstants;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
-import org.firstinspires.ftc.teamcode.util.UpstageBackstageStart;
 import org.firstinspires.ftc.teamcode.util.AlliancePropPosition;
 import org.firstinspires.ftc.teamcode.util.BlueGrabberState;
 import org.firstinspires.ftc.teamcode.util.CollectorState;
@@ -43,7 +40,6 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -70,13 +66,10 @@ public class Nibus2000 {
     private final OnActivatedEvaluator x1PressedEvaluator;
     private final OnActivatedEvaluator y1PressedEvaluator;
     private final OnActivatedEvaluator b1PressedEvaluator;
-    private final OnActivatedEvaluator lb1PressedEvaluator;
-    private final OnActivatedEvaluator rb1PressedEvaluator;
     private final OnActivatedEvaluator a2PressedEvaluator;
     private final OnActivatedEvaluator b2PressedEvaluator;
     private final OnActivatedEvaluator x2PressedEvaluator;
     private final OnActivatedEvaluator y2PressedEvaluator;
-    private final OnActivatedEvaluator lb2PressedEvaluator;
     private final OnActivatedEvaluator rb2PressedEvaluator;
     private final OnActivatedEvaluator dpadUp2PressedEvaluator;
     private final OnActivatedEvaluator dpadDown2PressedEvaluator;
@@ -129,6 +122,7 @@ public class Nibus2000 {
     private double greenGrabberManualOffset = 0;
     private double blueGrabberManualOffset = 0;
     private Pose2d fixedPose = null;
+    private Pose2d focalPoint = null;
     private final Map<CollectorState, Integer> armNudgesPerPosition = new HashMap<CollectorState, Integer>();
     private final Map<CollectorState, Integer> wristNudgesPerPosition = new HashMap<CollectorState, Integer>();
 
@@ -165,15 +159,12 @@ public class Nibus2000 {
         b1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.b);
         x1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.x);
         y1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.y);
-        lb1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.left_bumper);
-        rb1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.right_bumper);
         rs1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.right_stick_button);
         ls1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.left_stick_button);
         a2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.a);
         b2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.b);
         x2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.x);
         y2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.y);
-        lb2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.left_bumper);
         rb2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_bumper);
         dpadUp2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.dpad_up);
         dpadDown2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.dpad_down);
@@ -198,7 +189,7 @@ public class Nibus2000 {
         launcher.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         launcher.setDirection(DcMotorSimple.Direction.FORWARD);
 
-        blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.LIME);
+        blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.LAWN_GREEN);
 
         for (CollectorState state : CollectorState.values()) {
             armNudgesPerPosition.put(state, 0);
@@ -322,14 +313,10 @@ public class Nibus2000 {
             if (timeSincePositionSet % (2 * POSITION_ACQUIRED_PULSE_MILLIS) > POSITION_ACQUIRED_PULSE_MILLIS) {
                 indicator1Green.setState(true);
                 indicator1Red.setState(true);
-                blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.CP1_STROBE);
             } else {
                 indicator1Green.setState(false);
                 indicator1Red.setState(false);
-                blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.LIME);
             }
-        } else {
-            blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.LIME);
         }
 
         if (isUpstage()) {
@@ -341,6 +328,12 @@ public class Nibus2000 {
         } else {
             indicator1Green.setState(false);
             indicator1Red.setState(false);
+        }
+
+        if (focalPoint == null) {
+            blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.LIGHT_CHASE_RED);
+        } else {
+            blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.LAWN_GREEN);
         }
     }
 
@@ -418,16 +411,17 @@ public class Nibus2000 {
             }
         }
 
-        if (hasAprilTagFieldPosition && lb1PressedEvaluator.evaluate()) {
-            if (fixedPose == null) {
-                fixedPose = latestPoseEstimate;
+        if (hasAprilTagFieldPosition && a1PressedEvaluator.evaluate()) {
+            if (focalPoint == null) {
+                if (isUpstage()) {
+                    focalPoint = NibusHelpers.appendagePose(latestPoseEstimate, COLLECT_HEAD_BASE_OFFSET_X, 0);
+                } else if (isBackstage()) {
+                    CenterStageAprilTags scoringAprilTag = allianceColor.getAprilTagForBackdropApproach();
+                    focalPoint = NibusHelpers.appendagePose(scoringAprilTag.facingPose(), FRONT_CAMERA_IDEAL_COLLECTION_DISTANCE, 0);
+                }
             } else {
-                fixedPose = null;
+                focalPoint = null;
             }
-        }
-
-        if (fixedPose != null && lb2PressedEvaluator.evaluate()) {
-            fixedPose = null;
         }
 
         controlDrivingFromGamepad();
@@ -777,7 +771,7 @@ public class Nibus2000 {
 
     private Pose2d getScaledHeadlessDriverInput(Gamepad gamepad) {
         Vector2d inputFieldDirection = NibusHelpers.headlessLeftStickFieldDirection(gamepad1, allianceColor.OperatorHeadingOffset, latestPoseEstimate.getHeading());
-        double scale = gamepad.right_trigger > 0.2 ? 0.3 : 0.8; // Slow mode scaling
+        double scale = gamepad.right_trigger > 0.2 ? SLOW_MODE_SCALE : FAST_MODE_SCALE;
         double scaledRobotX = inputFieldDirection.getX() * scale;
         double scaledRobotY = inputFieldDirection.getY() * scale;
         double scaledRotation = -gamepad.right_stick_x * scale;
@@ -809,17 +803,55 @@ public class Nibus2000 {
     }
 
     private void controlDrivingFromGamepad() {
-        Pose2d controlPose;
-        controlPose = getScaledHeadlessDriverInput(gamepad1);
-        if (hasPositionEstimate() && gamepad1.x) {
-            int closestLaneY = CenterStageConstants.getClosestLane(latestPoseEstimate.getY());
-            double errorY = closestLaneY - latestPoseEstimate.getY();
-            double errorHeading = Angle.normDelta(0 - latestPoseEstimate.getHeading());
+        Pose2d controlPose = getScaledHeadlessDriverInput(gamepad1);
+        if (focalPoint == null) {
 
-            double laneLockY = Range.clip(errorY * SPEED_GAIN, -MAX_AUTO_SPEED, MAX_AUTO_SPEED);
-            double laneLockRotation = Range.clip(errorHeading * TURN_GAIN, -MAX_AUTO_TURN, MAX_AUTO_TURN);
-            controlPose = controlPose.plus(new Pose2d(0, laneLockY, laneLockRotation));
+            // Lane Lock
+            if (hasPositionEstimate() && gamepad1.x) {
+                int closestLaneY = CenterStageConstants.getClosestLane(latestPoseEstimate.getY());
+                double errorY = closestLaneY - latestPoseEstimate.getY();
+                double errorHeading = Angle.normDelta(0 - latestPoseEstimate.getHeading());
+
+                double laneLockY = Range.clip(errorY * SPEED_GAIN, -MAX_AUTO_SPEED, MAX_AUTO_SPEED);
+                double laneLockRotation = Range.clip(errorHeading * TURN_GAIN, -MAX_AUTO_TURN, MAX_AUTO_TURN);
+                controlPose = controlPose.plus(new Pose2d(0, laneLockY, laneLockRotation));
+            }
+
+        } else if (isBackstage()) {
+            Pose2d scoringFocalPoint = focalPoint;
+
+            CenterStageBackdropPosition backdropPosition = null;
+            if (gamepad1.y) {
+                backdropPosition = CenterStageBackdropPosition.CENTER;
+            } else if (gamepad1.x) {
+                backdropPosition = CenterStageBackdropPosition.LEFT;
+            } else if (gamepad1.b) {
+                backdropPosition = CenterStageBackdropPosition.RIGHT;
+            }
+
+            if (backdropPosition != null) {
+                double focalPointYOffset = 0;
+                if (gamepad1.left_bumper) {
+                    focalPointYOffset += 3;
+                }
+                if (gamepad1.right_bumper) {
+                    focalPointYOffset -= 3;
+                }
+
+                CenterStageAprilTags aprilTag = allianceColor.getAprilTagForScoringPosition(backdropPosition);
+                Pose2d centeredFocalPoint = aprilTag.facingPose();
+                scoringFocalPoint = centeredFocalPoint.plus(new Pose2d(0, focalPointYOffset, 0));
+            }
+
+            scoringFocalPoint = scoringFocalPoint.plus(
+                    new Pose2d(0, 0, gamepad1.right_stick_x * (Math.PI / 8)));
+
+            Pose2d scoringPoseControl = getPoseTargetAutoDriveControl(
+                    NibusHelpers.robotPose(scoringFocalPoint, 12, 0));
+
+            controlPose = scoringPoseControl.plus(scoringPoseControl);
         }
+
         drive.setWeightedDrivePower(controlPose);
     }
 

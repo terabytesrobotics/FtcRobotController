@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode;
 import android.util.ArrayMap;
 
 import com.acmerobotics.roadrunner.geometry.Pose2d;
+import com.acmerobotics.roadrunner.util.Angle;
 
 import java.util.Map;
 
@@ -46,5 +47,9 @@ public enum CenterStageAprilTags {
             }
         }
         return null;
+    }
+
+    public Pose2d facingPose() {
+        return new Pose2d(Pose.getX(), Pose.getY(), Angle.norm(Pose.getHeading() + Math.PI));
     }
 }
