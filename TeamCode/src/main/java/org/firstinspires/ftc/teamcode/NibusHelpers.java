@@ -24,7 +24,7 @@ public class NibusHelpers {
 
     public static Pose2d robotPose(Pose2d appendagePose, double inlineOffset, double orthogonalOffset) {
         double appendageHeading = appendagePose.getHeading();
-        double headingOffset = Math.atan2(inlineOffset, orthogonalOffset);
+        double headingOffset = Math.atan2(orthogonalOffset, inlineOffset);
         double distance = Math.hypot(inlineOffset, orthogonalOffset);
         double robotHeading = Angle.norm(appendageHeading - headingOffset);
         double robotX = appendagePose.getX() - (distance * Math.cos(robotHeading));
@@ -34,7 +34,7 @@ public class NibusHelpers {
 
     public static Pose2d appendagePose(Pose2d robotPose, double inlineOffset, double orthogonalOffset) {
         double robotHeading = robotPose.getHeading();
-        double headingOffset = Math.atan2(inlineOffset, orthogonalOffset);
+        double headingOffset = Math.atan2(orthogonalOffset, inlineOffset);
         double appendageHeading = Angle.norm(robotHeading + headingOffset);
         double distance = Math.hypot(inlineOffset, orthogonalOffset);
         double appendageX = robotPose.getX() + (distance * Math.cos(appendageHeading));

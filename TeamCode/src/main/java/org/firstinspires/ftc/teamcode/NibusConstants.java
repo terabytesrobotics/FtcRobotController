@@ -6,7 +6,7 @@ public class NibusConstants {
     public static final double GEAR_RATIO = 13.7d;
     public static final double WORM_RATIO = 28.0d;
     public static final double ARM_TICKS_PER_DEGREE = WORM_RATIO * 28.0d * GEAR_RATIO / 360.0d;
-    public static double ARM_CONTROL_P = 0.005, ARM_CONTROL_I = 0.000, ARM_CONTROL_D = 0.0000;
+    public static double ARM_CONTROL_P = 0.0075, ARM_CONTROL_I = 0.000, ARM_CONTROL_D = 0.0000;
     // Angle below horizontal at start in degrees.  horizontal is 0.
     public static final double ARM_DEGREE_OFFSET_FROM_HORIZONTAL = -37d;
     public static final double ARM_MAX_ANGLE = 180d;

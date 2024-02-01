@@ -9,7 +9,7 @@ import com.acmerobotics.roadrunner.geometry.Vector2d;
 public class CenterStageConstants {
 
     public static final int UPSTAGE_FIELD_X = -30;
-    public static final int BACKSTAGE_FIELD_X = 30;
+    public static final int BACKSTAGE_FIELD_X = 8;
     public static final int LANE_1_Y = 60;
     public static final int LANE_2_Y = 36;
     public static final int LANE_3_Y = 12;

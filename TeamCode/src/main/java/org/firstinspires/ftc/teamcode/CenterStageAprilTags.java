@@ -8,12 +8,12 @@ import com.acmerobotics.roadrunner.util.Angle;
 import java.util.Map;
 
 public enum CenterStageAprilTags {
-    BLUE_BACKDROP_LEFT(1, new Pose2d(64, 41, Math.toRadians(180))),
-    BLUE_BACKDROP_CENTER(2, new Pose2d(64, 35, Math.toRadians(180))),
-    BLUE_BACKDROP_RIGHT(3, new Pose2d(64, 29, Math.toRadians(180))),
-    RED_BACKDROP_LEFT(4, new Pose2d(64, -29, Math.toRadians(180))),
-    RED_BACKDROP_CENTER(5, new Pose2d(64, -35, Math.toRadians(180))),
-    RED_BACKDROP_RIGHT(6, new Pose2d(64, -41, Math.toRadians(180))),
+    BLUE_BACKDROP_LEFT(1, new Pose2d(60, 41, Math.toRadians(180))),
+    BLUE_BACKDROP_CENTER(2, new Pose2d(60, 35, Math.toRadians(180))),
+    BLUE_BACKDROP_RIGHT(3, new Pose2d(60, 29, Math.toRadians(180))),
+    RED_BACKDROP_LEFT(4, new Pose2d(60, -29, Math.toRadians(180))),
+    RED_BACKDROP_CENTER(5, new Pose2d(60, -35, Math.toRadians(180))),
+    RED_BACKDROP_RIGHT(6, new Pose2d(60, -41, Math.toRadians(180))),
     RED_WALL_LARGE(7, new Pose2d(
             -72,
             -40.5,

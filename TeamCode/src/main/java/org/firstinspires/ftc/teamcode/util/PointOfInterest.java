@@ -1,6 +1,8 @@
 package org.firstinspires.ftc.teamcode.util;
 
 public enum PointOfInterest {
+    RED_BACKDROP_APPROACH(40, -35),
+    BLUE_BACKDROP_APPROACH(40, 35),
     blueOuterAudience(-36, 60),
     blueOuterBack(12, 60),
     blueInnerAudience(-36,36),

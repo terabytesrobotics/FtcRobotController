@@ -83,6 +83,16 @@ public enum AllianceColor {
         }
     }
 
+    public Pose2d getTeleopScoringApproachLocation() {
+        switch (this) {
+            case RED:
+                return new Pose2d(PointOfInterest.RED_BACKDROP_APPROACH.X, PointOfInterest.RED_BACKDROP_APPROACH.Y, 0);
+            case BLUE:
+            default:
+                return new Pose2d(PointOfInterest.BLUE_BACKDROP_APPROACH.X, PointOfInterest.BLUE_BACKDROP_APPROACH.Y, 0);
+        }
+    }
+
     public NibusApproach getScoringApproach() {
         switch (this) {
             case RED:
