@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.util;
 
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
+import com.qualcomm.hardware.rev.RevBlinkinLedDriver;
 
 import org.firstinspires.ftc.teamcode.CenterStageAprilTags;
 import org.firstinspires.ftc.teamcode.CenterStageBackdropPosition;
@@ -80,6 +81,16 @@ public enum AllianceColor {
                 return new Vector2d(PointOfInterest.blueScoringApprach.X, PointOfInterest.blueScoringApprach.Y);
             default:
                 return new Vector2d();
+        }
+    }
+
+    public RevBlinkinLedDriver.BlinkinPattern getAllianceColorBlinkinPattern() {
+        switch (this) {
+            case RED:
+                return RevBlinkinLedDriver.BlinkinPattern.HEARTBEAT_RED;
+            case BLUE:
+            default:
+                return RevBlinkinLedDriver.BlinkinPattern.HEARTBEAT_BLUE;
         }
     }
 

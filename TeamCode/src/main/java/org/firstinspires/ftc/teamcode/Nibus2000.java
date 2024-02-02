@@ -34,11 +34,11 @@ import org.firstinspires.ftc.teamcode.util.BlueGrabberState;
 import org.firstinspires.ftc.teamcode.util.CollectorState;
 import org.firstinspires.ftc.teamcode.util.GreenGrabberState;
 import org.firstinspires.ftc.teamcode.util.OnActivatedEvaluator;
-import org.firstinspires.ftc.teamcode.util.PointOfInterest;
 import org.firstinspires.ftc.teamcode.util.TrueForTime;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
+import org.opencv.core.Mat;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -60,9 +60,11 @@ public class Nibus2000 {
     private final Servo greenGrabber;
     private final Servo blueGrabber;
     private final DcMotorEx launcher;
-    private final Servo launcherWrist;
 
     private CollectorState collectorState = CollectorState.DRIVING_SAFE;
+    private double armTickTarget;
+    private double extenderTickTarget;
+    private double wristPosition;
     private final OnActivatedEvaluator a1PressedEvaluator;
     private final OnActivatedEvaluator x1PressedEvaluator;
     private final OnActivatedEvaluator y1PressedEvaluator;
@@ -124,13 +126,13 @@ public class Nibus2000 {
     private final Queue<Pose2d> poseQueue = new LinkedList<>();
     private double greenGrabberManualOffset = 0;
     private double blueGrabberManualOffset = 0;
-    private Pose2d fixedPose = null;
     private Pose2d pointOfInterest = null;
     private final Map<CollectorState, Integer> armNudgesPerPosition = new HashMap<CollectorState, Integer>();
     private final Map<CollectorState, Integer> wristNudgesPerPosition = new HashMap<CollectorState, Integer>();
     private final Map<CollectorState, Integer> extenderNudgesPerPosition = new HashMap<CollectorState, Integer>();
-    private double scoringStateSlider = 0.0;
-    private final double SCORING_STATE_SLIDER_RATE_PER_MILLI = 0.002;
+    private double scoringHeightOffset = 0.0;
+    private final double RAISE_RATE_INCH_PER_MILLI = 4.0 / 1000;
+
 
     public Nibus2000(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, Telemetry telemetry) {
         this.allianceColor = allianceColor;
@@ -192,12 +194,11 @@ public class Nibus2000 {
         blueGrabber = hardwareMap.get(Servo.class, "blueE1");
 
         launcher = hardwareMap.get(DcMotorEx.class, "launcherE2");
-        launcherWrist = hardwareMap.get(Servo.class, "launcher");
         launcher.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         launcher.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         launcher.setDirection(DcMotorSimple.Direction.FORWARD);
 
-        blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.LAWN_GREEN);
+        blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.DARK_GREEN);
 
         for (CollectorState state : CollectorState.values()) {
             armNudgesPerPosition.put(state, 0);
@@ -218,9 +219,24 @@ public class Nibus2000 {
         telemetry.update();
     }
 
+    private void setPoseEstimate(Pose2d pose) {
+        Pose2d delta = null;
+        if (latestPoseEstimate != null) {
+            delta = pose.minus(latestPoseEstimate);
+        }
+
+        // In the rare case we get our first april tag estimate while in point of interest mode,
+        // don't go haywire, update the point of interest with the delta.
+        if (pointOfInterest != null && lastAprilTagFieldPosition == null && delta != null) {
+            pointOfInterest = pointOfInterest.plus(delta);
+        }
+
+        drive.setPoseEstimate(pose);
+    }
+
     public void autonomousInit(Pose2d startPose, NibusAutonomousPlan autonomousPlan) {
         this.autonomousPlan = autonomousPlan;
-        drive.setPoseEstimate(startPose);
+        setPoseEstimate(startPose);
 
         wrist.setPosition(.25);
         sleep(1000);
@@ -234,7 +250,7 @@ public class Nibus2000 {
     }
 
     public void teleopInit() {
-        drive.setPoseEstimate(new Pose2d());
+        setPoseEstimate(new Pose2d());
         wrist.setPosition(.25);
 
         extenderInitSequence(false);
@@ -272,7 +288,14 @@ public class Nibus2000 {
         elapsedPropFrameTime.reset();
     }
 
+    private double lastCycleMillis = 0;
+    private double dtMillis = 0;
+
     public boolean evaluate() {
+        if (lastCycleMillis != 0) {
+            dtMillis = timeSinceStart.milliseconds() - lastCycleMillis;
+        }
+        lastCycleMillis = timeSinceStart.milliseconds();
         drive.update();
         latestPoseEstimate = drive.getPoseEstimate();
 
@@ -291,9 +314,6 @@ public class Nibus2000 {
                 break;
             case AUTONOMOUSLY_DRIVING:
                 nextState = evaluateDrivingAutonomously();
-                break;
-            case DETECT_POSE_FROM_APRIL_TAG:
-                nextState = evaluateDetectPoseFromAprilTag();
                 break;
             case DETECT_ALLIANCE_MARKER:
                 nextState = evaluateDetectAllianceMarker();
@@ -327,10 +347,7 @@ public class Nibus2000 {
             }
         }
 
-        if (isUpstage()) {
-            indicator1Green.setState(false);
-            indicator1Red.setState(true);
-        } else if (isBackstage()) {
+        if (hasPositionEstimate()) {
             indicator1Green.setState(true);
             indicator1Red.setState(false);
         } else {
@@ -339,9 +356,9 @@ public class Nibus2000 {
         }
 
         if (pointOfInterest == null) {
-            blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.LAWN_GREEN);
+            blinkinLedDriver.setPattern(allianceColor.getAllianceColorBlinkinPattern());
         } else {
-            blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.LIGHT_CHASE_RED);
+            blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.CP1_STROBE);
         }
     }
 
@@ -358,7 +375,8 @@ public class Nibus2000 {
                     continue;
                 }
 
-                if (detection.ftcPose.range > APRIL_TAG_RECOGNITION_RANGE_THRESHOLD ||
+                if (detection.ftcPose.range > APRIL_TAG_RECOGNITION_MAX_RANGE ||
+                        detection.ftcPose.range < APRIL_TAG_RECOGNITION_MIN_RANGE ||
                         Math.abs(Math.toRadians(detection.ftcPose.bearing)) > APRIL_TAG_RECOGNITION_BEARING_THRESHOLD ||
                         Math.abs(Math.toRadians(detection.ftcPose.yaw)) > APRIL_TAG_RECOGNITION_YAW_THRESHOLD) {
                     continue;
@@ -381,7 +399,7 @@ public class Nibus2000 {
             double translationVarianceThreshold = 1.0;
             double headingVarianceThreshold = Math.PI / 32;
             if (variancePose.getX() <= translationVarianceThreshold && variancePose.getY() <= translationVarianceThreshold && variancePose.getHeading() <= headingVarianceThreshold) {
-                drive.setPoseEstimate(averagePose);
+                setPoseEstimate(averagePose);
                 lastAprilTagFieldPosition = averagePose;
                 lastAprilTagFieldPositionMillis = timeSinceStart.milliseconds();
                 poseQueue.clear();
@@ -414,51 +432,128 @@ public class Nibus2000 {
     private NibusState evaluateDrivingAndScoring() {
         if (lastAprilTagFieldPosition == null) {
             if (gamepad1.dpad_up) {
-                drive.setPoseEstimate(
-                        new Pose2d(0, 0, allianceColor.OperatorHeadingOffset));
+                setPoseEstimate(new Pose2d(0, 0, allianceColor.OperatorHeadingOffset));
             }
         }
 
-        if (lastAprilTagFieldPosition != null && a1PressedEvaluator.evaluate()) {
+        // Toggle collect mode.
+        boolean isCollecting = collectorState == CollectorState.COLLECTION;
+        if (a1PressedEvaluator.evaluate() || a2PressedEvaluator.evaluate()) {
+            if (isCollecting) {
+                setCollectorState(CollectorState.DRIVING_SAFE);
+            } else {
+                setCollectorState(CollectorState.COLLECTION);
+            }
+        }
+
+        boolean isManualArmControl = collectorState == null;
+        if (b1PressedEvaluator.evaluate() || b2PressedEvaluator.evaluate()) {
+            if (isManualArmControl) {
+                setCollectorState(CollectorState.DRIVING_SAFE);
+            } else {
+                setManualArmState();
+            }
+        } else if (isManualArmControl) {
+            double SCORING_HEIGHT_MAX = 10;
+            scoringHeightOffset += (-gamepad2.right_stick_y) * dtMillis * RAISE_RATE_INCH_PER_MILLI;
+            scoringHeightOffset = Math.max(0, Math.min(SCORING_HEIGHT_MAX, scoringHeightOffset));
+            setManualArmState();
+        } else {
+            setCollectorState(collectorState);
+        }
+
+        if (y1PressedEvaluator.evaluate() || y2PressedEvaluator.evaluate()) {
             if (pointOfInterest == null) {
-                if (isUpstage()) {
-                    //pointOfInterest = NibusHelpers.appendagePose(latestPoseEstimate, COLLECT_HEAD_BASE_OFFSET_X, 0);
-                } else if (isBackstage()) {
-                    pointOfInterest = allianceColor.getTeleopScoringApproachLocation();
-                }
+                pointOfInterest = latestPoseEstimate;
             } else {
                 pointOfInterest = null;
             }
         }
 
-        controlDrivingFromGamepad();
-        evaluateScoringManualControls();
-
-        if (y1PressedEvaluator.evaluate()) {
-            // TODO: Uncomment to launch drone
-            //launchingAirplane = true;
-            //launchingAirplaneTimeMillis = (int) timeSinceStart.milliseconds();
+        if (rs1PressedEvaluator.evaluate()) {
+            endgameLiftStage = Math.min(3, endgameLiftStage + 1);
+            setCollectorState(endgameLiftStage(endgameLiftStage));
+        } else if (ls1PressedEvaluator.evaluate()) {
+            endgameLiftStage = Math.max(0, endgameLiftStage - 1);
+            setCollectorState(endgameLiftStage(endgameLiftStage));
         }
 
         if (x2PressedEvaluator.evaluate()) {
-            targetTag = allianceColor.getAprilTagForScoringPosition(CenterStageBackdropPosition.LEFT);
-        } else if (y2PressedEvaluator.evaluate()) {
-            targetTag = allianceColor.getAprilTagForScoringPosition(CenterStageBackdropPosition.CENTER);
-        } else if (b2PressedEvaluator.evaluate()) {
-            targetTag = allianceColor.getAprilTagForScoringPosition(CenterStageBackdropPosition.RIGHT);
-        } else if (x2PressedEvaluator.evaluate()) {
-            targetTag = null;
+            setCollectorState(CollectorState.DRIVING_SAFE);
+            pointOfInterest = null;
         }
 
-        // And good luck
-        if (rs1PressedEvaluator.evaluate()) {
-            endgameLiftStage = Math.min(3, endgameLiftStage + 1);
-            collectorState = endgameLiftStage(endgameLiftStage);
-        } else if (ls1PressedEvaluator.evaluate()) {
-            endgameLiftStage = Math.max(0, endgameLiftStage - 1);
-            collectorState = endgameLiftStage(endgameLiftStage);
+        Pose2d controlPose = new Pose2d();
+        if (pointOfInterest == null) {
+            if (gamepad2.left_bumper || gamepad2.right_bumper) {
+                double focalPointYOffset = 0;
+                if (gamepad2.left_bumper) {
+                    focalPointYOffset += 5.5;
+                }
+                if (gamepad2.right_bumper) {
+                    focalPointYOffset -= 5.5;
+                }
+
+                focalPointYOffset += (-gamepad2.right_stick_x * 3);
+                double focalPointXOffset = (-gamepad2.left_stick_y * 4);
+                double collectorHeadOrthogonalOffset = (-gamepad2.left_stick_x * 2);
+
+                Pose2d scoringFocalPoint =
+                        allianceColor.getAprilTagForScoringPosition(CenterStageBackdropPosition.CENTER)
+                                .facingPose()
+                                .plus(new Pose2d(focalPointXOffset, focalPointYOffset, 0));
+
+                Pose2d robotPoseForFocalPoint = NibusHelpers.robotPose(scoringFocalPoint, 20, collectorHeadOrthogonalOffset);
+
+                telemetry.addData("scoringFocalPoint", "x: %5.1f, y: %5.1f, th: %5.1f", scoringFocalPoint.getX(), scoringFocalPoint.getY(), scoringFocalPoint.getHeading());
+                telemetry.addData("robotPoseForFocalPoint", "x: %5.1f, y: %5.1f, th: %5.1f", robotPoseForFocalPoint.getX(), robotPoseForFocalPoint.getY(), robotPoseForFocalPoint.getHeading());
+                controlPose = getPoseTargetAutoDriveControl(robotPoseForFocalPoint);
+            } else {
+                controlPose = getScaledHeadlessDriverInput(gamepad1);
+
+                if (hasPositionEstimate() && gamepad1.x) {
+                    int closestLaneY = CenterStageConstants.getClosestLane(latestPoseEstimate.getY());
+                    double errorY = closestLaneY - latestPoseEstimate.getY();
+                    double errorHeading = Angle.normDelta(0 - latestPoseEstimate.getHeading());
+
+                    double laneLockY = Range.clip(errorY * SPEED_GAIN, -MAX_AUTO_SPEED, MAX_AUTO_SPEED);
+                    double laneLockRotation = Range.clip(errorHeading * TURN_GAIN, -MAX_AUTO_TURN, MAX_AUTO_TURN);
+                    controlPose = controlPose.plus(new Pose2d(0, laneLockY, laneLockRotation));
+                }
+            }
+
+        } else if (collectorState == CollectorState.COLLECTION) {
+            Pose2d driver2Headless = getScaledHeadlessDriverInput(gamepad2);
+            controlPose =
+                    driver2Headless.div(2)
+                            .plus(getPoseTargetAutoDriveControl(pointOfInterest));
         }
 
+        drive.setWeightedDrivePower(controlPose);
+
+        greenGrabberState = GreenGrabberState.GRABBED;
+        blueGrabberState = BlueGrabberState.GRABBED;
+        double blueGrabberActuationRange =
+                blueGrabberState.toggle().ServoPosition - blueGrabberState.ServoPosition;
+        double greenGrabberActuationRange =
+                greenGrabberState.toggle().ServoPosition - greenGrabberState.ServoPosition;
+        blueGrabberManualOffset = gamepad2.left_trigger * blueGrabberActuationRange;
+        greenGrabberManualOffset = gamepad2.right_trigger * greenGrabberActuationRange;
+
+        telemetry.addData("Collector state", collectorState);
+        telemetry.addData("Wrist pos:",wrist.getPosition());
+
+        if (gamepad1.left_bumper && gamepad1.right_bumper) {
+            launchingAirplane = true;
+            launchingAirplaneTimeMillis = (int) timeSinceStart.milliseconds();
+        }
+
+        evaluateNudgeControls();
+
+        return NibusState.MANUAL_DRIVE;
+    }
+
+    private void evaluateNudgeControls() {
         Integer armNudgeCountBoxed = armNudgesPerPosition.getOrDefault(collectorState, 0);
         Integer wristNudgeCountBoxed = wristNudgesPerPosition.getOrDefault(collectorState, 0);
         Integer extenderNudgeCountBoxed = extenderNudgesPerPosition.getOrDefault(collectorState, 0);
@@ -495,8 +590,6 @@ public class Nibus2000 {
             extenderNudgesPerPosition.put(collectorState,
                     Math.max(extenderNudgeCount - 1, -100));
         }
-
-        return NibusState.MANUAL_DRIVE;
     }
 
     private CollectorState endgameLiftStage(int stageNumber) {
@@ -592,7 +685,7 @@ public class Nibus2000 {
 
             if (currentCommand.CollectorState != null) {
                 Log.d("evaluateDrivingAutonomously", "Setting collector state");
-                collectorState = currentCommand.CollectorState;
+                setCollectorState(currentCommand.CollectorState);
             }
 
             if (currentCommand.TrajectoryCreator != null) {
@@ -624,18 +717,11 @@ public class Nibus2000 {
         return NibusState.AUTONOMOUSLY_DRIVING;
     }
 
-    private CenterStageAprilTags targetTag = null;
-
     private NibusState evaluateDetectPoseFromAprilTag() {
 
         AprilTagDetection approachDetection = null;
         List<AprilTagDetection> detections = aprilTagProcessor.getDetections();
         for (AprilTagDetection detection : detections) {
-            if (targetTag != null && detection.id == targetTag.Id) {
-                approachDetection = detection;
-                break;
-            }
-
             // Priority to some tags for positional approach...consider removing to focus on scoring approach use case.
             if (detection.id == 2 ||
                     detection.id == 5 ||
@@ -681,16 +767,14 @@ public class Nibus2000 {
 
         if (b1PressedEvaluator.evaluate()) {
             approachSettlingTimer = null;
-            targetTag = null;
             return NibusState.MANUAL_DRIVE;
         }
 
         if (approachSettlingTimer != null && approachSettlingTimer.milliseconds() > APPROACH_SETTLE_TIME_MS) {
             Pose2d settledPose = calculateRobotPoseWhenApproachToAprilTagSettled(approachDetection);
-            drive.setPoseEstimate(settledPose);
+            setPoseEstimate(settledPose);
             lastAprilTagFieldPosition = settledPose;
             approachSettlingTimer = null;
-            targetTag = null;
             return NibusState.MANUAL_DRIVE;
         }
 
@@ -792,7 +876,7 @@ public class Nibus2000 {
     }
 
     private Pose2d getScaledHeadlessDriverInput(Gamepad gamepad) {
-        Vector2d inputFieldDirection = NibusHelpers.headlessLeftStickFieldDirection(gamepad1, allianceColor.OperatorHeadingOffset, latestPoseEstimate.getHeading());
+        Vector2d inputFieldDirection = NibusHelpers.headlessLeftStickFieldDirection(gamepad, allianceColor.OperatorHeadingOffset, latestPoseEstimate.getHeading());
         double scale = gamepad.right_trigger > 0.2 ? SLOW_MODE_SCALE : FAST_MODE_SCALE;
         double scaledRobotX = inputFieldDirection.getX() * scale;
         double scaledRobotY = inputFieldDirection.getY() * scale;
@@ -825,70 +909,43 @@ public class Nibus2000 {
     }
 
     private void controlDrivingFromGamepad() {
-        Pose2d controlPose = getScaledHeadlessDriverInput(gamepad1);
-        if (pointOfInterest == null) {
 
-            // Lane Lock
-            if (hasPositionEstimate() && gamepad1.x) {
-                int closestLaneY = CenterStageConstants.getClosestLane(latestPoseEstimate.getY());
-                double errorY = closestLaneY - latestPoseEstimate.getY();
-                double errorHeading = Angle.normDelta(0 - latestPoseEstimate.getHeading());
-
-                double laneLockY = Range.clip(errorY * SPEED_GAIN, -MAX_AUTO_SPEED, MAX_AUTO_SPEED);
-                double laneLockRotation = Range.clip(errorHeading * TURN_GAIN, -MAX_AUTO_TURN, MAX_AUTO_TURN);
-                controlPose = controlPose.plus(new Pose2d(0, laneLockY, laneLockRotation));
-            }
-
-        } else if (isBackstage()) {
-            Pose2d scoringFocalPoint;
-            Pose2d scoringPoseControl = getPoseTargetAutoDriveControl(pointOfInterest);
-            CenterStageBackdropPosition backdropPosition = null;
-            if (gamepad1.y) {
-                backdropPosition = CenterStageBackdropPosition.CENTER;
-            } else if (gamepad1.x) {
-                backdropPosition = CenterStageBackdropPosition.LEFT;
-            } else if (gamepad1.b) {
-                backdropPosition = CenterStageBackdropPosition.RIGHT;
-            }
-
-            if (backdropPosition != null) {
-                double focalPointYOffset = 0;
-                if (gamepad1.left_bumper) {
-                    focalPointYOffset += 3;
-                }
-                if (gamepad1.right_bumper) {
-                    focalPointYOffset -= 3;
-                }
-
-                CenterStageAprilTags aprilTag = allianceColor.getAprilTagForScoringPosition(backdropPosition);
-                Pose2d centeredFocalPoint = aprilTag.facingPose();
-                scoringFocalPoint = centeredFocalPoint.plus(new Pose2d(0, focalPointYOffset, 0));
-                Pose2d robotPoseForFocalPoint = NibusHelpers.robotPose(scoringFocalPoint, 15, 0);
-                telemetry.addData("scoringFocalPoint", "x: %5.1f, y: %5.1f, th: %5.1f", scoringFocalPoint.getX(), scoringFocalPoint.getY(), scoringFocalPoint.getHeading());
-                telemetry.addData("robotPoseForFocalPoint", "x: %5.1f, y: %5.1f, th: %5.1f", robotPoseForFocalPoint.getX(), robotPoseForFocalPoint.getY(), robotPoseForFocalPoint.getHeading());
-//            scoringFocalPoint = scoringFocalPoint.plus(
-//                    new Pose2d(0, 0, gamepad1.right_stick_x * (Math.PI / 8)));
-                scoringPoseControl = getPoseTargetAutoDriveControl(robotPoseForFocalPoint);
-            }
-
-            // Uncomment to do scoring driving.
-            controlPose = scoringPoseControl.plus(scoringPoseControl);
-        }
-
-        // TODO: Uncomment, protecting robot from movement for now.
-        drive.setWeightedDrivePower(controlPose);
     }
 
-    private int armTargetPosition() {
+    private double armTargetPosition(CollectorState collectorState) {
         Integer armNudgeCountBoxed = armNudgesPerPosition.getOrDefault(collectorState, 0);
         int armNudgeCount = armNudgeCountBoxed == null ? 0 : armNudgeCountBoxed;
         double trimmedArmTargetDegrees = collectorState.ArmPosition + (armNudgeCount * ARM_DEGREE_TRIM_INCREMENT);
-        return  (int) (((Math.min(trimmedArmTargetDegrees, ARM_MAX_ANGLE)) - ARM_DEGREE_OFFSET_FROM_HORIZONTAL) * ARM_TICKS_PER_DEGREE);
+        return (((Math.min(trimmedArmTargetDegrees, ARM_MAX_ANGLE)) - ARM_DEGREE_OFFSET_FROM_HORIZONTAL) * ARM_TICKS_PER_DEGREE);
     }
 
-    private void controlArmMotor(DcMotorEx armMotor) {
+    private Mat.Tuple3<Double> armExtenderWristPositionsForScoringHeight(double scoringHeightInches) {
+
+        double ARM_MINIMUM_LENGTH_INCHES = 18;
+        double BACKDROP_ANGLE = Math.PI / 3;
+        int HORIZONTAL_TICKS = 5818;
+        double WRIST_LOW_SETPOINT = .63;
+        double WRIST_HIGH_SETPOINT = .39;
+        double WRIST_RANGE = WRIST_HIGH_SETPOINT - WRIST_LOW_SETPOINT;
+
+        double xBackdrop = scoringHeightInches / Math.tan(BACKDROP_ANGLE);
+        double x = ARM_MINIMUM_LENGTH_INCHES + xBackdrop;
+        double y = scoringHeightInches;
+        double armAngle = Math.atan2(y, x);
+        double length = Math.sqrt((x * x) + (y * y));
+        double extension = Math.min(length - ARM_MINIMUM_LENGTH_INCHES, EXTENDER_MAX_LENGTH_INCHES);
+        double extensionPercentage = extension / EXTENDER_MAX_LENGTH_INCHES;
+
+        double armTargetTicks = HORIZONTAL_TICKS - (Math.toDegrees(armAngle) * ARM_TICKS_PER_DEGREE);
+        double extenderTargetTicks = extension * EXTENDER_TICS_PER_INCH;
+        double wristTargetPosition = WRIST_LOW_SETPOINT; //+ (extensionPercentage * WRIST_RANGE);
+
+        return new Mat.Tuple3<>(armTargetTicks, extenderTargetTicks, wristTargetPosition);
+    }
+
+    private void controlArmMotor(DcMotorEx armMotor, int targetPosition) {
         int armPosition = armMotor.getCurrentPosition();
-        double armPower = armcontrol.calculate(armPosition, armTargetPosition());
+        double armPower = armcontrol.calculate(armPosition, targetPosition);
         if(Math.abs(armPower) < 0.02) armPower = 0;
         if(armPower < 0 && armMin.isPressed()) armPower = 0;
         telemetry.addData("armMotorPower", "%s: %5.2f", armMotor.getDeviceName(), armPower);
@@ -896,30 +953,45 @@ public class Nibus2000 {
         armMotor.setPower(armPower);
     }
 
-    private void controlScoringSystems() {
-        controlArmMotor(armLeft);
-        controlArmMotor(armRight);
+    private void setManualArmState() {
+        double scoringHeightInches = scoringHeightOffset;
+
+        Mat.Tuple3<Double> targets = armExtenderWristPositionsForScoringHeight(Math.max(0, scoringHeightInches));
+        armTickTarget = targets.get_0();
+        extenderTickTarget = targets.get_1();
+        wristPosition = targets.get_2();
+        this.collectorState = null;
+    }
+
+    private void setCollectorState(CollectorState collectorState) {
+        this.collectorState = collectorState;
 
         Integer extenderNudges = extenderNudgesPerPosition.getOrDefault(collectorState, 0);
         int extenderNudgesCount = extenderNudges == null ? 0 : extenderNudges;
-        int effectiveExtenderPositionCm = Math.max(0, Math.min(collectorState.ExtenderPosition + extenderNudgesCount, (int) EXTENDER_MAX_LENGTH));
-        int extenderTargetPosition = (int) (effectiveExtenderPositionCm * EXTENDER_TICS_PER_CM);
-        extender.setTargetPosition(extenderTargetPosition);
-
-        telemetry.addData("Extender position: ", extender.getCurrentPosition());
-        telemetry.addData("Extender target position: ", extenderTargetPosition);
-
         Integer wristNudgeCountBoxed = wristNudgesPerPosition.getOrDefault(collectorState, 0);
         int wristNudgeCount = wristNudgeCountBoxed == null ? 0 : wristNudgeCountBoxed;
-        double wristPositionToApply = Math.min(1, Math.max(0, collectorState.WristPosition + (wristNudgeCount * WRIST_SERVO_TRIM_INCREMENT)));
-        telemetry.addData("Wrist position: ", wristPositionToApply);
-        wrist.setPosition(wristPositionToApply);
+
+        double effectiveExtenderPositionInches = Math.max(0f, Math.min(collectorState.ExtenderPosition + (extenderNudgesCount/2.54f), EXTENDER_MAX_LENGTH_INCHES));
+        armTickTarget = armTargetPosition(collectorState);
+        extenderTickTarget = effectiveExtenderPositionInches * EXTENDER_TICS_PER_INCH;
+        wristPosition = Math.min(1, Math.max(0, collectorState.WristPosition + (wristNudgeCount * WRIST_SERVO_TRIM_INCREMENT)));
+    }
+
+    private void controlScoringSystems() {
+        controlArmMotor(armLeft, (int) armTickTarget);
+        controlArmMotor(armRight, (int) armTickTarget);
+
+        telemetry.addData("Extender position: ", extender.getCurrentPosition());
+        telemetry.addData("Extender target position: ", extenderTickTarget);
+        extender.setTargetPosition((int) extenderTickTarget);
+
+        telemetry.addData("Wrist position: ", wristPosition);
+        wrist.setPosition(wristPosition);
 
         greenGrabber.setPosition(greenGrabberState.ServoPosition + greenGrabberManualOffset);
         blueGrabber.setPosition(blueGrabberState.ServoPosition + blueGrabberManualOffset);
 
         if (launchingAirplane) {
-            launcherWrist.setPosition(LAUNCH_WRIST_POSITION);
             int launchSequenceTimeMillis = (int) timeSinceStart.milliseconds() - launchingAirplaneTimeMillis;
             if (launchSequenceTimeMillis > 1000) {
                 launcher.setPower(1);
@@ -933,53 +1005,12 @@ public class Nibus2000 {
     }
 
     private boolean armAndExtenderSettled() {
-        int armTargetPosition = armTargetPosition();
-        int leftArmErrorTicks = Math.abs(armTargetPosition - armLeft.getCurrentPosition());
-        int rightArmArmErrorTicks = Math.abs(armTargetPosition - armRight.getCurrentPosition());
+        int leftArmErrorTicks = (int) Math.abs(armTickTarget - armLeft.getCurrentPosition());
+        int rightArmArmErrorTicks = (int) Math.abs(armTickTarget - armRight.getCurrentPosition());
         int extenderErrorTicks = Math.abs(extender.getTargetPosition() - extender.getCurrentPosition());
         return leftArmErrorTicks < ARM_TICK_TOLERANCE &&
                 rightArmArmErrorTicks < ARM_TICK_TOLERANCE &&
                 extenderErrorTicks < EXTENDER_TICK_TOLERANCE;
-    }
-
-    private void evaluateScoringManualControls() {
-        greenGrabberState = GreenGrabberState.GRABBED;
-        blueGrabberState = BlueGrabberState.GRABBED;
-        double blueGrabberActuationRange =
-                blueGrabberState.toggle().ServoPosition - blueGrabberState.ServoPosition;
-        double greenGrabberActuationRange =
-                greenGrabberState.toggle().ServoPosition - greenGrabberState.ServoPosition;
-        blueGrabberManualOffset = gamepad2.left_trigger * blueGrabberActuationRange;
-        greenGrabberManualOffset = gamepad2.right_trigger * greenGrabberActuationRange;
-
-        if (a2PressedEvaluator.evaluate()) {
-            if (collectorState == CollectorState.COLLECTION) {
-                collectorState = CollectorState.DRIVING_SAFE;
-            } else {
-                collectorState = CollectorState.COLLECTION;
-            }
-        } else if (y2PressedEvaluator.evaluate()) {
-            if (collectorState == CollectorState.SCORING) {
-                collectorState = CollectorState.DRIVING_SAFE;
-            } else {
-                collectorState = CollectorState.SCORING;
-            }
-        } else if (rb2PressedEvaluator.evaluate()) {
-            if (collectorState == CollectorState.SCORING_MEDIUM) {
-                collectorState = CollectorState.SCORING_HIGH;
-            } else if (collectorState == CollectorState.SCORING_HIGH) {
-                collectorState = CollectorState.DRIVING_SAFE;
-            } else {
-                collectorState = CollectorState.SCORING_MEDIUM;
-            }
-        }
-
-        if (x2PressedEvaluator.evaluate()) {
-            collectorState = CollectorState.DRIVING_SAFE;
-        }
-
-        telemetry.addData("Collector state", collectorState);
-        telemetry.addData("Wrist pos:",wrist.getPosition());
     }
 
     private void grabberInit() {

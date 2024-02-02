@@ -10,10 +10,10 @@ public class NibusConstants {
     // Angle below horizontal at start in degrees.  horizontal is 0.
     public static final double ARM_DEGREE_OFFSET_FROM_HORIZONTAL = -37d;
     public static final double ARM_MAX_ANGLE = 180d;
-    public static final double EXTENDER_MAX_LENGTH = 19d;
+    public static final double EXTENDER_MAX_LENGTH_INCHES = 7.48d;
     public static final double EXTENDER_POWER = 0.8d;
     public static final double EXTENDER_GEAR_RATIO = 5.2d;
-    public static final double EXTENDER_TICS_PER_CM = EXTENDER_GEAR_RATIO * 28 / 0.8;
+    public static final double EXTENDER_TICS_PER_INCH = (EXTENDER_GEAR_RATIO * 28 / 0.8) * 2.54;
     public static final int PROP_CAMERA_WIDTH_PIXELS = 640;
     public static final int PROP_CAMERA_HEIGHT_PIXELS = 480;
     public static final int PROP_CAMERA_ROW_COUNT = 3;
@@ -49,7 +49,8 @@ public class NibusConstants {
     public static final double DRIVE_TO_POSE_THRESHOLD = 1.25f;
     public static final int POSITION_ACQUIRED_INDICATE_MILLIS = 1000;
     public static final int POSITION_ACQUIRED_PULSE_MILLIS = 100;
-    public static double APRIL_TAG_RECOGNITION_RANGE_THRESHOLD = 30;
+    public static double APRIL_TAG_RECOGNITION_MAX_RANGE = 30;
+    public static double APRIL_TAG_RECOGNITION_MIN_RANGE = 10;
     public static double APRIL_TAG_RECOGNITION_YAW_THRESHOLD = Math.PI / 6;
     public static double APRIL_TAG_RECOGNITION_BEARING_THRESHOLD = Math.PI / 6;
     public static int ARM_TICK_TOLERANCE = 20;
