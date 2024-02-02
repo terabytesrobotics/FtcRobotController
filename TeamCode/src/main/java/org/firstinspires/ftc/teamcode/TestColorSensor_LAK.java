@@ -9,11 +9,13 @@ import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.hardware.rev.RevColorSensorV3;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
 
 import org.apache.commons.math3.stat.descriptive.summary.Sum;
 import org.ejml.equation.IntegerSequence;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
     @Config
+    @TeleOp
     public class TestColorSensor_LAK extends LinearOpMode {
         // Define a variable for our color sensor
         RevColorSensorV3 Color1;
@@ -45,13 +47,16 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
         Blue RGB 0, 113, 189; Hex #0071bd; Hue 204
         Gray (tile) V<80, S<2
          */
-        public enum ColorTrigger {
+       /* public enum ColorTrigger {
             White, Gray, Blue, Red, Green, Yellow, Purple
         }
-
+*/
         @Override
         public void runOpMode() {
             // Get the color sensor from hardwareMap
+            Color1 = hardwareMap.get(RevColorSensorV3.class,"color1");
+
+
 
 
             telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
@@ -62,7 +67,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
             // While the Op Mode is running, update the telemetry values.
             while (opModeIsActive()) {
 
-                Color.RGBToHSV(Color1.red(), Color1.green(), Color1.blue(), HSV);
+                //Color.RGBToHSV(Color1.red(), Color1.green(), Color1.blue(), HSV);
                 Red = Color1.red();
                 Blue = Color1.blue();
                 Green = Color1.green();
@@ -76,9 +81,9 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
                 telemetry.addData("alpha", Alpha);
                 telemetry.addData("prox", Prox);
                 telemetry.addData("argb", Argb);
-                telemetry.addData("Hue", HSV[0]);
+                /*telemetry.addData("Hue", HSV[0]);
                 telemetry.addData("Sat", HSV[1]);
-                telemetry.addData("Val", HSV[2]);
+                telemetry.addData("Val", HSV[2]);*/
                 telemetry.addData("Detected Color", ColorDetect());
 
 
@@ -92,7 +97,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
         int SumRed = 0;
         int SumGreen = 0;
         int SumBlue = 0;
-        int polls = 10; //number of readings to average
+        int polls = 20; //number of readings to average
 
 
         for (int i = 0; i < polls; i++) {
@@ -101,7 +106,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
             SumGreen += Color1.green();
 
             // Delay between polls (adjust as needed)
-            sleep(50);
+            sleep(5);
         }
         // Calculate the average values
         int avgRed = SumRed / polls;
@@ -116,6 +121,10 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
         float Sat = hsvValues[1];
         float Val = hsvValues[2];
 
+        telemetry.addData("Hue",hsvValues[0]);
+        telemetry.addData("Sat",hsvValues[1]);
+        telemetry.addData("Val",hsvValues[2]);
+
                 /*Pixel, tape, and tile colors
         Purple RGB 170, 150, 222; Hex #aa96de; Hue 257
         Green RGB 102, 190, 63; Hex #66be3f; Hue 102
@@ -126,21 +135,19 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
         Gray (tile) V<80, S<2
          */
 
-        if (Sat < 0.2) {
-            if (Val>98) {
+        if (Sat < .4 && Val > 10) {
                 return "White";
-            } else {
+        } else if ((Sat < .4 && Val < 4)){
                 return "Gray";
-            }
-        } else if (Hue < 15 || Hue > 345) {
+        } else if (Hue < 40 || Hue > 345) {
             return "Red";
-        } else if (Hue >= 200 && Hue <= 230) {
+        } else if (Hue >= 214 && Hue <= 230) {
             return "Blue";
-        } else if (Hue >= 250 && Hue <= 300) {
+        } else if (Hue >= 200 && Hue <= 213) {
             return "Purple";
-        } else if (Hue >= 90 && Hue <= 150) {
+        } else if (Hue >= 104 && Hue <= 144) {
             return "Green";
-        } else if (Hue >= 30 && Hue <= 70) {
+        } else if (Hue >= 50 && Hue <= 89) {
             return "Yellow";
         } else {
             return "Unknown";
