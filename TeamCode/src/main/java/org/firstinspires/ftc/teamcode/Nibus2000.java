@@ -523,9 +523,12 @@ public class Nibus2000 {
             }
 
         } else if (collectorState == CollectorState.COLLECTION) {
-            Pose2d driver2Headless = getScaledHeadlessDriverInput(gamepad2);
+            Pose2d driver2Input = new Pose2d(
+                    -gamepad2.left_stick_y * -1,
+                    -gamepad2.left_stick_x * -1,
+                    -gamepad2.right_stick_x);
             controlPose =
-                    driver2Headless.div(2)
+                    driver2Input.div(1)
                             .plus(getPoseTargetAutoDriveControl(pointOfInterest));
         }
 
