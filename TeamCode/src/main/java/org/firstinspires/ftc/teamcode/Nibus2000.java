@@ -10,6 +10,7 @@ import com.acmerobotics.roadrunner.trajectory.Trajectory;
 import com.acmerobotics.roadrunner.util.Angle;
 import com.arcrobotics.ftclib.controller.PIDController;
 import com.qualcomm.hardware.rev.RevBlinkinLedDriver;
+import com.qualcomm.hardware.rev.RevColorSensorV3;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
@@ -24,6 +25,7 @@ import com.qualcomm.robotcore.util.Range;
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.internal.camera.delegating.SwitchableCameraName;
 import org.firstinspires.ftc.teamcode.Processors.WindowBoxesVisionProcessor;
 import org.firstinspires.ftc.teamcode.drive.DriveConstants;
@@ -74,6 +76,11 @@ public class Nibus2000 {
     private final OnActivatedEvaluator x2PressedEvaluator;
     private final OnActivatedEvaluator y2PressedEvaluator;
     private final OnActivatedEvaluator rb2PressedEvaluator;
+    private final OnActivatedEvaluator lb2PressedEvaluator;
+    private final OnActivatedEvaluator rb1PressedEvaluator;
+    private final OnActivatedEvaluator lb1PressedEvaluator;
+
+
     private final OnActivatedEvaluator dpadUp2PressedEvaluator;
     private final OnActivatedEvaluator dpadDown2PressedEvaluator;
     private final OnActivatedEvaluator dpadLeft2PressedEvaluator;
@@ -133,6 +140,19 @@ public class Nibus2000 {
     private double scoringHeightOffset = 0.0;
     private final double RAISE_RATE_INCH_PER_MILLI = 4.0 / 1000;
 
+    private RevColorSensorV3 colorSensorGreen;
+
+    private RevColorSensorV3 colorSensorBlue;
+    private double pixelMinGrab = 13;
+    private double colorSensorMaxProx = 15;
+    private int millsBeforeExtract = 300;
+
+    private boolean grabGreen = false;
+    private boolean grabBlue = false;
+    private boolean armedBlue = false;
+    private boolean armedGreen = false;
+    private boolean retract = false;
+    private double grabTime = 0;
 
     public Nibus2000(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, Telemetry telemetry) {
         this.allianceColor = allianceColor;
@@ -174,6 +194,10 @@ public class Nibus2000 {
         x2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.x);
         y2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.y);
         rb2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_bumper);
+        lb2PressedEvaluator = new OnActivatedEvaluator(()->gamepad2.left_bumper);
+        rb1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.right_bumper);
+        lb1PressedEvaluator = new OnActivatedEvaluator(()->gamepad1.left_bumper);
+
         dpadUp2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.dpad_up);
         dpadDown2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.dpad_down);
         dpadLeft2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.dpad_left);
@@ -197,6 +221,9 @@ public class Nibus2000 {
         launcher.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         launcher.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         launcher.setDirection(DcMotorSimple.Direction.FORWARD);
+
+        colorSensorBlue = hardwareMap.get(RevColorSensorV3.class,"colorBlue");
+        colorSensorGreen = hardwareMap.get(RevColorSensorV3.class,"colorGreen");
 
         blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.DARK_GREEN);
 
@@ -446,6 +473,7 @@ public class Nibus2000 {
             }
         }
 
+
         boolean isManualArmControl = collectorState == null;
         if (b1PressedEvaluator.evaluate() || b2PressedEvaluator.evaluate()) {
             if (isManualArmControl) {
@@ -461,6 +489,115 @@ public class Nibus2000 {
         } else {
             setCollectorState(collectorState);
         }
+
+
+        //***NEW CODE FOR AUTO GRABBER***
+        //Evaluate Green Color sensor to see if the pixel is in grabbing range
+        if(colorSensorGreen.getDistance(DistanceUnit.MM) <= pixelMinGrab){
+            grabGreen = true;
+        }else grabGreen = false;
+        telemetry.addData("Grab Green",grabGreen);
+        telemetry.addData("GreenProx",colorSensorGreen.getDistance(DistanceUnit.MM));
+        //Evaluate blue color sensor to se if pixel is in grabbing range
+        if(colorSensorBlue.getDistance(DistanceUnit.MM) <= pixelMinGrab){
+            grabBlue = true;
+        }else grabBlue = false;
+        telemetry.addData("Blue grab",grabBlue);
+        telemetry.addData("BlueProx",colorSensorBlue.getDistance(DistanceUnit.MM));
+
+        //Mapping LB and RB to arm auto grabbers
+        if(!armedBlue&& lb1PressedEvaluator.evaluate()) armedBlue = true;
+        telemetry.addData("armed BLue",armedBlue);
+        if(armedBlue && lb1PressedEvaluator.evaluate()){
+            armedBlue = false;
+            blueGrabberState = BlueGrabberState.GRABBED;
+            if(!armedGreen){
+
+                retract = true;
+                grabTime = System.currentTimeMillis();
+
+                //collectorState = CollectorState.DRIVING_SAFE;
+            }
+        }
+        telemetry.addData("rb new click",rb1PressedEvaluator.isNewClick());
+        telemetry.addData("lb new click",lb1PressedEvaluator.isNewClick());
+
+        telemetry.addData("armed Green",armedGreen);
+        if(!armedGreen && rb1PressedEvaluator.evaluate()){
+            armedGreen = true;
+        }
+        if(armedGreen && rb1PressedEvaluator.evaluate()) {
+            armedGreen = false;
+            greenGrabberState = GreenGrabberState.GRABBED;
+            if(!armedBlue){
+
+                retract = true;
+                grabTime = System.currentTimeMillis();
+
+                //collectorState = CollectorState.DRIVING_SAFE;
+            }
+        }
+        if(gamepad1.x){ armedBlue = false; armedGreen = false;}
+
+        //Auto grabber logic Blue
+        if(armedBlue) {
+            if(grabBlue) {
+                blueGrabberState = BlueGrabberState.GRABBED;
+
+                armedBlue = false;
+                if(!armedGreen){
+
+                    retract = true;
+                    grabTime = System.currentTimeMillis();
+
+                    //collectorState = CollectorState.DRIVING_SAFE;
+                    }
+
+            }else{
+                collectorState = CollectorState.COLLECTION;
+                blueGrabberState = BlueGrabberState.NOT_GRABBED;
+            }
+        }
+
+
+        //Auto grabber logic Green
+        if(armedGreen) {
+            if(grabGreen) {
+                greenGrabberState = GreenGrabberState.GRABBED;
+                armedGreen = false;
+                if(!armedBlue){
+                    retract = true;
+                    grabTime = System.currentTimeMillis();
+                    //collectorState = CollectorState.DRIVING_SAFE;
+                }
+            }else{
+                collectorState = CollectorState.COLLECTION;
+                greenGrabberState = GreenGrabberState.NOT_GRABBED;
+            }
+        }
+
+        telemetry.addData("Time Elapsed", System.currentTimeMillis()-grabTime);
+        telemetry.addData("time",System.currentTimeMillis());
+        if(retract && System.currentTimeMillis() -grabTime >= millsBeforeExtract) {
+            collectorState = CollectorState.DRIVING_SAFE;
+            retract = false;
+        }
+
+        if(armedBlue|| armedGreen){
+            blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.BREATH_RED);
+        }else {
+            blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.CP1_2_BEATS_PER_MINUTE);
+        }
+
+
+
+
+
+
+
+
+
+
 
         if (y1PressedEvaluator.evaluate() || y2PressedEvaluator.evaluate()) {
             if (pointOfInterest == null) {
@@ -534,8 +671,8 @@ public class Nibus2000 {
 
         drive.setWeightedDrivePower(controlPose);
 
-        greenGrabberState = GreenGrabberState.GRABBED;
-        blueGrabberState = BlueGrabberState.GRABBED;
+        //greenGrabberState = GreenGrabberState.GRABBED;
+        //blueGrabberState = BlueGrabberState.GRABBED;
         double blueGrabberActuationRange =
                 blueGrabberState.toggle().ServoPosition - blueGrabberState.ServoPosition;
         double greenGrabberActuationRange =
