@@ -67,6 +67,7 @@ public class Nibus2000 {
     private double armTickTarget;
     private double extenderTickTarget;
     private double wristPosition;
+    private double scoringPositionOffset;
     private final OnActivatedEvaluator a1PressedEvaluator;
     private final OnActivatedEvaluator x1PressedEvaluator;
     private final OnActivatedEvaluator y1PressedEvaluator;
@@ -133,7 +134,6 @@ public class Nibus2000 {
     private final Queue<Pose2d> poseQueue = new LinkedList<>();
     private double greenGrabberManualOffset = 0;
     private double blueGrabberManualOffset = 0;
-    private Pose2d pointOfInterest = null;
     private final Map<CollectorState, Integer> armNudgesPerPosition = new HashMap<CollectorState, Integer>();
     private final Map<CollectorState, Integer> wristNudgesPerPosition = new HashMap<CollectorState, Integer>();
     private final Map<CollectorState, Integer> extenderNudgesPerPosition = new HashMap<CollectorState, Integer>();
@@ -250,12 +250,6 @@ public class Nibus2000 {
         Pose2d delta = null;
         if (latestPoseEstimate != null) {
             delta = pose.minus(latestPoseEstimate);
-        }
-
-        // In the rare case we get our first april tag estimate while in point of interest mode,
-        // don't go haywire, update the point of interest with the delta.
-        if (pointOfInterest != null && lastAprilTagFieldPosition == null && delta != null) {
-            pointOfInterest = pointOfInterest.plus(delta);
         }
 
         drive.setPoseEstimate(pose);
@@ -382,7 +376,7 @@ public class Nibus2000 {
             indicator1Red.setState(false);
         }
 
-        if (pointOfInterest == null) {
+        if (collectorState == null) {
             blinkinLedDriver.setPattern(allianceColor.getAllianceColorBlinkinPattern());
         } else {
             blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.CP1_STROBE);
@@ -465,14 +459,13 @@ public class Nibus2000 {
 
         // Toggle collect mode.
         boolean isCollecting = collectorState == CollectorState.COLLECTION;
-        if (a1PressedEvaluator.evaluate() || a2PressedEvaluator.evaluate()) {
+        if (a1PressedEvaluator.evaluate()) {
             if (isCollecting) {
                 setCollectorState(CollectorState.DRIVING_SAFE);
             } else {
                 setCollectorState(CollectorState.COLLECTION);
             }
         }
-
 
         boolean isManualArmControl = collectorState == null;
         if (b1PressedEvaluator.evaluate() || b2PressedEvaluator.evaluate()) {
@@ -482,62 +475,65 @@ public class Nibus2000 {
                 setManualArmState();
             }
         } else if (isManualArmControl) {
-            double SCORING_HEIGHT_MAX = 10;
-            scoringHeightOffset += (-gamepad2.right_stick_y) * dtMillis * RAISE_RATE_INCH_PER_MILLI;
+            scoringHeightOffset += (-gamepad2.left_stick_y) * dtMillis * RAISE_RATE_INCH_PER_MILLI;
             scoringHeightOffset = Math.max(0, Math.min(SCORING_HEIGHT_MAX, scoringHeightOffset));
             setManualArmState();
         } else {
             setCollectorState(collectorState);
         }
 
-
-        //***NEW CODE FOR AUTO GRABBER***
+        //***AUTO GRABBER***
         //Evaluate Green Color sensor to see if the pixel is in grabbing range
-        if(colorSensorGreen.getDistance(DistanceUnit.MM) <= pixelMinGrab){
+        if (colorSensorGreen.getDistance(DistanceUnit.MM) <= pixelMinGrab) {
             grabGreen = true;
-        }else grabGreen = false;
-        telemetry.addData("Grab Green",grabGreen);
-        telemetry.addData("GreenProx",colorSensorGreen.getDistance(DistanceUnit.MM));
-        //Evaluate blue color sensor to se if pixel is in grabbing range
-        if(colorSensorBlue.getDistance(DistanceUnit.MM) <= pixelMinGrab){
+        } else {
+            grabGreen = false;
+        }
+        telemetry.addData("Grab Green", grabGreen);
+        telemetry.addData("GreenProx", colorSensorGreen.getDistance(DistanceUnit.MM));
+        //Evaluate blue color sensor to see if pixel is in grabbing range
+
+        if (colorSensorBlue.getDistance(DistanceUnit.MM) <= pixelMinGrab) {
             grabBlue = true;
-        }else grabBlue = false;
-        telemetry.addData("Blue grab",grabBlue);
-        telemetry.addData("BlueProx",colorSensorBlue.getDistance(DistanceUnit.MM));
+        } else {
+            grabBlue = false;
+        }
+        telemetry.addData("Blue grab", grabBlue);
+        telemetry.addData("BlueProx", colorSensorBlue.getDistance(DistanceUnit.MM));
 
         //Mapping LB and RB to arm auto grabbers
-        if(!armedBlue&& lb1PressedEvaluator.evaluate()) armedBlue = true;
-        telemetry.addData("armed BLue",armedBlue);
-        if(armedBlue && lb1PressedEvaluator.evaluate()){
+        if (!armedBlue && lb1PressedEvaluator.evaluate()) {
+            armedBlue = true;
+        }
+
+        telemetry.addData("armed Blue", armedBlue);
+
+        if (armedBlue && lb1PressedEvaluator.evaluate()) {
             armedBlue = false;
             blueGrabberState = BlueGrabberState.GRABBED;
-            if(!armedGreen){
-
+            if (!armedGreen) {
                 retract = true;
                 grabTime = System.currentTimeMillis();
-
-                //collectorState = CollectorState.DRIVING_SAFE;
             }
         }
-        telemetry.addData("rb new click",rb1PressedEvaluator.isNewClick());
-        telemetry.addData("lb new click",lb1PressedEvaluator.isNewClick());
 
         telemetry.addData("armed Green",armedGreen);
-        if(!armedGreen && rb1PressedEvaluator.evaluate()){
+        if (!armedGreen && rb1PressedEvaluator.evaluate()) {
             armedGreen = true;
         }
-        if(armedGreen && rb1PressedEvaluator.evaluate()) {
+
+        if (armedGreen && rb1PressedEvaluator.evaluate()) {
             armedGreen = false;
             greenGrabberState = GreenGrabberState.GRABBED;
-            if(!armedBlue){
-
+            if (!armedBlue) {
                 retract = true;
                 grabTime = System.currentTimeMillis();
-
-                //collectorState = CollectorState.DRIVING_SAFE;
             }
         }
-        if(gamepad1.x){ armedBlue = false; armedGreen = false;}
+        if (gamepad1.x) {
+            armedBlue = false;
+            armedGreen = false;
+        }
 
         //Auto grabber logic Blue
         if(armedBlue) {
@@ -545,68 +541,46 @@ public class Nibus2000 {
                 blueGrabberState = BlueGrabberState.GRABBED;
 
                 armedBlue = false;
-                if(!armedGreen){
-
+                if (!armedGreen) {
                     retract = true;
                     grabTime = System.currentTimeMillis();
-
-                    //collectorState = CollectorState.DRIVING_SAFE;
-                    }
-
-            }else{
+                }
+            } else {
                 collectorState = CollectorState.COLLECTION;
                 blueGrabberState = BlueGrabberState.NOT_GRABBED;
             }
         }
 
-
         //Auto grabber logic Green
-        if(armedGreen) {
-            if(grabGreen) {
+        if (armedGreen) {
+            if (grabGreen) {
                 greenGrabberState = GreenGrabberState.GRABBED;
                 armedGreen = false;
-                if(!armedBlue){
+                if (!armedBlue){
                     retract = true;
                     grabTime = System.currentTimeMillis();
-                    //collectorState = CollectorState.DRIVING_SAFE;
                 }
-            }else{
+            } else {
                 collectorState = CollectorState.COLLECTION;
                 greenGrabberState = GreenGrabberState.NOT_GRABBED;
             }
         }
 
-        telemetry.addData("Time Elapsed", System.currentTimeMillis()-grabTime);
+        double grabTimeElapsed = System.currentTimeMillis() - grabTime;
+        telemetry.addData("Time Elapsed", grabTimeElapsed);
         telemetry.addData("time",System.currentTimeMillis());
-        if(retract && System.currentTimeMillis() -grabTime >= millsBeforeExtract) {
+        if (retract && grabTimeElapsed >= millsBeforeExtract) {
             collectorState = CollectorState.DRIVING_SAFE;
             retract = false;
         }
 
-        if(armedBlue|| armedGreen){
+        if (armedBlue || armedGreen) {
             blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.BREATH_RED);
-        }else {
+        } else {
             blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.CP1_2_BEATS_PER_MINUTE);
         }
 
-
-
-
-
-
-
-
-
-
-
-        if (y1PressedEvaluator.evaluate() || y2PressedEvaluator.evaluate()) {
-            if (pointOfInterest == null) {
-                pointOfInterest = latestPoseEstimate;
-            } else {
-                pointOfInterest = null;
-            }
-        }
-
+        // END GAME LIFT STAGES
         if (rs1PressedEvaluator.evaluate()) {
             endgameLiftStage = Math.min(3, endgameLiftStage + 1);
             setCollectorState(endgameLiftStage(endgameLiftStage));
@@ -617,11 +591,10 @@ public class Nibus2000 {
 
         if (x2PressedEvaluator.evaluate()) {
             setCollectorState(CollectorState.DRIVING_SAFE);
-            pointOfInterest = null;
         }
 
         Pose2d controlPose = new Pose2d();
-        if (pointOfInterest == null) {
+        if (collectorState == null) {
             if (gamepad2.left_bumper || gamepad2.right_bumper) {
                 double focalPointYOffset = 0;
                 if (gamepad2.left_bumper) {
@@ -631,16 +604,16 @@ public class Nibus2000 {
                     focalPointYOffset -= 5.5;
                 }
 
-                focalPointYOffset += (-gamepad2.right_stick_x * 3);
-                double focalPointXOffset = (-gamepad2.left_stick_y * 4);
-                double collectorHeadOrthogonalOffset = (-gamepad2.left_stick_x * 2);
+                focalPointYOffset += (-gamepad2.left_stick_x * 2);
+                double focalPointXOffset = (-gamepad2.right_stick_y * 4);
+                double collectorHeadOrthogonalOffset = (-gamepad2.right_stick_x * 4);
 
                 Pose2d scoringFocalPoint =
                         allianceColor.getAprilTagForScoringPosition(CenterStageBackdropPosition.CENTER)
                                 .facingPose()
                                 .plus(new Pose2d(focalPointXOffset, focalPointYOffset, 0));
 
-                Pose2d robotPoseForFocalPoint = NibusHelpers.robotPose(scoringFocalPoint, 20, collectorHeadOrthogonalOffset);
+                Pose2d robotPoseForFocalPoint = NibusHelpers.robotPose(scoringFocalPoint, scoringPositionOffset, collectorHeadOrthogonalOffset);
 
                 telemetry.addData("scoringFocalPoint", "x: %5.1f, y: %5.1f, th: %5.1f", scoringFocalPoint.getX(), scoringFocalPoint.getY(), scoringFocalPoint.getHeading());
                 telemetry.addData("robotPoseForFocalPoint", "x: %5.1f, y: %5.1f, th: %5.1f", robotPoseForFocalPoint.getX(), robotPoseForFocalPoint.getY(), robotPoseForFocalPoint.getHeading());
@@ -658,15 +631,6 @@ public class Nibus2000 {
                     controlPose = controlPose.plus(new Pose2d(0, laneLockY, laneLockRotation));
                 }
             }
-
-        } else if (collectorState == CollectorState.COLLECTION) {
-            Pose2d driver2Input = new Pose2d(
-                    -gamepad2.left_stick_y * -1,
-                    -gamepad2.left_stick_x * -1,
-                    -gamepad2.right_stick_x);
-            controlPose =
-                    driver2Input.div(1)
-                            .plus(getPoseTargetAutoDriveControl(pointOfInterest));
         }
 
         drive.setWeightedDrivePower(controlPose);
@@ -1059,28 +1023,46 @@ public class Nibus2000 {
         return (((Math.min(trimmedArmTargetDegrees, ARM_MAX_ANGLE)) - ARM_DEGREE_OFFSET_FROM_HORIZONTAL) * ARM_TICKS_PER_DEGREE);
     }
 
-    private Mat.Tuple3<Double> armExtenderWristPositionsForScoringHeight(double scoringHeightInches) {
+    private Mat.Tuple4<Double> armExtenderWristPositionsForScoringHeight(double scoringHeightInches) {
 
-        double ARM_MINIMUM_LENGTH_INCHES = 18;
+        double ARM_MINIMUM_LENGTH_INCHES = 16.5;
+        double ROBOT_X_OFFSET_LOW_SCORING = 21;
+        double ARM_MAX_TOTAL_LENGTH = ARM_MINIMUM_LENGTH_INCHES + EXTENDER_MAX_LENGTH_INCHES;
         double BACKDROP_ANGLE = Math.PI / 3;
         int HORIZONTAL_TICKS = 5818;
-        double WRIST_LOW_SETPOINT = .63;
+        double WRIST_LOW_SETPOINT = .67;
         double WRIST_HIGH_SETPOINT = .39;
         double WRIST_RANGE = WRIST_HIGH_SETPOINT - WRIST_LOW_SETPOINT;
+        double percentageOfTotalHeight = scoringHeightInches / SCORING_HEIGHT_MAX;
+        double wristPosition = WRIST_LOW_SETPOINT + (percentageOfTotalHeight * WRIST_RANGE);
 
-        double xBackdrop = scoringHeightInches / Math.tan(BACKDROP_ANGLE);
-        double x = ARM_MINIMUM_LENGTH_INCHES + xBackdrop;
-        double y = scoringHeightInches;
-        double armAngle = Math.atan2(y, x);
-        double length = Math.sqrt((x * x) + (y * y));
-        double extension = Math.min(length - ARM_MINIMUM_LENGTH_INCHES, EXTENDER_MAX_LENGTH_INCHES);
-        double extensionPercentage = extension / EXTENDER_MAX_LENGTH_INCHES;
+        double a = (1 + (1 / Math.tan(BACKDROP_ANGLE)));
+        double b = (2 * ARM_MINIMUM_LENGTH_INCHES) / Math.tan(BACKDROP_ANGLE);
+        double c = ((ARM_MINIMUM_LENGTH_INCHES * ARM_MINIMUM_LENGTH_INCHES) - (ARM_MAX_TOTAL_LENGTH * ARM_MAX_TOTAL_LENGTH));
+        double heightAtMaxExtension = ((-b) + Math.sqrt((b*b) - (4 * a * c))) / (2 * a);
+        double xAtMaxExtension = ARM_MINIMUM_LENGTH_INCHES + (heightAtMaxExtension / Math.tan(BACKDROP_ANGLE));
 
-        double armTargetTicks = HORIZONTAL_TICKS - (Math.toDegrees(armAngle) * ARM_TICKS_PER_DEGREE);
-        double extenderTargetTicks = extension * EXTENDER_TICS_PER_INCH;
-        double wristTargetPosition = WRIST_LOW_SETPOINT; //+ (extensionPercentage * WRIST_RANGE);
+        if (scoringHeightInches < heightAtMaxExtension) {
+            double xBackdrop = scoringHeightInches / Math.tan(BACKDROP_ANGLE);
+            double x = ARM_MINIMUM_LENGTH_INCHES + xBackdrop;
+            double y = scoringHeightInches;
+            double armAngle = Math.atan2(y, x);
+            double length = Math.sqrt((x * x) + (y * y));
+            double extension = Math.min(length - ARM_MINIMUM_LENGTH_INCHES, EXTENDER_MAX_LENGTH_INCHES);
+            double armTargetTicks = HORIZONTAL_TICKS - (Math.toDegrees(armAngle) * ARM_TICKS_PER_DEGREE);
+            double extenderTargetTicks = extension * EXTENDER_TICS_PER_INCH;
 
-        return new Mat.Tuple3<>(armTargetTicks, extenderTargetTicks, wristTargetPosition);
+            return new Mat.Tuple4<>(armTargetTicks, extenderTargetTicks, wristPosition, ROBOT_X_OFFSET_LOW_SCORING);
+        } else {
+            double heightOverMaxLowHeight = scoringHeightInches - heightAtMaxExtension;
+            double removedBackdropX = heightOverMaxLowHeight / Math.tan(BACKDROP_ANGLE);
+            double extenderTargetTicks = EXTENDER_MAX_LENGTH_INCHES * EXTENDER_TICS_PER_INCH;
+            double x = xAtMaxExtension - removedBackdropX;
+            double y = scoringHeightInches;
+            double armAngle = Math.atan2(y, x);
+            double armTargetTicks = HORIZONTAL_TICKS - (Math.toDegrees(armAngle) * ARM_TICKS_PER_DEGREE);
+            return new Mat.Tuple4<>(armTargetTicks, extenderTargetTicks, wristPosition, ROBOT_X_OFFSET_LOW_SCORING - removedBackdropX);
+        }
     }
 
     private void controlArmMotor(DcMotorEx armMotor, int targetPosition) {
@@ -1096,10 +1078,14 @@ public class Nibus2000 {
     private void setManualArmState() {
         double scoringHeightInches = scoringHeightOffset;
 
-        Mat.Tuple3<Double> targets = armExtenderWristPositionsForScoringHeight(Math.max(0, scoringHeightInches));
+        Integer wristNudgeCountBoxed = wristNudgesPerPosition.getOrDefault(collectorState, 0);
+        int wristNudgeCount = wristNudgeCountBoxed == null ? 0 : wristNudgeCountBoxed;
+
+        Mat.Tuple4<Double> targets = armExtenderWristPositionsForScoringHeight(Math.max(0, scoringHeightInches));
         armTickTarget = targets.get_0();
         extenderTickTarget = targets.get_1();
-        wristPosition = targets.get_2();
+        wristPosition = Math.min(1, Math.max(0, targets.get_2() + (wristNudgeCount * WRIST_SERVO_TRIM_INCREMENT)));
+        scoringPositionOffset = targets.get_3();
         this.collectorState = null;
     }
 
@@ -1121,8 +1107,8 @@ public class Nibus2000 {
         controlArmMotor(armLeft, (int) armTickTarget);
         controlArmMotor(armRight, (int) armTickTarget);
 
-        telemetry.addData("Extender position: ", extender.getCurrentPosition());
-        telemetry.addData("Extender target position: ", extenderTickTarget);
+//        telemetry.addData("Extender position: ", extender.getCurrentPosition());
+//        telemetry.addData("Extender target position: ", extenderTickTarget);
         extender.setTargetPosition((int) extenderTickTarget);
 
         telemetry.addData("Wrist position: ", wristPosition);

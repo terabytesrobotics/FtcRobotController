@@ -59,6 +59,9 @@ public class NibusConstants {
     public static final double SLOW_MODE_SCALE = 0.3;
     public static final double FAST_MODE_SCALE = 1;
 
+    public static double SCORING_HEIGHT_MAX = 24;
+
+
     public static void sleep(int millis) {
         try {
             Thread.sleep(millis);
