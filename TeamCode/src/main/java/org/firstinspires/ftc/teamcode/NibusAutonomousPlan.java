@@ -10,6 +10,7 @@ import org.firstinspires.ftc.teamcode.util.BlueGrabberState;
 import org.firstinspires.ftc.teamcode.util.CollectorState;
 import org.firstinspires.ftc.teamcode.util.GreenGrabberState;
 import org.firstinspires.ftc.teamcode.util.UpstageBackstageStart;
+import org.opencv.core.Mat;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,13 +34,33 @@ public enum NibusAutonomousPlan {
     public Pose2d pixelDropApproachPose(AllianceColor allianceColor, AlliancePropPosition detectedPosition, double collectorHeading) {
         Vector2d targetLocation = StartingPosition.getPixelTargetPosition(allianceColor, detectedPosition);
         Pose2d collectorPose = new Pose2d(targetLocation.getX(), targetLocation.getY(), collectorHeading);
-        return NibusHelpers.robotPose(collectorPose, NibusConstants.COLLECT_HEAD_BASE_OFFSET_X, NibusConstants.COLLECT_HEAD_BLUE_GRABBER_OFFSET_Y);
+        return NibusHelpers.robotPose(collectorPose, NibusConstants.COLLECT_HEAD_BASE_OFFSET_X, NibusConstants.COLLECT_HEAD_BLUE_GRABBER_OFFSET_Y, Math.PI);
     }
 
-    public List<NibusCommand> backStageAfterPixelDropCommands(AllianceColor allianceColor) {
+    public List<NibusCommand> afterScoringApproachCommands(AllianceColor allianceColor, CenterStageBackdropPosition backdropPosition) {
+        double AUTON_SCORING_HEIGHT = 4;
+        double APPROACH_DISTANCE = 3;
+
+        ArrayList<NibusCommand> commands = new ArrayList<>();
+
+        Mat.Tuple4<Double> scoringPositions = NibusHelpers.armExtenderWristAndOffsetForScoringHeight(AUTON_SCORING_HEIGHT);
+        double defaultPreScoringOffset = scoringPositions.get_3();
+
+        Pose2d preScoring = NibusHelpers.getPreScoringPose(allianceColor, backdropPosition, defaultPreScoringOffset, 0);
+        Pose2d scoringPose = NibusHelpers.getPreScoringPose(allianceColor, backdropPosition, defaultPreScoringOffset - APPROACH_DISTANCE, 0);
+        commands.add(new NibusCommand(AUTON_SCORING_HEIGHT));
+        commands.add(new NibusCommand(preScoring));
+        commands.add(new NibusCommand(scoringPose));
+        commands.add(new NibusCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.NOT_GRABBED));
+        commands.add(new NibusCommand(CollectorState.DRIVING_SAFE));
+        return commands;
+    }
+
+    public List<NibusCommand> backStageScoringApproachCommands(AllianceColor allianceColor) {
+        Vector2d backstageSideMiddleLane = allianceColor.getMiddleLaneBackstageWaypoint();
         Vector2d scoringApproach = allianceColor.getScoringApproachLocation();
 
-        Pose2d pose1 = new Pose2d(scoringApproach.getX(), scoringApproach.getY(), 0);
+        Pose2d pose1 = new Pose2d(scoringApproach.getX(), backstageSideMiddleLane.getY(), 0);
 
         ArrayList<Pose2d> poses = new ArrayList<>();
         poses.add(pose1);
@@ -51,7 +72,7 @@ public enum NibusAutonomousPlan {
         return commands;
     }
 
-    public List<NibusCommand> frontStageAfterPixelDropCommands(AllianceColor allianceColor) {
+    public List<NibusCommand> frontStageScoringApproachCommands(AllianceColor allianceColor) {
         Vector2d audienceSideMiddleLane = allianceColor.getMiddleLaneAudienceWaypoint();
         Vector2d backstageSideMiddleLane = allianceColor.getMiddleLaneBackstageWaypoint();
         Vector2d scoringApproach = allianceColor.getScoringApproachLocation();
@@ -64,12 +85,10 @@ public enum NibusAutonomousPlan {
 
         Pose2d pose1 = new Pose2d(audienceSideMiddleLane.getX(), audienceSideMiddleLane.getY(), audienceSideMiddleLaneOrientation);
         Pose2d pose2 = new Pose2d(scoringApproach.getX(), backstageSideMiddleLane.getY(), backstageSideMiddleLaneOrientation);
-        Pose2d pose4 = new Pose2d(scoringApproach.getX(), scoringApproach.getY(), 0);
 
         ArrayList<Pose2d> poses = new ArrayList<>();
         poses.add(pose1);
         poses.add(pose2);
-        poses.add(pose4);
 
         ArrayList<NibusCommand> commands = new ArrayList<>();
         for (Pose2d pose: poses) {
@@ -78,14 +97,18 @@ public enum NibusAutonomousPlan {
         return commands;
     }
 
-    public List<NibusCommand> afterPixelDropCommands(AllianceColor allianceColor) {
+    public List<NibusCommand> scoringCommands(AllianceColor allianceColor, CenterStageBackdropPosition backdropPosition) {
+        List<NibusCommand> commands;
         switch (this) {
             case START_FRONTSTAGE:
-                return frontStageAfterPixelDropCommands(allianceColor);
+                commands = frontStageScoringApproachCommands(allianceColor);
+                break;
             case START_BACKSTAGE:
             default:
-                return backStageAfterPixelDropCommands(allianceColor);
+                commands = backStageScoringApproachCommands(allianceColor);
         }
+        commands.addAll(afterScoringApproachCommands(allianceColor, backdropPosition));
+        return commands;
     }
 
     public Pose2d getParkPose(AllianceColor allianceColor) {
@@ -96,16 +119,13 @@ public enum NibusAutonomousPlan {
     public List<NibusCommand> autonomousCommandsAfterPropDetect(AllianceColor allianceColor, AlliancePropPosition alliancePropPosition) {
         Pose2d approachPose = pixelDropApproachPose(allianceColor, alliancePropPosition, getCollectorHeadingDuringPixelDrop(allianceColor));
         List<NibusCommand> prePlaceCommands = getPrePlaceCommands(allianceColor);
-        List<NibusCommand> afterPixelDropCommands = afterPixelDropCommands(allianceColor);
+        List<NibusCommand> scoringCommands = scoringCommands(allianceColor, alliancePropPosition.backdropPosition());
 
         List<NibusCommand> commands = new ArrayList<>(prePlaceCommands);
         commands.add(new NibusCommand(approachPose, CollectorState.COLLECTION));
         commands.add(new NibusCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.GRABBED));
         commands.add(new NibusCommand(CollectorState.DRIVING_SAFE));
-        commands.addAll(afterPixelDropCommands);
-        commands.add(new NibusCommand(CollectorState.SCORING));
-        commands.add(new NibusCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.NOT_GRABBED));
-        commands.add(new NibusCommand(CollectorState.DRIVING_SAFE));
+        commands.addAll(scoringCommands);
         commands.add(new NibusCommand(getParkPose(allianceColor)));
         return commands;
     }

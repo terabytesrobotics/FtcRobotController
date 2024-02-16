@@ -2,6 +2,8 @@ package org.firstinspires.ftc.teamcode.util;
 
 import com.acmerobotics.roadrunner.geometry.Vector2d;
 
+import org.firstinspires.ftc.teamcode.CenterStageBackdropPosition;
+
 
 public enum AlliancePropPosition {
     LEFT(1, 4,
@@ -40,5 +42,17 @@ public enum AlliancePropPosition {
         RedBackstagePixelTarget = redBackstagePixelTarget;
         BlueFrontstagePixelTarget = blueFrontstagePixelTarget;
         RedFrontstagePixelTarget = redFrontstagePixelTarget;
+    }
+
+    public CenterStageBackdropPosition backdropPosition() {
+        switch (this) {
+            case LEFT:
+                return CenterStageBackdropPosition.LEFT;
+            case RIGHT:
+                return CenterStageBackdropPosition.RIGHT;
+            case MID:
+            default:
+                return  CenterStageBackdropPosition.CENTER;
+        }
     }
 }

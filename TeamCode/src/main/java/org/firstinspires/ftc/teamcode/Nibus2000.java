@@ -67,7 +67,7 @@ public class Nibus2000 {
     private double armTickTarget;
     private double extenderTickTarget;
     private double wristPosition;
-    private double scoringPositionOffset;
+    private double scoringPositionOffset = 20; // Some default offset for saftey and sanity
     private final OnActivatedEvaluator a1PressedEvaluator;
     private final OnActivatedEvaluator x1PressedEvaluator;
     private final OnActivatedEvaluator y1PressedEvaluator;
@@ -153,6 +153,8 @@ public class Nibus2000 {
     private boolean armedGreen = false;
     private boolean retract = false;
     private double grabTime = 0;
+    private double focalPointXOffset = 0;
+    private double focalPointYOffset = 0;
 
     public Nibus2000(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, Telemetry telemetry) {
         this.allianceColor = allianceColor;
@@ -265,9 +267,19 @@ public class Nibus2000 {
         armInitSequence(true);
         wrist.setPosition(.25);
         grabberInit();
+        activateBackCameraProcessing();
+    }
+
+    private void activateBackCameraProcessing() {
         visionPortal.setActiveCamera(backCamera);
         visionPortal.setProcessorEnabled(propFinder, true);
         visionPortal.setProcessorEnabled(aprilTagProcessor, false);
+    }
+
+    private void activateFrontCameraProcessing() {
+        visionPortal.setActiveCamera(frontCamera);
+        visionPortal.setProcessorEnabled(propFinder, false);
+        visionPortal.setProcessorEnabled(aprilTagProcessor, true);
     }
 
     public void teleopInit() {
@@ -468,16 +480,18 @@ public class Nibus2000 {
         }
 
         boolean isManualArmControl = collectorState == null;
-        if (b1PressedEvaluator.evaluate() || b2PressedEvaluator.evaluate()) {
+        if (b2PressedEvaluator.evaluate()) {
             if (isManualArmControl) {
                 setCollectorState(CollectorState.DRIVING_SAFE);
             } else {
-                setManualArmState();
+                focalPointXOffset = 0;
+                focalPointYOffset = 0;
+                setManualArmHeight(scoringHeightOffset);
             }
         } else if (isManualArmControl) {
             scoringHeightOffset += (-gamepad2.left_stick_y) * dtMillis * RAISE_RATE_INCH_PER_MILLI;
             scoringHeightOffset = Math.max(0, Math.min(SCORING_HEIGHT_MAX, scoringHeightOffset));
-            setManualArmState();
+            setManualArmHeight(scoringHeightOffset);
         } else {
             setCollectorState(collectorState);
         }
@@ -594,42 +608,43 @@ public class Nibus2000 {
         }
 
         Pose2d controlPose = new Pose2d();
-        if (collectorState == null) {
-            if (gamepad2.left_bumper || gamepad2.right_bumper) {
-                double focalPointYOffset = 0;
-                if (gamepad2.left_bumper) {
-                    focalPointYOffset += 5.5;
-                }
-                if (gamepad2.right_bumper) {
-                    focalPointYOffset -= 5.5;
-                }
+        if (gamepad2.left_bumper || gamepad2.right_bumper) {
+            CenterStageBackdropPosition backdropPosition = CenterStageBackdropPosition.CENTER;
+            if (gamepad2.left_bumper && gamepad2.right_bumper) {
+                backdropPosition = CenterStageBackdropPosition.CENTER;
+            } else if (gamepad2.left_bumper) {
+                backdropPosition = CenterStageBackdropPosition.LEFT;
+            } else if (gamepad2.right_bumper) {
+                backdropPosition = CenterStageBackdropPosition.RIGHT;
+            }
 
-                focalPointYOffset += (-gamepad2.left_stick_x * 2);
-                double focalPointXOffset = (-gamepad2.right_stick_y * 4);
-                double collectorHeadOrthogonalOffset = (-gamepad2.right_stick_x * 4);
+            double dY = (dtMillis * (-gamepad2.right_stick_x) * .004);
+            focalPointYOffset = Math.max(-5, Math.min(5, focalPointYOffset + dY));
 
-                Pose2d scoringFocalPoint =
-                        allianceColor.getAprilTagForScoringPosition(CenterStageBackdropPosition.CENTER)
-                                .facingPose()
-                                .plus(new Pose2d(focalPointXOffset, focalPointYOffset, 0));
+            double dX = (dtMillis * (-gamepad2.right_stick_y * .004));
+            focalPointXOffset = Math.max(-5, Math.min(5, focalPointXOffset + dX));
 
-                Pose2d robotPoseForFocalPoint = NibusHelpers.robotPose(scoringFocalPoint, scoringPositionOffset, collectorHeadOrthogonalOffset);
+            double collectorHeadOrthogonalOffset = -(-gamepad2.left_stick_x * 4);
+            Pose2d scoringFocalPoint =
+                    allianceColor.getAprilTagForScoringPosition(backdropPosition)
+                            .facingPose()
+                            .plus(new Pose2d(focalPointXOffset, focalPointYOffset, 0));
+            Pose2d robotPoseForFocalPoint = NibusHelpers.robotPose(scoringFocalPoint, scoringPositionOffset, collectorHeadOrthogonalOffset);
 
-                telemetry.addData("scoringFocalPoint", "x: %5.1f, y: %5.1f, th: %5.1f", scoringFocalPoint.getX(), scoringFocalPoint.getY(), scoringFocalPoint.getHeading());
-                telemetry.addData("robotPoseForFocalPoint", "x: %5.1f, y: %5.1f, th: %5.1f", robotPoseForFocalPoint.getX(), robotPoseForFocalPoint.getY(), robotPoseForFocalPoint.getHeading());
-                controlPose = getPoseTargetAutoDriveControl(robotPoseForFocalPoint);
-            } else {
-                controlPose = getScaledHeadlessDriverInput(gamepad1);
+            telemetry.addData("scoringFocalPoint", "x: %5.1f, y: %5.1f, th: %5.1f", scoringFocalPoint.getX(), scoringFocalPoint.getY(), scoringFocalPoint.getHeading());
+            telemetry.addData("robotPoseForFocalPoint", "x: %5.1f, y: %5.1f, th: %5.1f", robotPoseForFocalPoint.getX(), robotPoseForFocalPoint.getY(), robotPoseForFocalPoint.getHeading());
+            controlPose = getPoseTargetAutoDriveControl(robotPoseForFocalPoint);
+        } else {
+            controlPose = getScaledHeadlessDriverInput(gamepad1);
 
-                if (hasPositionEstimate() && gamepad1.x) {
-                    int closestLaneY = CenterStageConstants.getClosestLane(latestPoseEstimate.getY());
-                    double errorY = closestLaneY - latestPoseEstimate.getY();
-                    double errorHeading = Angle.normDelta(0 - latestPoseEstimate.getHeading());
+            if (hasPositionEstimate() && gamepad1.x) {
+                int closestLaneY = CenterStageConstants.getClosestLane(latestPoseEstimate.getY());
+                double errorY = closestLaneY - latestPoseEstimate.getY();
+                double errorHeading = Angle.normDelta(0 - latestPoseEstimate.getHeading());
 
-                    double laneLockY = Range.clip(errorY * SPEED_GAIN, -MAX_AUTO_SPEED, MAX_AUTO_SPEED);
-                    double laneLockRotation = Range.clip(errorHeading * TURN_GAIN, -MAX_AUTO_TURN, MAX_AUTO_TURN);
-                    controlPose = controlPose.plus(new Pose2d(0, laneLockY, laneLockRotation));
-                }
+                double laneLockY = Range.clip(errorY * SPEED_GAIN, -MAX_AUTO_SPEED, MAX_AUTO_SPEED);
+                double laneLockRotation = Range.clip(errorHeading * TURN_GAIN, -MAX_AUTO_TURN, MAX_AUTO_TURN);
+                controlPose = controlPose.plus(new Pose2d(0, laneLockY, laneLockRotation));
             }
         }
 
@@ -647,7 +662,7 @@ public class Nibus2000 {
         telemetry.addData("Collector state", collectorState);
         telemetry.addData("Wrist pos:",wrist.getPosition());
 
-        if (gamepad1.left_bumper && gamepad1.right_bumper) {
+        if (gamepad1.y) {
             launchingAirplane = true;
             launchingAirplaneTimeMillis = (int) timeSinceStart.milliseconds();
         }
@@ -779,17 +794,18 @@ public class Nibus2000 {
             currentCommandTime.reset();
             currentCommandSettledTime.reset();
 
+            if (currentCommand.ScoringHeight != null) {
+                setManualArmHeight(currentCommand.ScoringHeight);
+            } else if (currentCommand.CollectorState != null) {
+                setCollectorState(currentCommand.CollectorState);
+            }
+            
             if (currentCommand.BlueGrabberState != null) {
                 blueGrabberState = currentCommand.BlueGrabberState;
             }
 
             if (currentCommand.GreenGrabberState != null) {
                 greenGrabberState = currentCommand.GreenGrabberState;
-            }
-
-            if (currentCommand.CollectorState != null) {
-                Log.d("evaluateDrivingAutonomously", "Setting collector state");
-                setCollectorState(currentCommand.CollectorState);
             }
 
             if (currentCommand.TrajectoryCreator != null) {
@@ -949,6 +965,7 @@ public class Nibus2000 {
             Log.d("evaluateDetectAllianceMarker", String.format("Detected %s", alliancePropPosition.name()));
 
             if (autonomousPlan != null) {
+                activateFrontCameraProcessing();
                 setAutonomousCommands(
                         NibusState.STOPPED_UNTIL_END,
                         autonomousPlan.autonomousCommandsAfterPropDetect(allianceColor, alliancePropPosition));
@@ -988,81 +1005,11 @@ public class Nibus2000 {
         return new Pose2d(scaledRobotX, scaledRobotY, scaledRotation);
     }
 
-    private Pose2d getRobotHeadedFinesseInput(Gamepad gamepad, Pose2d fixedPose) {
-        final double FORWARD_ALLOWANCE = 18;
-        final double LATERAL_ALLOWANCE = 6;
-        final double THETA_ALLOWANCE = Math.PI / 4;
-
-        double forwardHeading = isUpstage() ?
-                Angle.norm(fixedPose.getHeading() + Math.PI) :
-                fixedPose.getHeading();
-        double desiredForwardOffset = -gamepad.left_stick_y * FORWARD_ALLOWANCE;
-        double desiredLateralOffset = gamepad.left_stick_x * LATERAL_ALLOWANCE;
-        double desiredAngleOffset = -gamepad.right_stick_x * THETA_ALLOWANCE;
-
-        double withForwardX = fixedPose.getX() + (desiredForwardOffset * Math.cos(forwardHeading));
-        double withForwardY = fixedPose.getY() + (desiredForwardOffset * Math.sin(forwardHeading));
-
-        double orthogonalDirection = Angle.norm(forwardHeading + (Math.PI / 2));
-        double desiredX = withForwardX + (desiredLateralOffset * Math.cos(orthogonalDirection));
-        double desiredY = withForwardY + (desiredLateralOffset * Math.sin(orthogonalDirection));
-
-        double desiredHeading = Angle.norm(fixedPose.getHeading() + desiredAngleOffset);
-
-        return new Pose2d(desiredX, desiredY, desiredHeading);
-    }
-
-    private void controlDrivingFromGamepad() {
-
-    }
-
     private double armTargetPosition(CollectorState collectorState) {
         Integer armNudgeCountBoxed = armNudgesPerPosition.getOrDefault(collectorState, 0);
         int armNudgeCount = armNudgeCountBoxed == null ? 0 : armNudgeCountBoxed;
         double trimmedArmTargetDegrees = collectorState.ArmPosition + (armNudgeCount * ARM_DEGREE_TRIM_INCREMENT);
         return (((Math.min(trimmedArmTargetDegrees, ARM_MAX_ANGLE)) - ARM_DEGREE_OFFSET_FROM_HORIZONTAL) * ARM_TICKS_PER_DEGREE);
-    }
-
-    private Mat.Tuple4<Double> armExtenderWristPositionsForScoringHeight(double scoringHeightInches) {
-
-        double ARM_MINIMUM_LENGTH_INCHES = 16.5;
-        double ROBOT_X_OFFSET_LOW_SCORING = 21;
-        double ARM_MAX_TOTAL_LENGTH = ARM_MINIMUM_LENGTH_INCHES + EXTENDER_MAX_LENGTH_INCHES;
-        double BACKDROP_ANGLE = Math.PI / 3;
-        int HORIZONTAL_TICKS = 5818;
-        double WRIST_LOW_SETPOINT = .67;
-        double WRIST_HIGH_SETPOINT = .39;
-        double WRIST_RANGE = WRIST_HIGH_SETPOINT - WRIST_LOW_SETPOINT;
-        double percentageOfTotalHeight = scoringHeightInches / SCORING_HEIGHT_MAX;
-        double wristPosition = WRIST_LOW_SETPOINT + (percentageOfTotalHeight * WRIST_RANGE);
-
-        double a = (1 + (1 / Math.tan(BACKDROP_ANGLE)));
-        double b = (2 * ARM_MINIMUM_LENGTH_INCHES) / Math.tan(BACKDROP_ANGLE);
-        double c = ((ARM_MINIMUM_LENGTH_INCHES * ARM_MINIMUM_LENGTH_INCHES) - (ARM_MAX_TOTAL_LENGTH * ARM_MAX_TOTAL_LENGTH));
-        double heightAtMaxExtension = ((-b) + Math.sqrt((b*b) - (4 * a * c))) / (2 * a);
-        double xAtMaxExtension = ARM_MINIMUM_LENGTH_INCHES + (heightAtMaxExtension / Math.tan(BACKDROP_ANGLE));
-
-        if (scoringHeightInches < heightAtMaxExtension) {
-            double xBackdrop = scoringHeightInches / Math.tan(BACKDROP_ANGLE);
-            double x = ARM_MINIMUM_LENGTH_INCHES + xBackdrop;
-            double y = scoringHeightInches;
-            double armAngle = Math.atan2(y, x);
-            double length = Math.sqrt((x * x) + (y * y));
-            double extension = Math.min(length - ARM_MINIMUM_LENGTH_INCHES, EXTENDER_MAX_LENGTH_INCHES);
-            double armTargetTicks = HORIZONTAL_TICKS - (Math.toDegrees(armAngle) * ARM_TICKS_PER_DEGREE);
-            double extenderTargetTicks = extension * EXTENDER_TICS_PER_INCH;
-
-            return new Mat.Tuple4<>(armTargetTicks, extenderTargetTicks, wristPosition, ROBOT_X_OFFSET_LOW_SCORING);
-        } else {
-            double heightOverMaxLowHeight = scoringHeightInches - heightAtMaxExtension;
-            double removedBackdropX = heightOverMaxLowHeight / Math.tan(BACKDROP_ANGLE);
-            double extenderTargetTicks = EXTENDER_MAX_LENGTH_INCHES * EXTENDER_TICS_PER_INCH;
-            double x = xAtMaxExtension - removedBackdropX;
-            double y = scoringHeightInches;
-            double armAngle = Math.atan2(y, x);
-            double armTargetTicks = HORIZONTAL_TICKS - (Math.toDegrees(armAngle) * ARM_TICKS_PER_DEGREE);
-            return new Mat.Tuple4<>(armTargetTicks, extenderTargetTicks, wristPosition, ROBOT_X_OFFSET_LOW_SCORING - removedBackdropX);
-        }
     }
 
     private void controlArmMotor(DcMotorEx armMotor, int targetPosition) {
@@ -1075,13 +1022,12 @@ public class Nibus2000 {
         armMotor.setPower(armPower);
     }
 
-    private void setManualArmState() {
-        double scoringHeightInches = scoringHeightOffset;
+    private void setManualArmHeight(double scoringHeightOffset) {
 
         Integer wristNudgeCountBoxed = wristNudgesPerPosition.getOrDefault(collectorState, 0);
         int wristNudgeCount = wristNudgeCountBoxed == null ? 0 : wristNudgeCountBoxed;
 
-        Mat.Tuple4<Double> targets = armExtenderWristPositionsForScoringHeight(Math.max(0, scoringHeightInches));
+        Mat.Tuple4<Double> targets = NibusHelpers.armExtenderWristAndOffsetForScoringHeight(Math.max(0, scoringHeightOffset));
         armTickTarget = targets.get_0();
         extenderTickTarget = targets.get_1();
         wristPosition = Math.min(1, Math.max(0, targets.get_2() + (wristNudgeCount * WRIST_SERVO_TRIM_INCREMENT)));
