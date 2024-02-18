@@ -58,7 +58,8 @@ public class Nibus2000 {
     private final DcMotorEx armLeft;
     private final DcMotorEx armRight;
     private final DcMotorEx extender;
-    private final Servo wrist;
+    private final Servo wristRed;
+    private final Servo wristWhite;
     private final Servo greenGrabber;
     private final Servo blueGrabber;
     private final DcMotorEx launcher;
@@ -215,7 +216,8 @@ public class Nibus2000 {
         armLeft = hardwareMap.get(DcMotorEx.class, "armE0");
         armRight = hardwareMap.get(DcMotorEx.class, "armE3");
         extender = hardwareMap.get(DcMotorEx.class, "extenderE1");
-        wrist = hardwareMap.get(Servo.class, "redE3");
+        wristRed = hardwareMap.get(Servo.class, "redE3");
+        wristWhite = hardwareMap.get(Servo.class, "whiteE1");
         greenGrabber = hardwareMap.get(Servo.class, "greenE0");
         blueGrabber = hardwareMap.get(Servo.class, "blueE1");
 
@@ -257,15 +259,20 @@ public class Nibus2000 {
         drive.setPoseEstimate(pose);
     }
 
+    private void setWristPosition(double wristPosition) {
+        wristRed.setPosition(wristPosition);
+        wristWhite.setPosition(wristPosition + WHITE_WRIST_SERVO_OFFSET_FROM_RED);
+    }
+
     public void autonomousInit(Pose2d startPose, NibusAutonomousPlan autonomousPlan) {
         this.autonomousPlan = autonomousPlan;
         setPoseEstimate(startPose);
 
-        wrist.setPosition(.25);
+        setWristPosition(.25);
         sleep(1000);
         extenderInitSequence(true);
         armInitSequence(true);
-        wrist.setPosition(.25);
+        setWristPosition(.25);
         grabberInit();
         activateBackCameraProcessing();
     }
@@ -284,7 +291,7 @@ public class Nibus2000 {
 
     public void teleopInit() {
         setPoseEstimate(new Pose2d());
-        wrist.setPosition(.25);
+        setWristPosition(.25);
 
         extenderInitSequence(false);
         armInitSequence(false);
@@ -660,7 +667,7 @@ public class Nibus2000 {
         greenGrabberManualOffset = gamepad2.right_trigger * greenGrabberActuationRange;
 
         telemetry.addData("Collector state", collectorState);
-        telemetry.addData("Wrist pos:",wrist.getPosition());
+        telemetry.addData("Wrist base pos:", wristPosition);
 
         if (gamepad1.y) {
             launchingAirplane = true;
@@ -1053,12 +1060,12 @@ public class Nibus2000 {
         controlArmMotor(armLeft, (int) armTickTarget);
         controlArmMotor(armRight, (int) armTickTarget);
 
-//        telemetry.addData("Extender position: ", extender.getCurrentPosition());
-//        telemetry.addData("Extender target position: ", extenderTickTarget);
+        telemetry.addData("Extender position: ", extender.getCurrentPosition());
+        telemetry.addData("Extender target position: ", extenderTickTarget);
         extender.setTargetPosition((int) extenderTickTarget);
 
         telemetry.addData("Wrist position: ", wristPosition);
-        wrist.setPosition(wristPosition);
+        setWristPosition(wristPosition);
 
         greenGrabber.setPosition(greenGrabberState.ServoPosition + greenGrabberManualOffset);
         blueGrabber.setPosition(blueGrabberState.ServoPosition + blueGrabberManualOffset);

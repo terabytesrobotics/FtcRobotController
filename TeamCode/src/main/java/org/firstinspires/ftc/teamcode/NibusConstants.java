@@ -61,6 +61,7 @@ public class NibusConstants {
 
     public static double SCORING_HEIGHT_MAX = 24;
 
+    public static double WHITE_WRIST_SERVO_OFFSET_FROM_RED = 0.02;
 
     public static void sleep(int millis) {
         try {
