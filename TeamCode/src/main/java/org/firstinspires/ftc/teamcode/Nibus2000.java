@@ -9,6 +9,7 @@ import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.acmerobotics.roadrunner.trajectory.Trajectory;
 import com.acmerobotics.roadrunner.util.Angle;
 import com.arcrobotics.ftclib.controller.PIDController;
+import com.qualcomm.hardware.rev.Rev2mDistanceSensor;
 import com.qualcomm.hardware.rev.RevBlinkinLedDriver;
 import com.qualcomm.hardware.rev.RevColorSensorV3;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -144,6 +145,10 @@ public class Nibus2000 {
     private RevColorSensorV3 colorSensorGreen;
 
     private RevColorSensorV3 colorSensorBlue;
+
+    private Rev2mDistanceSensor collectorDistance;
+
+    private double backdropTargetDistanceInches = 3.5;
     private double pixelMinGrab = 13;
     private double colorSensorMaxProx = 15;
     private int millsBeforeExtract = 300;
@@ -228,6 +233,8 @@ public class Nibus2000 {
 
         colorSensorBlue = hardwareMap.get(RevColorSensorV3.class,"colorBlue");
         colorSensorGreen = hardwareMap.get(RevColorSensorV3.class,"colorGreen");
+
+        collectorDistance = hardwareMap.get(Rev2mDistanceSensor.class, "collectorDistance");
 
         blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.DARK_GREEN);
 
@@ -628,8 +635,21 @@ public class Nibus2000 {
             double dY = (dtMillis * (-gamepad2.right_stick_x) * .004);
             focalPointYOffset = Math.max(-5, Math.min(5, focalPointYOffset + dY));
 
-            double dX = (dtMillis * (-gamepad2.right_stick_y * .004));
+            // When gamepad2 A is held, Use distance sensor to set focalPointXOffset
+            double dX;
+            if (gamepad2.a) {
+                // Get distance sensor value
+                double dis = collectorDistance.getDistance(DistanceUnit.INCH);
+                telemetry.addData("collectorDistance", "inches: %5.1f",  dis);
+
+                // Calculate desired delta x, scaled by 12.5%, -0.5 < dX < 0.5
+                dX = Math.max(-0.5, Math.min(0.5, 0.125 * (dis - backdropTargetDistanceInches)));
+            } else {
+                // otherwise allow for right stick control
+                dX = (dtMillis * (-gamepad2.right_stick_y * .004));
+            }
             focalPointXOffset = Math.max(-5, Math.min(5, focalPointXOffset + dX));
+
 
             double collectorHeadOrthogonalOffset = -(-gamepad2.left_stick_x * 4);
             Pose2d scoringFocalPoint =
