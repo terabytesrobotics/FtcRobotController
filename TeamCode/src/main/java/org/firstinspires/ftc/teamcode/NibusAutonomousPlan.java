@@ -34,7 +34,7 @@ public enum NibusAutonomousPlan {
     public Pose2d pixelDropApproachPose(AllianceColor allianceColor, AlliancePropPosition detectedPosition, double collectorHeading) {
         Vector2d targetLocation = StartingPosition.getPixelTargetPosition(allianceColor, detectedPosition);
         Pose2d collectorPose = new Pose2d(targetLocation.getX(), targetLocation.getY(), collectorHeading);
-        return NibusHelpers.robotPose(collectorPose, NibusConstants.COLLECT_HEAD_BASE_OFFSET_X, NibusConstants.COLLECT_HEAD_BLUE_GRABBER_OFFSET_Y, Math.PI);
+        return NibusHelpers.robotPose2(collectorPose, NibusConstants.COLLECT_HEAD_BASE_OFFSET_X, NibusConstants.COLLECT_HEAD_BLUE_GRABBER_OFFSET_Y, Math.PI);
     }
 
     public List<NibusCommand> afterScoringApproachCommands(AllianceColor allianceColor, CenterStageBackdropPosition backdropPosition) {

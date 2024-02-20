@@ -43,8 +43,8 @@ public class NibusConstants {
 
     public static final int BACK_CAMERA_OFFSET_INCHES = 0;
     public static final double COLLECT_HEAD_BASE_OFFSET_X = 14; // This is magnitude, not direction (usually backwards on robot in collect state.)
-    public static final double COLLECT_HEAD_BLUE_GRABBER_OFFSET_Y = 2;
-    public static final double COLLECT_HEAD_GREEN_GRABBER_OFFSET_Y = -2;
+    public static final double COLLECT_HEAD_BLUE_GRABBER_OFFSET_Y = -2;
+    public static final double COLLECT_HEAD_GREEN_GRABBER_OFFSET_Y = 2;
     public static final double COLLECT_HEAD_HEADING_OFFSET = Math.PI;
     public static final double DRIVE_TO_POSE_THRESHOLD = 1.25f;
     public static final int POSITION_ACQUIRED_INDICATE_MILLIS = 1000;
