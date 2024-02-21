@@ -153,14 +153,14 @@ public class Nibus2000 {
     private double backdropTargetDistanceInches = 3.5;
     private double pixelMinGrab = 13;
     private double colorSensorMaxProx = 15;
-    private int millsBeforeExtract = 300;
+    private int millsBeforeExtract = 100;
 
     private boolean aprilUp = false;
     private boolean aprilRight = false;
     private boolean aprilLeft = false;
     private boolean timerGoing = false;
     private double backupTimer;
-    private final double backUpTime = 50;
+    private final double backUpTime = 100;
 
 
 
@@ -511,13 +511,9 @@ public class Nibus2000 {
 
         boolean isManualArmControl = collectorState == null;
         if (b2PressedEvaluator.evaluate()) {
-            if (isManualArmControl) {
-                setCollectorState(CollectorState.DRIVING_SAFE);
-            } else {
                 focalPointXOffset = 0;
                 focalPointYOffset = 0;
                 setManualArmHeight(scoringHeightOffset);
-            }
         } else if (isManualArmControl) {
             scoringHeightOffset += (-gamepad2.left_stick_y) * dtMillis * RAISE_RATE_INCH_PER_MILLI;
             scoringHeightOffset = Math.max(0, Math.min(SCORING_HEIGHT_MAX, scoringHeightOffset));
@@ -632,10 +628,13 @@ public class Nibus2000 {
             endgameLiftStage = Math.max(0, endgameLiftStage - 1);
             setCollectorState(endgameLiftStage(endgameLiftStage));
         }
+        /*
 
         if (x2PressedEvaluator.evaluate()) {
             setCollectorState(CollectorState.DRIVING_SAFE);
         }
+
+         */
 
         Pose2d controlPose = new Pose2d();
 
@@ -660,7 +659,7 @@ public class Nibus2000 {
             aprilRight = false;
 
         }
-        if(gamepad2.dpad_down &&(aprilUp || aprilRight || aprilLeft)){
+        if((gamepad2.dpad_down &&(aprilUp || aprilRight || aprilLeft)) || (greenGrabberState == GreenGrabberState.NOT_GRABBED && blueGrabberState == BlueGrabberState.NOT_GRABBED)&&(aprilUp || aprilRight || aprilLeft)){
             if(!timerGoing){
             backupTimer = System.currentTimeMillis();
             timerGoing = true;
@@ -674,6 +673,11 @@ public class Nibus2000 {
                 collectorState = CollectorState.DRIVING_SAFE;
             }
 
+        }else if(gamepad2.dpad_down){ collectorState = CollectorState.DRIVING_SAFE;}
+
+        if(collectorState == CollectorState.DRIVING_SAFE){
+            greenGrabberState = GreenGrabberState.GRABBED;
+            blueGrabberState = BlueGrabberState.GRABBED;
         }
 
 
