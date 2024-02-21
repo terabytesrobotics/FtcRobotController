@@ -7,65 +7,56 @@ import org.firstinspires.ftc.teamcode.util.CollectorState;
 import org.firstinspires.ftc.teamcode.util.GreenGrabberState;
 
 public class NibusCommand {
-
     public final Double ScoringHeight;
     public final CollectorState CollectorState;
     public final TrajectoryCreator TrajectoryCreator;
     public final BlueGrabberState BlueGrabberState;
     public final GreenGrabberState GreenGrabberState;
     public final Pose2d DriveDirectToPose;
+    public final Double MinTimeMilis;
 
-    public NibusCommand(TrajectoryCreator trajectoryCreator) {
-        ScoringHeight = null;
-        CollectorState = null;
-        TrajectoryCreator = trajectoryCreator;
-        BlueGrabberState = null;
-        GreenGrabberState = null;
-        DriveDirectToPose = null;
-    }
-
-    public NibusCommand(CollectorState collectorState) {
-        ScoringHeight = null;
+    public NibusCommand(
+            Double scoringHeight,
+            CollectorState collectorState,
+            TrajectoryCreator trajectoryCreator,
+            BlueGrabberState blueGrabberState,
+            GreenGrabberState greenGrabberState,
+            Pose2d driveDirectToPose,
+            Double minTimeMilis) {
+        ScoringHeight = scoringHeight;
         CollectorState = collectorState;
-        TrajectoryCreator = null;
-        BlueGrabberState = null;
-        GreenGrabberState = null;
-        DriveDirectToPose = null;
-    }
-
-    public NibusCommand(BlueGrabberState blueGrabberState, GreenGrabberState greenGrabberState) {
-        ScoringHeight = null;
-        CollectorState = null;
-        TrajectoryCreator = null;
+        TrajectoryCreator = trajectoryCreator;
         BlueGrabberState = blueGrabberState;
         GreenGrabberState = greenGrabberState;
-        DriveDirectToPose = null;
-    }
-
-    public NibusCommand(Pose2d driveDirectToPose) {
-        ScoringHeight = null;
-        CollectorState = null;
-        TrajectoryCreator = null;
-        BlueGrabberState = null;
-        GreenGrabberState = null;
         DriveDirectToPose = driveDirectToPose;
+        MinTimeMilis = minTimeMilis;
     }
 
-    public NibusCommand(Pose2d driveDirectToPose, CollectorState collectorState) {
-        ScoringHeight = null;
-        CollectorState = collectorState;
-        TrajectoryCreator = null;
-        BlueGrabberState = null;
-        GreenGrabberState = null;
-        DriveDirectToPose = driveDirectToPose;
+    public static NibusCommand trajectoryBuilderCommand(TrajectoryCreator trajectoryCreator) {
+        return new NibusCommand(null, null, trajectoryCreator, null, null, null, 250d);
     }
 
-    public NibusCommand(double scoringHeight) {
-        ScoringHeight = scoringHeight;
-        CollectorState = null;
-        TrajectoryCreator = null;
-        BlueGrabberState = null;
-        GreenGrabberState = null;
-        DriveDirectToPose = null;
+    public static NibusCommand collectorStateCommand(CollectorState collectorState) {
+        return new NibusCommand(null, collectorState, null, null, null, null, 250d);
+    }
+
+    public static NibusCommand driveDirectToPoseCommand(Pose2d pose) {
+        return new NibusCommand(null, null, null, null, null, pose, 250d);
+    }
+
+    public static NibusCommand driveDirectToPoseWithCollectorStateCommand(Pose2d pose, CollectorState collectorState) {
+        return new NibusCommand(null, collectorState, null, null, null, pose, 250d);
+    }
+
+    public static NibusCommand scoringHeightCommand(Double scoringHeight) {
+        return new NibusCommand(scoringHeight, null, null, null, null, null, 250d);
+    }
+
+    public static NibusCommand grabberStateCommand(BlueGrabberState blueGrabberState, GreenGrabberState greenGrabberState) {
+        return new NibusCommand(null, null, null, blueGrabberState, greenGrabberState, null, 250d);
+    }
+
+    public static NibusCommand waitCommand(Double waitMillis) {
+        return new NibusCommand(null, null, null, null, null, null, waitMillis);
     }
 }

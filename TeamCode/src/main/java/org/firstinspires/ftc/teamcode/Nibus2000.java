@@ -925,7 +925,7 @@ public class Nibus2000 {
         boolean driveCompleted = currentCommand.DriveDirectToPose == null || isAtPoseTarget(currentCommand.DriveDirectToPose);
         boolean settledRightNow = collectorSettled && trajectoryCompleted && driveCompleted;
 
-        boolean minTimeElapsed = currentCommandTime.milliseconds() > SETTLE_TIME_MILLIS;
+        boolean minTimeElapsed = currentCommandTime.milliseconds() > currentCommand.MinTimeMilis;
         if (!settledRightNow) {
             currentCommandSettledTime.reset();
         } else if (minTimeElapsed && currentCommandSettledTime.milliseconds() > SETTLE_TIME_MILLIS) {
