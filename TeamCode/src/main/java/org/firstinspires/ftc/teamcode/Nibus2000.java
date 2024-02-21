@@ -89,6 +89,8 @@ public class Nibus2000 {
     private final OnActivatedEvaluator dpadLeft2PressedEvaluator;
     private final OnActivatedEvaluator dpadRight2PressedEvaluator;
     private final OnActivatedEvaluator dpadLeft1PressedEvaluator;
+    private final OnActivatedEvaluator dpadUp1PressedEvaluator;
+    private final OnActivatedEvaluator dpadDown1PressedEvaluator;
     private final OnActivatedEvaluator dpadRight1PressedEvaluator;
     private final TrueForTime settledAtPoseTarget;
     private final OnActivatedEvaluator rs1PressedEvaluator;
@@ -153,6 +155,15 @@ public class Nibus2000 {
     private double colorSensorMaxProx = 15;
     private int millsBeforeExtract = 300;
 
+    private boolean aprilUp = false;
+    private boolean aprilRight = false;
+    private boolean aprilLeft = false;
+    private boolean timerGoing = false;
+    private double backupTimer;
+    private final double backUpTime = 50;
+
+
+
     private boolean grabGreen = false;
     private boolean grabBlue = false;
     private boolean armedBlue = false;
@@ -210,8 +221,13 @@ public class Nibus2000 {
         dpadDown2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.dpad_down);
         dpadLeft2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.dpad_left);
         dpadRight2PressedEvaluator = new OnActivatedEvaluator(() -> gamepad2.dpad_right);
+        //Gamepad 1 Dpad
         dpadLeft1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.dpad_left);
         dpadRight1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.dpad_right);
+        dpadUp1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.dpad_up);
+        dpadDown1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.dpad_down);
+
+
         onEnteredUpstageEvaluator = new OnActivatedEvaluator(this::isUpstage);
         onEnteredBackstageEvaluator = new OnActivatedEvaluator(this::isBackstage);
 
@@ -478,7 +494,7 @@ public class Nibus2000 {
 
     private NibusState evaluateDrivingAndScoring() {
         if (lastAprilTagFieldPosition == null) {
-            if (gamepad1.dpad_up) {
+            if (gamepad1.start) {
                 setPoseEstimate(new Pose2d(0, 0, allianceColor.OperatorHeadingOffset));
             }
         }
@@ -622,6 +638,57 @@ public class Nibus2000 {
         }
 
         Pose2d controlPose = new Pose2d();
+
+        //Quick release
+        if(gamepad2.left_bumper) greenGrabberState = GreenGrabberState.NOT_GRABBED;
+        if(gamepad2.right_bumper) blueGrabberState = BlueGrabberState.NOT_GRABBED;
+
+        //Scoring Lock on to april tags
+        if(gamepad2.dpad_up)  {
+            aprilUp = true;aprilRight = false;
+            aprilLeft = false;
+
+        }
+        if(gamepad2.dpad_right) {
+            aprilRight = true;
+            aprilUp = false;
+            aprilLeft = false;
+        }
+        if(gamepad2.dpad_left)  {
+            aprilLeft = true;
+            aprilUp = false;
+            aprilRight = false;
+
+        }
+        if(gamepad2.dpad_down &&(aprilUp || aprilRight || aprilLeft)){
+            if(!timerGoing){
+            backupTimer = System.currentTimeMillis();
+            timerGoing = true;
+            }
+            focalPointXOffset = 0;
+            if(backUpTime < System.currentTimeMillis() - backupTimer){
+                aprilLeft = false;
+                aprilUp = false;
+                aprilRight = false;
+                timerGoing = false;
+                collectorState = CollectorState.DRIVING_SAFE;
+            }
+
+        }
+
+
+
+
+        if (aprilUp || aprilRight || aprilLeft) {
+            CenterStageBackdropPosition backdropPosition = CenterStageBackdropPosition.CENTER;
+            if (aprilUp) {
+                backdropPosition = CenterStageBackdropPosition.CENTER;
+            } else if (aprilLeft) {
+                backdropPosition = CenterStageBackdropPosition.LEFT;
+            } else if (aprilRight) {
+                backdropPosition = CenterStageBackdropPosition.RIGHT;
+            }
+        /*
         if (gamepad2.left_bumper || gamepad2.right_bumper) {
             CenterStageBackdropPosition backdropPosition = CenterStageBackdropPosition.CENTER;
             if (gamepad2.left_bumper && gamepad2.right_bumper) {
@@ -632,12 +699,14 @@ public class Nibus2000 {
                 backdropPosition = CenterStageBackdropPosition.RIGHT;
             }
 
+         */
+
             double dY = (dtMillis * (-gamepad2.right_stick_x) * .004);
             focalPointYOffset = Math.max(-5, Math.min(5, focalPointYOffset + dY));
 
             // When gamepad2 A is held, Use distance sensor to set focalPointXOffset
             double dX;
-            if (gamepad2.a) {
+            if (gamepad2.a && ! gamepad2.dpad_down) {
                 // Get distance sensor value
                 double dis = collectorDistance.getDistance(DistanceUnit.INCH);
                 telemetry.addData("collectorDistance", "inches: %5.1f",  dis);
@@ -683,8 +752,8 @@ public class Nibus2000 {
                 blueGrabberState.toggle().ServoPosition - blueGrabberState.ServoPosition;
         double greenGrabberActuationRange =
                 greenGrabberState.toggle().ServoPosition - greenGrabberState.ServoPosition;
-        blueGrabberManualOffset = gamepad2.left_trigger * blueGrabberActuationRange;
-        greenGrabberManualOffset = gamepad2.right_trigger * greenGrabberActuationRange;
+        blueGrabberManualOffset = gamepad2.right_trigger * blueGrabberActuationRange;
+        greenGrabberManualOffset = gamepad2.left_trigger * greenGrabberActuationRange;
 
         telemetry.addData("Collector state", collectorState);
         telemetry.addData("Wrist base pos:", wristPosition);
@@ -707,26 +776,26 @@ public class Nibus2000 {
         int wristNudgeCount = wristNudgeCountBoxed == null ? 0 : wristNudgeCountBoxed;
         int extenderNudgeCount = extenderNudgeCountBoxed == null ? 0 : extenderNudgeCountBoxed;
 
-        if (dpadUp2PressedEvaluator.evaluate()) {
+        if (dpadUp1PressedEvaluator.evaluate()) {
             armNudgesPerPosition.put(collectorState,
                     Math.min(armNudgeCount + 1, ARM_MAX_TRIM_INCREMENTS));
         }
 
-        if (dpadDown2PressedEvaluator.evaluate()) {
+        if (dpadDown1PressedEvaluator.evaluate()) {
             armNudgesPerPosition.put(collectorState,
                     Math.max(armNudgeCount - 1, -ARM_MAX_TRIM_INCREMENTS));
         }
 
-        if (dpadLeft2PressedEvaluator.evaluate()) {
+        if (dpadLeft1PressedEvaluator.evaluate()) {
             wristNudgesPerPosition.put(collectorState,
                     Math.min(wristNudgeCount + 1, WRIST_MAX_TRIM_INCREMENTS));
         }
 
-        if (dpadRight2PressedEvaluator.evaluate()) {
+        if (dpadRight1PressedEvaluator.evaluate()) {
             wristNudgesPerPosition.put(collectorState,
                     Math.max(wristNudgeCount - 1, -WRIST_MAX_TRIM_INCREMENTS));
         }
-
+        /*
         if (dpadRight1PressedEvaluator.evaluate()) {
             extenderNudgesPerPosition.put(collectorState,
                     Math.min(extenderNudgeCount + 1, 100));
@@ -736,6 +805,7 @@ public class Nibus2000 {
             extenderNudgesPerPosition.put(collectorState,
                     Math.max(extenderNudgeCount - 1, -100));
         }
+        */
     }
 
     private CollectorState endgameLiftStage(int stageNumber) {
