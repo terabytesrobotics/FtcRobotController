@@ -38,8 +38,8 @@ public enum NibusAutonomousPlan {
     }
 
     public List<NibusCommand> afterScoringApproachCommands(AllianceColor allianceColor, CenterStageBackdropPosition backdropPosition) {
-        double AUTON_SCORING_HEIGHT = 4;
-        double APPROACH_DISTANCE = 3;
+        double AUTON_SCORING_HEIGHT = 1;
+        double APPROACH_DISTANCE = 2;
 
         ArrayList<NibusCommand> commands = new ArrayList<>();
 
@@ -57,10 +57,9 @@ public enum NibusAutonomousPlan {
     }
 
     public List<NibusCommand> backStageScoringApproachCommands(AllianceColor allianceColor) {
-        Vector2d backstageSideMiddleLane = allianceColor.getMiddleLaneBackstageWaypoint();
         Vector2d scoringApproach = allianceColor.getScoringApproachLocation();
 
-        Pose2d pose1 = new Pose2d(scoringApproach.getX(), backstageSideMiddleLane.getY(), 0);
+        Pose2d pose1 = new Pose2d(scoringApproach.getX(), scoringApproach.getY(), 0);
 
         ArrayList<Pose2d> poses = new ArrayList<>();
         poses.add(pose1);
@@ -72,12 +71,12 @@ public enum NibusAutonomousPlan {
         return commands;
     }
 
-    public List<NibusCommand> frontStageScoringApproachCommands(AllianceColor allianceColor) {
+    public List<NibusCommand> frontStageScoringApproachCommands(AllianceColor allianceColor, AlliancePropPosition alliancePropPosition) {
         Vector2d audienceSideMiddleLane = allianceColor.getMiddleLaneAudienceWaypoint();
         Vector2d backstageSideMiddleLane = allianceColor.getMiddleLaneBackstageWaypoint();
         Vector2d scoringApproach = allianceColor.getScoringApproachLocation();
 
-        double expectedRobotDropOrientation = Angle.norm(getCollectorHeadingDuringPixelDrop(allianceColor) + Math.PI);
+        double expectedRobotDropOrientation = Angle.norm(getCollectorHeadingDuringPixelDrop(allianceColor, alliancePropPosition) + Math.PI);
         double desiredTraverseLaneOrientation = Math.toRadians(0);
         double deltaFromDesired = Angle.normDelta(desiredTraverseLaneOrientation - expectedRobotDropOrientation);
         double audienceSideMiddleLaneOrientation = Angle.norm(expectedRobotDropOrientation + (deltaFromDesired / 2));
@@ -85,10 +84,12 @@ public enum NibusAutonomousPlan {
 
         Pose2d pose1 = new Pose2d(audienceSideMiddleLane.getX(), audienceSideMiddleLane.getY(), audienceSideMiddleLaneOrientation);
         Pose2d pose2 = new Pose2d(scoringApproach.getX(), backstageSideMiddleLane.getY(), backstageSideMiddleLaneOrientation);
+        Pose2d pose3 = new Pose2d(scoringApproach.getX(), scoringApproach.getY(), backstageSideMiddleLaneOrientation);
 
         ArrayList<Pose2d> poses = new ArrayList<>();
         poses.add(pose1);
         poses.add(pose2);
+        poses.add(pose3);
 
         ArrayList<NibusCommand> commands = new ArrayList<>();
         for (Pose2d pose: poses) {
@@ -97,17 +98,17 @@ public enum NibusAutonomousPlan {
         return commands;
     }
 
-    public List<NibusCommand> scoringCommands(AllianceColor allianceColor, CenterStageBackdropPosition backdropPosition) {
+    public List<NibusCommand> scoringCommands(AllianceColor allianceColor, AlliancePropPosition alliancePropPosition) {
         List<NibusCommand> commands;
         switch (this) {
             case START_FRONTSTAGE:
-                commands = frontStageScoringApproachCommands(allianceColor);
+                commands = frontStageScoringApproachCommands(allianceColor, alliancePropPosition);
                 break;
             case START_BACKSTAGE:
             default:
                 commands = backStageScoringApproachCommands(allianceColor);
         }
-        commands.addAll(afterScoringApproachCommands(allianceColor, backdropPosition));
+        commands.addAll(afterScoringApproachCommands(allianceColor, alliancePropPosition.backdropPosition()));
         return commands;
     }
 
@@ -117,9 +118,9 @@ public enum NibusAutonomousPlan {
     }
 
     public List<NibusCommand> autonomousCommandsAfterPropDetect(AllianceColor allianceColor, AlliancePropPosition alliancePropPosition) {
-        Pose2d approachPose = pixelDropApproachPose(allianceColor, alliancePropPosition, getCollectorHeadingDuringPixelDrop(allianceColor));
-        List<NibusCommand> prePlaceCommands = getPrePlaceCommands(allianceColor);
-        List<NibusCommand> scoringCommands = scoringCommands(allianceColor, alliancePropPosition.backdropPosition());
+        Pose2d approachPose = pixelDropApproachPose(allianceColor, alliancePropPosition, getCollectorHeadingDuringPixelDrop(allianceColor, alliancePropPosition));
+        List<NibusCommand> prePlaceCommands = getPrePlaceCommands(allianceColor, alliancePropPosition);
+        List<NibusCommand> scoringCommands = scoringCommands(allianceColor, alliancePropPosition);
 
         List<NibusCommand> commands = new ArrayList<>(prePlaceCommands);
         commands.add(new NibusCommand(approachPose, CollectorState.COLLECTION));
@@ -130,14 +131,14 @@ public enum NibusAutonomousPlan {
         return commands;
     }
 
-    private List<NibusCommand> getPrePlaceCommands(AllianceColor allianceColor) {
+    private List<NibusCommand> getPrePlaceCommands(AllianceColor allianceColor, AlliancePropPosition alliancePropPosition) {
         double INITIAL_NUDGE_Y = 2;
         double INITIAL_LATERAL_MOVE_X = 12;
         double INITIAL_FORWARD_MOVE_Y = 40;
 
         double xDirection = this == START_BACKSTAGE ? 1 : -1;
         double yDirection = allianceColor == AllianceColor.BLUE ? 1 : -1;
-        double placementOrientation = Angle.norm(getCollectorHeadingDuringPixelDrop(allianceColor) + Math.PI);
+        double placementOrientation = Angle.norm(getCollectorHeadingDuringPixelDrop(allianceColor, alliancePropPosition) + Math.PI);
         Pose2d startingPosition = allianceColor == AllianceColor.BLUE ? StartingPosition.BluePose : StartingPosition.RedPose;
 
         List<NibusCommand> commands = new ArrayList<NibusCommand>();
@@ -169,24 +170,56 @@ public enum NibusAutonomousPlan {
         return commands;
     }
 
-    public double getCollectorHeadingDuringPixelDrop(AllianceColor allianceColor) {
+    public double getCollectorHeadingDuringPixelDrop(AllianceColor allianceColor, AlliancePropPosition alliancePropPosition) {
         switch (this) {
             case START_FRONTSTAGE:
                 switch (allianceColor) {
                     case RED:
-                        return Math.toRadians(315);
+                        switch (alliancePropPosition) {
+                            case LEFT:
+                                return (3 * Math.PI) / 2;
+                            case MID:
+                            default:
+                                return ((3 * Math.PI) / 2) + (Math.PI / 4);
+                            case RIGHT:
+                                return 0;
+                        }
                     case BLUE:
                     default:
-                        return Math.toRadians(45);
+                        switch (alliancePropPosition) {
+                            case LEFT:
+                                return 0;
+                            case MID:
+                            default:
+                                return Math.PI / 4;
+                            case RIGHT:
+                                return Math.PI / 2;
+                        }
                 }
             case START_BACKSTAGE:
             default:
                 switch (allianceColor) {
                     case RED:
-                        return Math.toRadians(225);
+                        switch (alliancePropPosition) {
+                            case LEFT:
+                                return Math.PI;
+                            case MID:
+                            default:
+                                return Math.PI + (Math.PI / 4);
+                            case RIGHT:
+                                return (3 * Math.PI) / 2;
+                        }
                     case BLUE:
                     default:
-                        return Math.toRadians(135);
+                        switch (alliancePropPosition) {
+                            case LEFT:
+                                return Math.PI / 2;
+                            case MID:
+                            default:
+                                return (Math.PI / 2) + (Math.PI / 4);
+                            case RIGHT:
+                                return Math.PI;
+                        }
                 }
         }
     }
