@@ -137,6 +137,6 @@ public class NibusHelpers {
                 allianceColor
                         .getAprilTagForScoringPosition(backdropPosition)
                         .facingPose();
-        return NibusHelpers.robotPose(scoringFocalPoint, xOffset, yOffset);
+        return NibusHelpers.robotPose2(scoringFocalPoint, xOffset, yOffset, 0);
     }
 }

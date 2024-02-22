@@ -92,12 +92,8 @@ public class Nibus2000 {
     private final OnActivatedEvaluator dpadUp1PressedEvaluator;
     private final OnActivatedEvaluator dpadDown1PressedEvaluator;
     private final OnActivatedEvaluator dpadRight1PressedEvaluator;
-    private final TrueForTime settledAtPoseTarget;
     private final OnActivatedEvaluator rs1PressedEvaluator;
     private final OnActivatedEvaluator ls1PressedEvaluator;
-
-    private final OnActivatedEvaluator onEnteredUpstageEvaluator;
-    private final OnActivatedEvaluator onEnteredBackstageEvaluator;
     private BlueGrabberState blueGrabberState = BlueGrabberState.NOT_GRABBED;
     private GreenGrabberState greenGrabberState = GreenGrabberState.NOT_GRABBED;
     private final Telemetry telemetry;
@@ -201,7 +197,6 @@ public class Nibus2000 {
         indicator1Red.setMode(DigitalChannel.Mode.OUTPUT);
         indicator1Green.setMode(DigitalChannel.Mode.OUTPUT);
 
-        settledAtPoseTarget = new TrueForTime(APPROACH_SETTLE_TIME_MS, this::isAtPoseTarget);
         a1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.a);
         b1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.b);
         x1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.x);
@@ -226,10 +221,6 @@ public class Nibus2000 {
         dpadRight1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.dpad_right);
         dpadUp1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.dpad_up);
         dpadDown1PressedEvaluator = new OnActivatedEvaluator(() -> gamepad1.dpad_down);
-
-
-        onEnteredUpstageEvaluator = new OnActivatedEvaluator(this::isUpstage);
-        onEnteredBackstageEvaluator = new OnActivatedEvaluator(this::isBackstage);
 
         armcontrol.setTolerance(ARM_TOLERANCE);
         armMin = hardwareMap.get(TouchSensor.class, "armMin1");
@@ -371,9 +362,6 @@ public class Nibus2000 {
         switch (state) {
             case MANUAL_DRIVE:
                 nextState = evaluateDrivingAndScoring();
-                break;
-            case DRIVE_DIRECT_TO_POSE:
-                nextState = evaluateDriveDirectToPosition();
                 break;
             case AUTONOMOUSLY_DRIVING:
                 nextState = evaluateDrivingAutonomously();
@@ -827,14 +815,14 @@ public class Nibus2000 {
     }
 
     private boolean isAtPoseTarget() {
-        return isAtPoseTarget(poseTarget);
+        return isAtPoseTarget(poseTarget, 1);
     }
 
-    private boolean isAtPoseTarget(Pose2d target) {
+    private boolean isAtPoseTarget(Pose2d target, double thresholdRatio) {
         Pose2d error = getPoseTargetError(target);
         if (latestPoseEstimate == null || error == null) return false;
-        return Math.hypot(error.getX(), error.getY()) < DRIVE_TO_POSE_THRESHOLD &&
-                Math.abs(error.getHeading()) < TURN_ERROR_THRESHOLD;
+        return Math.hypot(error.getX(), error.getY()) < (DRIVE_TO_POSE_THRESHOLD * thresholdRatio) &&
+                Math.abs(error.getHeading()) < (TURN_ERROR_THRESHOLD * thresholdRatio);
     }
 
     private Pose2d getPoseTargetError(Pose2d poseTarget) {
@@ -861,22 +849,6 @@ public class Nibus2000 {
                 Range.clip(robotXErrorMagnitude * SPEED_GAIN, -MAX_AUTO_SPEED, MAX_AUTO_SPEED),
                 Range.clip(robotYErrorMagnitude * SPEED_GAIN, -MAX_AUTO_STRAFE, MAX_AUTO_STRAFE),
                 Range.clip(error.getHeading() * TURN_GAIN, -MAX_AUTO_TURN, MAX_AUTO_TURN));
-    }
-
-    private NibusState evaluateDriveDirectToPosition() {
-        if (y1PressedEvaluator.evaluate() || poseTarget == null) {
-            approachSettlingTimer = null;
-            return NibusState.MANUAL_DRIVE;
-        }
-
-        drive.setWeightedDrivePower(getPoseTargetAutoDriveControl(poseTarget));
-
-        if (settledAtPoseTarget.evaluate()) {
-            poseTarget = null;
-            return NibusState.MANUAL_DRIVE;
-        }
-
-        return NibusState.DRIVE_DIRECT_TO_POSE;
     }
 
     private NibusState evaluateDrivingAutonomously() {
@@ -908,11 +880,6 @@ public class Nibus2000 {
             if (currentCommand.GreenGrabberState != null) {
                 greenGrabberState = currentCommand.GreenGrabberState;
             }
-
-            if (currentCommand.TrajectoryCreator != null) {
-                Log.d("evaluateDrivingAutonomously", "Following trajectory async");
-                drive.followTrajectoryAsync(currentCommand.TrajectoryCreator.create());
-            }
         }
 
         if (currentCommand.DriveDirectToPose != null) {
@@ -921,14 +888,13 @@ public class Nibus2000 {
         }
 
         boolean collectorSettled = currentCommand.CollectorState == null || armAndExtenderSettled();
-        boolean trajectoryCompleted = currentCommand.TrajectoryCreator == null || !drive.isBusy();
-        boolean driveCompleted = currentCommand.DriveDirectToPose == null || isAtPoseTarget(currentCommand.DriveDirectToPose);
-        boolean settledRightNow = collectorSettled && trajectoryCompleted && driveCompleted;
+        boolean driveCompleted = currentCommand.DriveDirectToPose == null || isAtPoseTarget(currentCommand.DriveDirectToPose, currentCommand.SettleThresholdRatio);
+        boolean settledRightNow = collectorSettled && driveCompleted;
 
-        boolean minTimeElapsed = currentCommandTime.milliseconds() > currentCommand.MinTimeMilis;
+        boolean minTimeElapsed = currentCommandTime.milliseconds() > currentCommand.MinTimeMillis;
         if (!settledRightNow) {
             currentCommandSettledTime.reset();
-        } else if (minTimeElapsed && currentCommandSettledTime.milliseconds() > SETTLE_TIME_MILLIS) {
+        } else if (minTimeElapsed && currentCommandSettledTime.milliseconds() > currentCommand.SettleTimeMillis) {
             Log.d("evaluateDrivingAutonomously", "Command completed, popping command");
             drive.setWeightedDrivePower(new Pose2d());
             commandSequence.remove(0);
@@ -936,82 +902,6 @@ public class Nibus2000 {
         }
 
         return NibusState.AUTONOMOUSLY_DRIVING;
-    }
-
-    private NibusState evaluateDetectPoseFromAprilTag() {
-
-        AprilTagDetection approachDetection = null;
-        List<AprilTagDetection> detections = aprilTagProcessor.getDetections();
-        for (AprilTagDetection detection : detections) {
-            // Priority to some tags for positional approach...consider removing to focus on scoring approach use case.
-            if (detection.id == 2 ||
-                    detection.id == 5 ||
-                    detection.id == 7 ||
-                    detection.id == 10) {
-                approachDetection = detection;
-                break;
-            }
-        }
-
-        if (approachDetection != null) {
-
-            // Determine heading, range and Yaw (tag image rotation) error so we can use them to control the robot automatically.
-            double rangeError = (approachDetection.ftcPose.range - DESIRED_DISTANCE);
-            double headingError = Angle.normDelta(Math.toRadians(approachDetection.ftcPose.bearing));
-            double yawError = Angle.normDelta(Math.toRadians(approachDetection.ftcPose.yaw));
-
-            // Use the speed and turn "gains" to calculate how we want the robot to move.
-            double speed = Range.clip(rangeError * SPEED_GAIN, -MAX_AUTO_SPEED, MAX_AUTO_SPEED);
-            double turn = Range.clip(headingError * TURN_GAIN, -MAX_AUTO_TURN, MAX_AUTO_TURN);
-            double strafe = Range.clip(-yawError * STRAFE_GAIN, -MAX_AUTO_STRAFE, MAX_AUTO_STRAFE);
-
-            telemetry.addData("Auto", "Speed %5.2f, Strafe %5.2f, Turn %5.2f ", speed, strafe, turn);
-
-            if (Math.abs(rangeError) < DISTANCE_ERROR_THRESHOLD &&
-                    Math.abs(headingError) < TURN_ERROR_THRESHOLD &&
-                    Math.abs(yawError) < STRAFE_ERROR_THRESHOLD) {
-                if (approachSettlingTimer == null) {
-                    approachSettlingTimer = new ElapsedTime();
-                    approachSettlingTimer.reset();
-                }
-            } else if (approachSettlingTimer != null) {
-                approachSettlingTimer.reset();
-            }
-
-            drive.setWeightedDrivePower(new Pose2d(speed, strafe, turn));
-        } else {
-            if (approachSettlingTimer != null) {
-                approachSettlingTimer.reset();
-            }
-            drive.setWeightedDrivePower(new Pose2d());
-        }
-
-        if (b1PressedEvaluator.evaluate()) {
-            approachSettlingTimer = null;
-            return NibusState.MANUAL_DRIVE;
-        }
-
-        if (approachSettlingTimer != null && approachSettlingTimer.milliseconds() > APPROACH_SETTLE_TIME_MS) {
-            Pose2d settledPose = calculateRobotPoseWhenApproachToAprilTagSettled(approachDetection);
-            setPoseEstimate(settledPose);
-            lastAprilTagFieldPosition = settledPose;
-            approachSettlingTimer = null;
-            return NibusState.MANUAL_DRIVE;
-        }
-
-        return NibusState.DETECT_POSE_FROM_APRIL_TAG;
-    }
-
-    private Pose2d calculateRobotPoseWhenApproachToAprilTagSettled(AprilTagDetection detection) {
-        CenterStageAprilTags tag = CenterStageAprilTags.getTag(detection.id);
-        if (tag == null) return null;
-
-        double tagHeading = tag.Pose.getHeading();
-        // Assume we are squared to the april tag cause we settled
-        double robotXFieldPosition = tag.Pose.getX() + ((DESIRED_DISTANCE + FRONT_CAMERA_OFFSET_INCHES) * Math.cos(tagHeading));
-        double robotYFieldPosition = tag.Pose.getY();
-
-        return new Pose2d(robotXFieldPosition, robotYFieldPosition, Angle.norm(tagHeading + Math.PI));
     }
 
     private Pose2d calculateRobotPose(AprilTagDetection detection, double cameraRobotOffset, double cameraRobotHeadingOffset) {

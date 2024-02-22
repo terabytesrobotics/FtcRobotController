@@ -1,5 +1,8 @@
 package org.firstinspires.ftc.teamcode;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 
 import org.firstinspires.ftc.teamcode.util.BlueGrabberState;
@@ -9,54 +12,113 @@ import org.firstinspires.ftc.teamcode.util.GreenGrabberState;
 public class NibusCommand {
     public final Double ScoringHeight;
     public final CollectorState CollectorState;
-    public final TrajectoryCreator TrajectoryCreator;
     public final BlueGrabberState BlueGrabberState;
     public final GreenGrabberState GreenGrabberState;
     public final Pose2d DriveDirectToPose;
-    public final Double MinTimeMilis;
+    public final Double MinTimeMillis;
+    public final Double SettleTimeMillis;
+    public final Double SettleThresholdRatio;
 
     public NibusCommand(
-            Double scoringHeight,
-            CollectorState collectorState,
-            TrajectoryCreator trajectoryCreator,
-            BlueGrabberState blueGrabberState,
-            GreenGrabberState greenGrabberState,
-            Pose2d driveDirectToPose,
-            Double minTimeMilis) {
+            @Nullable Double scoringHeight,
+            @Nullable CollectorState collectorState,
+            @Nullable BlueGrabberState blueGrabberState,
+            @Nullable GreenGrabberState greenGrabberState,
+            @Nullable Pose2d driveDirectToPose,
+            @NonNull Double minTimeMillis,
+            @NonNull Double settleTimeMillis,
+            @NonNull Double settleThresholdRatio) {
         ScoringHeight = scoringHeight;
         CollectorState = collectorState;
-        TrajectoryCreator = trajectoryCreator;
         BlueGrabberState = blueGrabberState;
         GreenGrabberState = greenGrabberState;
         DriveDirectToPose = driveDirectToPose;
-        MinTimeMilis = minTimeMilis;
-    }
-
-    public static NibusCommand trajectoryBuilderCommand(TrajectoryCreator trajectoryCreator) {
-        return new NibusCommand(null, null, trajectoryCreator, null, null, null, 250d);
+        MinTimeMillis = minTimeMillis;
+        SettleTimeMillis = settleTimeMillis;
+        SettleThresholdRatio = settleThresholdRatio;
     }
 
     public static NibusCommand collectorStateCommand(CollectorState collectorState) {
-        return new NibusCommand(null, collectorState, null, null, null, null, 250d);
+        return new NibusCommand(
+                null,
+                collectorState,
+                null,
+                null,
+                null,
+                250d,
+                250d,
+                1d);
     }
 
     public static NibusCommand driveDirectToPoseCommand(Pose2d pose) {
-        return new NibusCommand(null, null, null, null, null, pose, 250d);
+        return new NibusCommand(
+                null,
+                null,
+                null,
+                null,
+                pose,
+                250d,
+                250d,
+                1d);
+    }
+
+    public static NibusCommand driveDirectToPoseFastCommand(Pose2d pose) {
+        return new NibusCommand(
+                null,
+                null,
+                null,
+                null,
+                pose,
+                0d,
+                0d,
+                5d);
     }
 
     public static NibusCommand driveDirectToPoseWithCollectorStateCommand(Pose2d pose, CollectorState collectorState) {
-        return new NibusCommand(null, collectorState, null, null, null, pose, 250d);
+        return new NibusCommand(
+                null,
+                collectorState,
+                null,
+                null,
+                pose,
+                250d,
+                250d,
+                1d);
     }
 
     public static NibusCommand scoringHeightCommand(Double scoringHeight) {
-        return new NibusCommand(scoringHeight, null, null, null, null, null, 250d);
+        return new NibusCommand(
+                scoringHeight,
+                null,
+                null,
+                null,
+                null,
+                250d,
+                250d,
+                1d);
     }
 
     public static NibusCommand grabberStateCommand(BlueGrabberState blueGrabberState, GreenGrabberState greenGrabberState) {
-        return new NibusCommand(null, null, null, blueGrabberState, greenGrabberState, null, 250d);
+        return new NibusCommand(
+                null,
+                null,
+                blueGrabberState,
+                greenGrabberState,
+                null,
+                500d,
+                0d,
+                1d);
     }
 
     public static NibusCommand waitCommand(Double waitMillis) {
-        return new NibusCommand(null, null, null, null, null, null, waitMillis);
+        return new NibusCommand(
+                null,
+                null,
+                null,
+                null,
+                null,
+                waitMillis,
+                0d,
+                1d);
     }
 }

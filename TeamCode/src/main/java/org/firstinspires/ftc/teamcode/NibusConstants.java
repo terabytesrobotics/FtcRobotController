@@ -33,9 +33,9 @@ public class NibusConstants {
     static final double DESIRED_DISTANCE = 8.0;
     static final double SPEED_GAIN  =  0.125;
     static final double STRAFE_GAIN =  .01 / (Math.PI / 180);
-    static final double TURN_GAIN =  .0225 / (Math.PI / 180);
-    static final double MAX_AUTO_SPEED = 0.625;
-    static final double MAX_AUTO_STRAFE = 0.625;
+    static final double TURN_GAIN =  .0265 / (Math.PI / 180);
+    static final double MAX_AUTO_SPEED = 0.68;
+    static final double MAX_AUTO_STRAFE = 0.68;
     static final double MAX_AUTO_TURN  = 1;
     static final int APPROACH_SETTLE_TIME_MS = 500;
     public static final int FRONT_CAMERA_OFFSET_INCHES = 7;
