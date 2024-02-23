@@ -853,8 +853,6 @@ public class Nibus2000 {
     }
 
     private NibusState evaluateDrivingAutonomously() {
-        final int SETTLE_TIME_MILLIS = 250;
-
         if (commandSequence.size() == 0) {
             NibusState _continuationState = continuationState;
             continuationState = null;
@@ -888,7 +886,7 @@ public class Nibus2000 {
                     getPoseTargetAutoDriveControl(currentCommand.DriveDirectToPose));
         }
 
-        boolean collectorSettled = currentCommand.CollectorState == null || armAndExtenderSettled();
+        boolean collectorSettled = (currentCommand.CollectorState == null && currentCommand.ScoringHeight == null) || armAndExtenderSettled();
         boolean driveCompleted = currentCommand.DriveDirectToPose == null || isAtPoseTarget(currentCommand.DriveDirectToPose, currentCommand.SettleThresholdRatio);
         boolean settledRightNow = collectorSettled && driveCompleted;
 

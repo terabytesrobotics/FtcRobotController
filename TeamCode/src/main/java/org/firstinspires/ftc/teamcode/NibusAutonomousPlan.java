@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
+import android.util.Log;
+
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.acmerobotics.roadrunner.util.Angle;
@@ -40,7 +42,7 @@ public enum NibusAutonomousPlan {
 
     public List<NibusCommand> afterScoringApproachCommands(AllianceColor allianceColor, CenterStageBackdropPosition backdropPosition) {
         double AUTON_SCORING_HEIGHT = 1;
-        double APPROACH_DISTANCE = 2;
+        double APPROACH_DISTANCE = 4;
 
         ArrayList<NibusCommand> commands = new ArrayList<>();
 
@@ -54,8 +56,8 @@ public enum NibusAutonomousPlan {
         commands.add(NibusCommand.driveDirectToPoseCommand(scoringPose));
         commands.add(NibusCommand.grabberStateCommand(BlueGrabberState.GRABBED, GreenGrabberState.NOT_GRABBED));
         commands.add(NibusCommand.waitCommand(500d));
-        commands.add(NibusCommand.grabberStateCommand(BlueGrabberState.GRABBED, GreenGrabberState.GRABBED));
         commands.add(NibusCommand.collectorStateCommand(CollectorState.DRIVING_SAFE));
+        commands.add(NibusCommand.grabberStateCommand(BlueGrabberState.GRABBED, GreenGrabberState.GRABBED));
         return commands;
     }
 
@@ -129,8 +131,8 @@ public enum NibusAutonomousPlan {
         commands.add(NibusCommand.driveDirectToPoseWithCollectorStateCommand(approachPose, CollectorState.COLLECTION));
         commands.add(NibusCommand.grabberStateCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.GRABBED));
         commands.add(NibusCommand.waitCommand(500d));
-        commands.add(NibusCommand.grabberStateCommand(BlueGrabberState.GRABBED, GreenGrabberState.GRABBED));
         commands.add(NibusCommand.collectorStateCommand(CollectorState.DRIVING_SAFE));
+        commands.add(NibusCommand.grabberStateCommand(BlueGrabberState.GRABBED, GreenGrabberState.GRABBED));
         commands.addAll(scoringCommands);
         commands.add(NibusCommand.driveDirectToPoseCommand(getParkPose(allianceColor)));
         return commands;
