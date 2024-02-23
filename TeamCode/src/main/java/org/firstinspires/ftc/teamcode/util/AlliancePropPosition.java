@@ -7,9 +7,9 @@ import org.firstinspires.ftc.teamcode.CenterStageBackdropPosition;
 
 public enum AlliancePropPosition {
     LEFT(1, 4,
-            new Vector2d(23, 30),
+            new Vector2d(22.5, 30),
             new Vector2d(2, -33),
-            new Vector2d(-25, 30),
+            new Vector2d(-24, 34),
             new Vector2d(-48, -30)),
     MID(2, 5,
             new Vector2d(12, 24),
@@ -17,10 +17,10 @@ public enum AlliancePropPosition {
             new Vector2d(-36, 24),
             new Vector2d(-36, -24)),
     RIGHT(3, 6,
-            new Vector2d(2, 33),
-            new Vector2d(23, -30),
+            new Vector2d(2, 34),
+            new Vector2d(22.5, -30),
             new Vector2d(-48, 30),
-            new Vector2d(-25, -30));
+            new Vector2d(-24, -34));
 
     public int BlueAprilTagId;
     public int RedAprilTagId;

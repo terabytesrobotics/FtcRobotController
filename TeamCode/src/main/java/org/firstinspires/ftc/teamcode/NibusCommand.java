@@ -86,6 +86,18 @@ public class NibusCommand {
                 1d);
     }
 
+    public static NibusCommand driveDirectToPoseWithCollectorStatePreciseCommand(Pose2d pose, CollectorState collectorState) {
+        return new NibusCommand(
+                null,
+                collectorState,
+                null,
+                null,
+                pose,
+                250d,
+                250d,
+                0.75d);
+    }
+
     public static NibusCommand scoringHeightCommand(Double scoringHeight) {
         return new NibusCommand(
                 scoringHeight,

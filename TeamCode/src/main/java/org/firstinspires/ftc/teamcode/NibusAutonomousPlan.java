@@ -123,11 +123,13 @@ public enum NibusAutonomousPlan {
 
     public List<NibusCommand> autonomousCommandsAfterPropDetect(AllianceColor allianceColor, AlliancePropPosition alliancePropPosition) {
         Pose2d approachPose = pixelDropApproachPose(allianceColor, alliancePropPosition);
-        List<NibusCommand> prePlaceCommands = getPrePlaceCommands(allianceColor);
+        double robotHeadingDuringPixelDrop = Angle.norm(
+                getCollectorHeadingDuringPixelDrop(allianceColor, alliancePropPosition) + Math.PI);
+        List<NibusCommand> prePlaceCommands = getPrePlaceCommands(allianceColor, robotHeadingDuringPixelDrop);
         List<NibusCommand> scoringCommands = scoringCommands(allianceColor, alliancePropPosition);
 
         List<NibusCommand> commands = new ArrayList<>(prePlaceCommands);
-        commands.add(NibusCommand.driveDirectToPoseWithCollectorStateCommand(approachPose, CollectorState.COLLECTION));
+        commands.add(NibusCommand.driveDirectToPoseWithCollectorStatePreciseCommand(approachPose, CollectorState.COLLECTION));
         commands.add(NibusCommand.grabberStateCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.GRABBED));
         commands.add(NibusCommand.collectorStateCommand(CollectorState.DRIVING_SAFE));
         commands.add(NibusCommand.grabberStateCommand(BlueGrabberState.GRABBED, GreenGrabberState.GRABBED));
@@ -136,10 +138,10 @@ public enum NibusAutonomousPlan {
         return commands;
     }
 
-    private List<NibusCommand> getPrePlaceCommands(AllianceColor allianceColor) {
+    private List<NibusCommand> getPrePlaceCommands(AllianceColor allianceColor, double robotHeadingDuringPixelDrop) {
         double INITIAL_NUDGE_Y = 2;
         double INITIAL_LATERAL_MOVE_X = 12;
-        double INITIAL_FORWARD_MOVE_Y = 40;
+        double INITIAL_FORWARD_MOVE_Y = 24;
 
         double xDirection = this == START_BACKSTAGE ? 1 : -1;
         double yDirection = allianceColor == AllianceColor.BLUE ? 1 : -1;
@@ -159,7 +161,7 @@ public enum NibusAutonomousPlan {
         Pose2d pose2 = new Pose2d(
                 pose1.getX(),
                 pose1.getY() - (yDirection * INITIAL_FORWARD_MOVE_Y),
-                startingPosition.getHeading());
+                robotHeadingDuringPixelDrop);
 
         commands.add(NibusCommand.driveDirectToPoseFastCommand(pose0));
         commands.add(NibusCommand.driveDirectToPoseFastCommand(pose1));
@@ -196,7 +198,8 @@ public enum NibusAutonomousPlan {
                 }
             case START_BACKSTAGE:
             default:
-                switch (allianceColor) {
+                return Math.PI;
+/*                switch (allianceColor) {
                     case RED:
                         switch (alliancePropPosition) {
                             case LEFT:
@@ -218,7 +221,7 @@ public enum NibusAutonomousPlan {
                             case RIGHT:
                                 return Math.PI;
                         }
-                }
+                }*/
         }
     }
 }
