@@ -37,26 +37,25 @@ public enum NibusAutonomousPlan {
         double collectorHeading = getCollectorHeadingDuringPixelDrop(allianceColor, detectedPosition);
         Vector2d targetLocation = StartingPosition.getPixelTargetPosition(allianceColor, detectedPosition);
         Pose2d collectorPose = new Pose2d(targetLocation.getX(), targetLocation.getY(), collectorHeading);
-        return NibusHelpers.robotPose2(collectorPose, NibusConstants.COLLECT_HEAD_BASE_OFFSET_X, NibusConstants.COLLECT_HEAD_BLUE_GRABBER_OFFSET_Y, Math.PI);
+        return NibusHelpers.robotPose2(collectorPose, NibusConstants.COLLECT_HEAD_BASE_OFFSET_X, 2, Math.PI);
     }
 
     public List<NibusCommand> afterScoringApproachCommands(AllianceColor allianceColor, CenterStageBackdropPosition backdropPosition) {
         double AUTON_SCORING_HEIGHT = 1;
-        double APPROACH_DISTANCE = 4;
+        double APPROACH_DISTANCE = 3;
+        double SAFTEY_DISTANCE = 6;
 
         ArrayList<NibusCommand> commands = new ArrayList<>();
 
         Mat.Tuple4<Double> scoringPositions = NibusHelpers.armExtenderWristAndOffsetForScoringHeight(AUTON_SCORING_HEIGHT);
         double defaultPreScoringOffset = scoringPositions.get_3();
 
-        Pose2d preScoring = NibusHelpers.getPreScoringPose(allianceColor, backdropPosition, defaultPreScoringOffset, NibusConstants.COLLECT_HEAD_GREEN_GRABBER_OFFSET_Y);
-        Pose2d scoringPose = NibusHelpers.getPreScoringPose(allianceColor, backdropPosition, defaultPreScoringOffset - APPROACH_DISTANCE, NibusConstants.COLLECT_HEAD_GREEN_GRABBER_OFFSET_Y);
+        Pose2d preScoring = NibusHelpers.getPreScoringPose(allianceColor, backdropPosition, defaultPreScoringOffset + SAFTEY_DISTANCE, 2);
+        Pose2d scoringPose = NibusHelpers.getPreScoringPose(allianceColor, backdropPosition, defaultPreScoringOffset - APPROACH_DISTANCE, 2);
         commands.add(NibusCommand.scoringHeightCommand(AUTON_SCORING_HEIGHT));
         commands.add(NibusCommand.driveDirectToPoseCommand(preScoring));
         commands.add(NibusCommand.driveDirectToPoseCommand(scoringPose));
-        commands.add(NibusCommand.grabberStateCommand(BlueGrabberState.GRABBED, GreenGrabberState.NOT_GRABBED));
-        commands.add(NibusCommand.waitCommand(500d));
-        commands.add(NibusCommand.collectorStateCommand(CollectorState.DRIVING_SAFE));
+        commands.add(NibusCommand.grabberStateCollectorStateCommand(BlueGrabberState.GRABBED, GreenGrabberState.NOT_GRABBED, CollectorState.DRIVING_SAFE));
         commands.add(NibusCommand.grabberStateCommand(BlueGrabberState.GRABBED, GreenGrabberState.GRABBED));
         return commands;
     }
@@ -130,7 +129,6 @@ public enum NibusAutonomousPlan {
         List<NibusCommand> commands = new ArrayList<>(prePlaceCommands);
         commands.add(NibusCommand.driveDirectToPoseWithCollectorStateCommand(approachPose, CollectorState.COLLECTION));
         commands.add(NibusCommand.grabberStateCommand(BlueGrabberState.NOT_GRABBED, GreenGrabberState.GRABBED));
-        commands.add(NibusCommand.waitCommand(500d));
         commands.add(NibusCommand.collectorStateCommand(CollectorState.DRIVING_SAFE));
         commands.add(NibusCommand.grabberStateCommand(BlueGrabberState.GRABBED, GreenGrabberState.GRABBED));
         commands.addAll(scoringCommands);

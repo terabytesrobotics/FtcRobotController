@@ -40,17 +40,14 @@ public class NibusConstants {
     static final int APPROACH_SETTLE_TIME_MS = 500;
     public static final int FRONT_CAMERA_OFFSET_INCHES = 7;
     public static final double FRONT_CAMERA_IDEAL_COLLECTION_DISTANCE = 14;
-
     public static final int BACK_CAMERA_OFFSET_INCHES = 0;
     public static final double COLLECT_HEAD_BASE_OFFSET_X = 14; // This is magnitude, not direction (usually backwards on robot in collect state.)
-    public static final double COLLECT_HEAD_BLUE_GRABBER_OFFSET_Y = 2;
-    public static final double COLLECT_HEAD_GREEN_GRABBER_OFFSET_Y = -2;
     public static final double COLLECT_HEAD_HEADING_OFFSET = Math.PI;
     public static final double DRIVE_TO_POSE_THRESHOLD = 1.5f;
     public static final int POSITION_ACQUIRED_INDICATE_MILLIS = 1000;
     public static final int POSITION_ACQUIRED_PULSE_MILLIS = 100;
     public static double APRIL_TAG_RECOGNITION_MAX_RANGE = 30;
-    public static double APRIL_TAG_RECOGNITION_MIN_RANGE = 6;
+    public static double APRIL_TAG_RECOGNITION_MIN_RANGE = 8;
     public static double APRIL_TAG_RECOGNITION_YAW_THRESHOLD = Math.PI / 6;
     public static double APRIL_TAG_RECOGNITION_BEARING_THRESHOLD = Math.PI / 6;
     public static int ARM_TICK_TOLERANCE = 20;
@@ -60,6 +57,8 @@ public class NibusConstants {
     public static final double FAST_MODE_SCALE = 1;
     public static double SCORING_HEIGHT_MAX = 24;
     public static double WHITE_WRIST_SERVO_OFFSET_FROM_RED = 0.02;
+    public static double BACKDROP_TARGET_DISTANCE_INCHES = 3.5;
+    public static double SCORING_X_SAFTEY_OFFSET = 4;
 
     public static void sleep(int millis) {
         try {

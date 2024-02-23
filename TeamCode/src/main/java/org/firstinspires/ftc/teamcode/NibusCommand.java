@@ -110,6 +110,18 @@ public class NibusCommand {
                 1d);
     }
 
+    public static NibusCommand grabberStateCollectorStateCommand(BlueGrabberState blueGrabberState, GreenGrabberState greenGrabberState, CollectorState collectorState) {
+        return new NibusCommand(
+                null,
+                collectorState,
+                blueGrabberState,
+                greenGrabberState,
+                null,
+                500d,
+                0d,
+                1d);
+    }
+
     public static NibusCommand waitCommand(Double waitMillis) {
         return new NibusCommand(
                 null,

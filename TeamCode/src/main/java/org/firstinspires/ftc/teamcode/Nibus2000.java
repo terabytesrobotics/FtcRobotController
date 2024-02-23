@@ -140,27 +140,18 @@ public class Nibus2000 {
     private final Map<CollectorState, Integer> extenderNudgesPerPosition = new HashMap<CollectorState, Integer>();
     private double scoringHeightOffset = 0.0;
     private final double RAISE_RATE_INCH_PER_MILLI = 4.0 / 1000;
-
-    private RevColorSensorV3 colorSensorGreen;
-
-    private RevColorSensorV3 colorSensorBlue;
-
-    private Rev2mDistanceSensor collectorDistance;
-
-    private double backdropTargetDistanceInches = 3.5;
+    private final RevColorSensorV3 colorSensorGreen;
+    private final RevColorSensorV3 colorSensorBlue;
+    private final Rev2mDistanceSensor collectorDistance;
     private double pixelMinGrab = 13;
     private double colorSensorMaxProx = 15;
     private int millsBeforeExtract = 100;
-
     private boolean aprilUp = false;
     private boolean aprilRight = false;
     private boolean aprilLeft = false;
     private boolean timerGoing = false;
     private double backupTimer;
     private final double backUpTime = 100;
-
-
-
     private boolean grabGreen = false;
     private boolean grabBlue = false;
     private boolean armedBlue = false;
@@ -481,10 +472,23 @@ public class Nibus2000 {
         return new Pose2d(Math.sqrt(varianceX / count), Math.sqrt(varianceY / count), Math.sqrt(varianceHeading / count));
     }
 
+    private void setRobotHeading(double heading) {
+        setPoseEstimate(new Pose2d(0, 0, Angle.norm(heading)));
+    }
+
     private NibusState evaluateDrivingAndScoring() {
         if (lastAprilTagFieldPosition == null) {
-            if (gamepad1.start) {
-                setPoseEstimate(new Pose2d(0, 0, allianceColor.OperatorHeadingOffset));
+            if (dpadDown1PressedEvaluator.evaluate()) {
+                setRobotHeading(allianceColor.OperatorHeadingOffset);
+            }
+            if (dpadLeft1PressedEvaluator.evaluate()) {
+                setRobotHeading(allianceColor.OperatorHeadingOffset + (Math.PI / 2));
+            }
+            if (dpadRight1PressedEvaluator.evaluate()) {
+                setRobotHeading(allianceColor.OperatorHeadingOffset - (Math.PI / 2));
+            }
+            if (dpadDown1PressedEvaluator.evaluate()) {
+                setRobotHeading(allianceColor.OperatorHeadingOffset + Math.PI);
             }
         }
 
@@ -632,45 +636,43 @@ public class Nibus2000 {
         if(gamepad2.right_bumper) blueGrabberState = BlueGrabberState.NOT_GRABBED;
 
         //Scoring Lock on to april tags
-        if(gamepad2.dpad_up)  {
-            aprilUp = true;aprilRight = false;
+        if (gamepad2.dpad_up)  {
+            aprilUp = true;
+            aprilRight = false;
             aprilLeft = false;
-
         }
-        if(gamepad2.dpad_right) {
+        if (gamepad2.dpad_right) {
             aprilRight = true;
             aprilUp = false;
             aprilLeft = false;
         }
-        if(gamepad2.dpad_left)  {
+        if (gamepad2.dpad_left)  {
             aprilLeft = true;
             aprilUp = false;
             aprilRight = false;
 
         }
-        if((gamepad2.dpad_down &&(aprilUp || aprilRight || aprilLeft)) || (greenGrabberState == GreenGrabberState.NOT_GRABBED && blueGrabberState == BlueGrabberState.NOT_GRABBED)&&(aprilUp || aprilRight || aprilLeft)){
-            if(!timerGoing){
-            backupTimer = System.currentTimeMillis();
-            timerGoing = true;
+        if ((gamepad2.dpad_down && (aprilUp || aprilRight || aprilLeft)) || (greenGrabberState == GreenGrabberState.NOT_GRABBED && blueGrabberState == BlueGrabberState.NOT_GRABBED)&&(aprilUp || aprilRight || aprilLeft)){
+            if (!timerGoing) {
+                backupTimer = System.currentTimeMillis();
+                timerGoing = true;
             }
             focalPointXOffset = 0;
-            if(backUpTime < System.currentTimeMillis() - backupTimer){
+            if (backUpTime < System.currentTimeMillis() - backupTimer){
                 aprilLeft = false;
                 aprilUp = false;
                 aprilRight = false;
                 timerGoing = false;
                 collectorState = CollectorState.DRIVING_SAFE;
             }
+        } else if (gamepad2.dpad_down) {
+            collectorState = CollectorState.DRIVING_SAFE;
+        }
 
-        }else if(gamepad2.dpad_down){ collectorState = CollectorState.DRIVING_SAFE;}
-
-        if(collectorState == CollectorState.DRIVING_SAFE && currentArmPosition < 1000){
+        if (collectorState == CollectorState.DRIVING_SAFE && currentArmPosition < 1000){
             greenGrabberState = GreenGrabberState.GRABBED;
             blueGrabberState = BlueGrabberState.GRABBED;
         }
-
-
-
 
         if (aprilUp || aprilRight || aprilLeft) {
             CenterStageBackdropPosition backdropPosition = CenterStageBackdropPosition.CENTER;
@@ -705,20 +707,19 @@ public class Nibus2000 {
                 telemetry.addData("collectorDistance", "inches: %5.1f",  dis);
 
                 // Calculate desired delta x, scaled by 12.5%, -0.5 < dX < 0.5
-                dX = Math.max(-0.5, Math.min(0.5, 0.125 * (dis - backdropTargetDistanceInches)));
+                dX = Math.max(-0.5, Math.min(0.5, 0.125 * (dis - BACKDROP_TARGET_DISTANCE_INCHES)));
             } else {
                 // otherwise allow for right stick control
                 dX = (dtMillis * (-gamepad2.right_stick_y * .004));
             }
             focalPointXOffset = Math.max(-8, Math.min(8, focalPointXOffset + dX));
 
-
             double collectorHeadOrthogonalOffset = -(-gamepad2.left_stick_x * 4);
             Pose2d scoringFocalPoint =
                     allianceColor.getAprilTagForScoringPosition(backdropPosition)
                             .facingPose()
                             .plus(new Pose2d(focalPointXOffset, focalPointYOffset, 0));
-            Pose2d robotPoseForFocalPoint = NibusHelpers.robotPose(scoringFocalPoint, scoringPositionOffset, collectorHeadOrthogonalOffset);
+            Pose2d robotPoseForFocalPoint = NibusHelpers.robotPose2(scoringFocalPoint, scoringPositionOffset + SCORING_X_SAFTEY_OFFSET, collectorHeadOrthogonalOffset, 0);
 
             telemetry.addData("scoringFocalPoint", "x: %5.1f, y: %5.1f, th: %5.1f", scoringFocalPoint.getX(), scoringFocalPoint.getY(), scoringFocalPoint.getHeading());
             telemetry.addData("robotPoseForFocalPoint", "x: %5.1f, y: %5.1f, th: %5.1f", robotPoseForFocalPoint.getX(), robotPoseForFocalPoint.getY(), robotPoseForFocalPoint.getHeading());
