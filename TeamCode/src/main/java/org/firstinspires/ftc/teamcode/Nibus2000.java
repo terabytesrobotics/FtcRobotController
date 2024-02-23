@@ -58,6 +58,7 @@ public class Nibus2000 {
     private final PIDController armcontrol = new PIDController(ARM_CONTROL_P, ARM_CONTROL_I, ARM_CONTROL_D);
     private final DcMotorEx armLeft;
     private final DcMotorEx armRight;
+    private int currentArmPosition;
     private final DcMotorEx extender;
     private final Servo wristRed;
     private final Servo wristWhite;
@@ -663,7 +664,7 @@ public class Nibus2000 {
 
         }else if(gamepad2.dpad_down){ collectorState = CollectorState.DRIVING_SAFE;}
 
-        if(collectorState == CollectorState.DRIVING_SAFE){
+        if(collectorState == CollectorState.DRIVING_SAFE && currentArmPosition < 1000){
             greenGrabberState = GreenGrabberState.GRABBED;
             blueGrabberState = BlueGrabberState.GRABBED;
         }
@@ -709,7 +710,7 @@ public class Nibus2000 {
                 // otherwise allow for right stick control
                 dX = (dtMillis * (-gamepad2.right_stick_y * .004));
             }
-            focalPointXOffset = Math.max(-5, Math.min(5, focalPointXOffset + dX));
+            focalPointXOffset = Math.max(-8, Math.min(8, focalPointXOffset + dX));
 
 
             double collectorHeadOrthogonalOffset = -(-gamepad2.left_stick_x * 4);
@@ -1011,6 +1012,7 @@ public class Nibus2000 {
         telemetry.addData("armMotorPower", "%s: %5.2f", armMotor.getDeviceName(), armPower);
         telemetry.addData("armPosition", "%s: %d", armMotor.getDeviceName(), armPosition);
         armMotor.setPower(armPower);
+        currentArmPosition = armPosition;
     }
 
     private void setManualArmHeight(double scoringHeightOffset) {
