@@ -25,10 +25,10 @@ public enum PointOfInterest {
     blueScoringApprach(38, 36),
     redScoringPreApproach(48, -12),
     blueScoringPreApprach(48, 12),
-    redLeftBackstagePark(48, -12),
-    redRightBackstagePark(48, -60),
-    blueRightBackstagePark(48, 12),
-    blueLeftBackstagePark(48, 60);
+    redLeftBackstagePark(44, -12),
+    redRightBackstagePark(44, -60),
+    blueRightBackstagePark(44, 12),
+    blueLeftBackstagePark(44, 60);
 
     public double X;
     public double Y;

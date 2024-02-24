@@ -8,7 +8,7 @@ import org.firstinspires.ftc.teamcode.CenterStageBackdropPosition;
 public enum AlliancePropPosition {
     LEFT(1, 4,
             new Vector2d(22.5, 30),
-            new Vector2d(2, -33),
+            new Vector2d(1, -33),
             new Vector2d(-24, 35),
             new Vector2d(-46.5, -30)),
     MID(2, 5,
@@ -17,7 +17,7 @@ public enum AlliancePropPosition {
             new Vector2d(-36, 24.5),
             new Vector2d(-36, -24.5)),
     RIGHT(3, 6,
-            new Vector2d(2, 34),
+            new Vector2d(1, 34),
             new Vector2d(22.5, -30),
             new Vector2d(-46.5, 30),
             new Vector2d(-24, -35));

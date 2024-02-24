@@ -72,6 +72,20 @@ public class NibusCommand {
                 1d);
     }
 
+    public static NibusCommand driveDirectToPoseWithScoringHeightCommand(Pose2d pose, double scoringHeight) {
+        return new NibusCommand(
+                null,
+                null,
+                scoringHeight,
+                null,
+                null,
+                null,
+                pose,
+                250d,
+                250d,
+                1d);
+    }
+
     public static NibusCommand driveDirectToPoseFastCommand(Pose2d pose) {
         return new NibusCommand(
                 null,
@@ -156,7 +170,19 @@ public class NibusCommand {
                 1d);
     }
 
-
+    public static NibusCommand grabberStateCollectorStatePoseCommand(Pose2d pose2d, BlueGrabberState blueGrabberState, GreenGrabberState greenGrabberState, CollectorState collectorState) {
+        return new NibusCommand(
+                null,
+                null,
+                null,
+                collectorState,
+                blueGrabberState,
+                greenGrabberState,
+                pose2d,
+                250d,
+                250d,
+                2d);
+    }
 
     public static NibusCommand waitCommand(Double waitMillis) {
         return new NibusCommand(
