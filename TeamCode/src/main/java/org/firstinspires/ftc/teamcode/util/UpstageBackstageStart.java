@@ -5,11 +5,11 @@ import com.acmerobotics.roadrunner.geometry.Vector2d;
 
 public enum UpstageBackstageStart {
     BACKSTAGE_START(
-            new Pose2d(12, 63, Math.toRadians(90)),
-            new Pose2d(12, -63, Math.toRadians(270))),
+            new Pose2d(12, 61.5, Math.toRadians(90)),
+            new Pose2d(12, -61.5, Math.toRadians(270))),
     FRONTSTAGE_START(
-            new Pose2d(-35, 63, Math.toRadians(90)),
-            new Pose2d(-35, -63, Math.toRadians(270)));
+            new Pose2d(-35, 61.5, Math.toRadians(90)),
+            new Pose2d(-35, -61.5, Math.toRadians(270)));
 
     public Pose2d BluePose;
     public Pose2d RedPose;

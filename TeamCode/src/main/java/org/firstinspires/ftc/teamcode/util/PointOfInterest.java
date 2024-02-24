@@ -21,19 +21,14 @@ public enum PointOfInterest {
     blueDiagonalBack(24,24),
     midGateAuidience(-36,0),
     midGateBack(24,0),
-    redScoringApproach(34, -36),
-    blueScoringApprach(34, 36),
+    redScoringApproach(38, -36),
+    blueScoringApprach(38, 36),
     redScoringPreApproach(48, -12),
     blueScoringPreApprach(48, 12),
     redLeftBackstagePark(48, -12),
     redRightBackstagePark(48, -60),
     blueRightBackstagePark(48, 12),
     blueLeftBackstagePark(48, 60);
-
-
-
-
-
 
     public double X;
     public double Y;
