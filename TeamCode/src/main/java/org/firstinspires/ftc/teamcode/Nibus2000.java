@@ -158,8 +158,8 @@ public class Nibus2000 {
     private boolean armedGreen = false;
     private boolean retract = false;
     private double grabTime = 0;
-    private double focalPointXOffset = 0;
-    private double focalPointYOffset = 0;
+    //private double focalPointXOffset = 0;
+    //private double focalPointYOffset = 0;
     private final boolean debugMode;
 
     public Nibus2000(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, Telemetry telemetry, boolean debugMode) {
@@ -506,8 +506,6 @@ public class Nibus2000 {
 
         boolean isManualArmControl = collectorState == null;
         if (b2PressedEvaluator.evaluate()) {
-                focalPointXOffset = 0;
-                focalPointYOffset = 0;
                 setManualArmHeight(scoringHeightOffset);
         } else if (isManualArmControl) {
             scoringHeightOffset += (-gamepad2.left_stick_y) * dtMillis * RAISE_RATE_INCH_PER_MILLI;
@@ -631,7 +629,7 @@ public class Nibus2000 {
 
          */
 
-        Pose2d controlPose = new Pose2d();
+        Pose2d driveControl = new Pose2d();
 
         //Quick release
         if(gamepad2.left_bumper) greenGrabberState = GreenGrabberState.NOT_GRABBED;
@@ -654,12 +652,12 @@ public class Nibus2000 {
             aprilRight = false;
 
         }
-        if ((gamepad2.dpad_down && (aprilUp || aprilRight || aprilLeft)) || (greenGrabberState == GreenGrabberState.NOT_GRABBED && blueGrabberState == BlueGrabberState.NOT_GRABBED)&&(aprilUp || aprilRight || aprilLeft)){
+        if ((gamepad2.dpad_down && (aprilUp || aprilRight || aprilLeft)) ||
+                (greenGrabberState == GreenGrabberState.NOT_GRABBED && blueGrabberState == BlueGrabberState.NOT_GRABBED) && (aprilUp || aprilRight || aprilLeft)){
             if (!timerGoing) {
                 backupTimer = System.currentTimeMillis();
                 timerGoing = true;
             }
-            focalPointXOffset = 0;
             if (backUpTime < System.currentTimeMillis() - backupTimer){
                 aprilLeft = false;
                 aprilUp = false;
@@ -698,36 +696,33 @@ public class Nibus2000 {
 
          */
 
-            double dY = (dtMillis * (-gamepad2.right_stick_x) * .004);
-            focalPointYOffset = Math.max(-5, Math.min(5, focalPointYOffset + dY));
+            //double dY = (dtMillis * (-gamepad2.right_stick_x) * .004);
+            //focalPointYOffset = Math.max(-5, Math.min(5, focalPointYOffset + dY));
 
-            // When gamepad2 A is held, Use distance sensor to set focalPointXOffset
-            double dX;
-            if (gamepad2.a && ! gamepad2.dpad_down) {
+            if (gamepad2.a && !gamepad2.dpad_down) {
                 // Get distance sensor value
                 double dis = collectorDistance.getDistance(DistanceUnit.INCH);
                 telemetry.addData("collectorDistance", "inches: %5.1f",  dis);
 
                 // Calculate desired delta x, scaled by 12.5%, -0.5 < dX < 0.5
-                dX = Math.max(-0.5, Math.min(0.5, 0.125 * (dis - BACKDROP_TARGET_DISTANCE_INCHES)));
+                //dX = Math.max(-0.5, Math.min(0.5, 0.125 * (dis - BACKDROP_TARGET_DISTANCE_INCHES)));
             } else {
                 // otherwise allow for right stick control
-                dX = (dtMillis * (-gamepad2.right_stick_y * .004));
+                //dX = (dtMillis * (-gamepad2.right_stick_y * .004));
             }
-            focalPointXOffset = Math.max(-8, Math.min(8, focalPointXOffset + dX));
+            //focalPointXOffset = Math.max(-8, Math.min(8, focalPointXOffset + dX));
 
             double collectorHeadOrthogonalOffset = -(-gamepad2.left_stick_x * 4);
             Pose2d scoringFocalPoint =
                     allianceColor.getAprilTagForScoringPosition(backdropPosition)
-                            .facingPose()
-                            .plus(new Pose2d(focalPointXOffset, focalPointYOffset, 0));
+                            .facingPose();
             Pose2d robotPoseForFocalPoint = NibusHelpers.robotPose2(scoringFocalPoint, scoringPositionOffset + SCORING_X_SAFTEY_OFFSET, collectorHeadOrthogonalOffset, 0);
 
             telemetry.addData("scoringFocalPoint", "x: %5.1f, y: %5.1f, th: %5.1f", scoringFocalPoint.getX(), scoringFocalPoint.getY(), scoringFocalPoint.getHeading());
             telemetry.addData("robotPoseForFocalPoint", "x: %5.1f, y: %5.1f, th: %5.1f", robotPoseForFocalPoint.getX(), robotPoseForFocalPoint.getY(), robotPoseForFocalPoint.getHeading());
-            controlPose = getPoseTargetAutoDriveControl(robotPoseForFocalPoint);
+            driveControl = getPoseTargetAutoDriveControl(robotPoseForFocalPoint);
         } else {
-            controlPose = getScaledHeadlessDriverInput(gamepad1);
+            driveControl = getScaledHeadlessDriverInput(gamepad1);
 
             if (hasPositionEstimate() && gamepad1.x) {
                 int closestLaneY = CenterStageConstants.getClosestLane(latestPoseEstimate.getY());
@@ -736,11 +731,11 @@ public class Nibus2000 {
 
                 double laneLockY = Range.clip(errorY * SPEED_GAIN, -MAX_AUTO_SPEED, MAX_AUTO_SPEED);
                 double laneLockRotation = Range.clip(errorHeading * TURN_GAIN, -MAX_AUTO_TURN, MAX_AUTO_TURN);
-                controlPose = controlPose.plus(new Pose2d(0, laneLockY, laneLockRotation));
+                driveControl = driveControl.plus(new Pose2d(0, laneLockY, laneLockRotation));
             }
         }
 
-        drive.setWeightedDrivePower(controlPose);
+        drive.setWeightedDrivePower(driveControl);
 
         //greenGrabberState = GreenGrabberState.GRABBED;
         //blueGrabberState = BlueGrabberState.GRABBED;
@@ -913,7 +908,7 @@ public class Nibus2000 {
         boolean settledRightNow = collectorSettled && driveCompleted;
 
         boolean minTimeElapsed = currentCommandTime.milliseconds() > currentCommand.MinTimeMillis;
-        boolean commandCompleted = minTimeElapsed && currentCommandSettledTime.milliseconds() > currentCommand.SettleTimeMillis;
+        boolean commandCompleted = settledRightNow && minTimeElapsed && currentCommandSettledTime.milliseconds() > currentCommand.SettleTimeMillis;
         boolean debugAdvance = !debugMode || gamepad1.a;
         if (commandCompleted && debugAdvance) {
             Log.d("evaluateDrivingAutonomously", "Command completed, popping command");

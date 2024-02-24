@@ -40,7 +40,7 @@ public class NibusConstants {
     public static final int FRONT_CAMERA_OFFSET_INCHES = 7;
     public static final double FRONT_CAMERA_IDEAL_COLLECTION_DISTANCE = 14;
     public static final int BACK_CAMERA_OFFSET_INCHES = 0;
-    public static final double COLLECT_HEAD_BASE_OFFSET_X = 16; // This is magnitude, not direction (usually backwards on robot in collect state.)
+    public static final double COLLECT_HEAD_BASE_OFFSET_X = 15.5; // This is magnitude, not direction (usually backwards on robot in collect state.)
     public static final double COLLECT_HEAD_HEADING_OFFSET = Math.PI;
     public static final double DRIVE_TO_POSE_THRESHOLD = 1.5f;
     public static final int POSITION_ACQUIRED_INDICATE_MILLIS = 1000;

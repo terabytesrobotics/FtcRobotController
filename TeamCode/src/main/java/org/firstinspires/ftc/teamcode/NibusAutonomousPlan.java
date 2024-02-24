@@ -37,10 +37,10 @@ public enum NibusAutonomousPlan {
         double collectorHeading = getCollectorHeadingDuringPixelDrop(allianceColor, detectedPosition);
         Vector2d targetLocation = StartingPosition.getPixelTargetPosition(allianceColor, detectedPosition);
         Pose2d collectorPose = new Pose2d(targetLocation.getX(), targetLocation.getY(), collectorHeading);
-        return NibusHelpers.robotPose2(collectorPose, NibusConstants.COLLECT_HEAD_BASE_OFFSET_X, 2, Math.PI);
+        return NibusHelpers.robotPose2(collectorPose, NibusConstants.COLLECT_HEAD_BASE_OFFSET_X, 1.5, Math.PI);
     }
 
-    public List<NibusCommand> afterScoringApproachCommands(AllianceColor allianceColor, CenterStageBackdropPosition backdropPosition) {
+    public ArrayList<NibusCommand> afterScoringApproachCommands(AllianceColor allianceColor, CenterStageBackdropPosition backdropPosition) {
         double AUTON_SCORING_HEIGHT = 1;
         double APPROACH_DISTANCE = 3;
         double SAFTEY_DISTANCE = 6;
@@ -60,7 +60,7 @@ public enum NibusAutonomousPlan {
         return commands;
     }
 
-    public List<NibusCommand> backStageScoringApproachCommands(AllianceColor allianceColor) {
+    public ArrayList<NibusCommand> backStageScoringApproachCommands(AllianceColor allianceColor) {
         Vector2d scoringApproach = allianceColor.getScoringApproachLocation();
 
         Pose2d pose1 = new Pose2d(scoringApproach.getX(), scoringApproach.getY(), 0);
@@ -75,7 +75,7 @@ public enum NibusAutonomousPlan {
         return commands;
     }
 
-    public List<NibusCommand> frontStageScoringApproachCommands(AllianceColor allianceColor, AlliancePropPosition alliancePropPosition) {
+    public ArrayList<NibusCommand> frontStageScoringApproachCommands(AllianceColor allianceColor, AlliancePropPosition alliancePropPosition) {
         Vector2d audienceSideMiddleLane = allianceColor.getMiddleLaneAudienceWaypoint();
         Vector2d backstageSideMiddleLane = allianceColor.getMiddleLaneBackstageWaypoint();
         Vector2d scoringApproach = allianceColor.getScoringApproachLocation();
@@ -102,8 +102,8 @@ public enum NibusAutonomousPlan {
         return commands;
     }
 
-    public List<NibusCommand> scoringCommands(AllianceColor allianceColor, AlliancePropPosition alliancePropPosition) {
-        List<NibusCommand> commands;
+    public ArrayList<NibusCommand> scoringCommands(AllianceColor allianceColor, AlliancePropPosition alliancePropPosition) {
+        ArrayList<NibusCommand> commands;
         switch (this) {
             case START_FRONTSTAGE:
                 commands = frontStageScoringApproachCommands(allianceColor, alliancePropPosition);
@@ -111,6 +111,7 @@ public enum NibusAutonomousPlan {
             case START_BACKSTAGE:
             default:
                 commands = backStageScoringApproachCommands(allianceColor);
+                break;
         }
         commands.add(NibusCommand.turnOnFrontCamera());
         commands.addAll(afterScoringApproachCommands(allianceColor, alliancePropPosition.backdropPosition()));
