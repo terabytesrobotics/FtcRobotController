@@ -30,16 +30,17 @@ class NibusSaveState {
 
 public abstract class Nibus2000OpMode extends LinearOpMode {
 
+    protected final boolean debugMode;
     private final AllianceColor allianceColor;
     private final NibusState startupState;
     private Pose2d startPose = null;
     private NibusAutonomousPlan autonomousPlan = null;
 
-
     public Nibus2000OpMode(AllianceColor allianceColor, NibusState startupState) {
         super();
         this.allianceColor = allianceColor;
         this.startupState = startupState;
+        this.debugMode = false;
     }
 
     public Nibus2000OpMode(AllianceColor allianceColor, NibusState startupState, NibusAutonomousPlan autonomousPlan) {
@@ -48,6 +49,16 @@ public abstract class Nibus2000OpMode extends LinearOpMode {
         this.startupState = startupState;
         this.autonomousPlan = autonomousPlan;
         this.startPose = allianceColor.getAbsoluteFieldPose(autonomousPlan.StartingPosition);
+        this.debugMode = false;
+    }
+
+    public Nibus2000OpMode(AllianceColor allianceColor, NibusState startupState, NibusAutonomousPlan autonomousPlan, boolean debugMode) {
+        super();
+        this.allianceColor = allianceColor;
+        this.startupState = startupState;
+        this.autonomousPlan = autonomousPlan;
+        this.startPose = allianceColor.getAbsoluteFieldPose(autonomousPlan.StartingPosition);
+        this.debugMode = debugMode;
     }
 
     @Override
@@ -57,7 +68,8 @@ public abstract class Nibus2000OpMode extends LinearOpMode {
                 gamepad1,
                 gamepad2,
                 hardwareMap,
-                telemetry);
+                telemetry,
+                debugMode);
         boolean isSlowInit = startPose != null;
         if (isSlowInit) {
             nibus.autonomousInit(startPose, autonomousPlan);
@@ -65,7 +77,10 @@ public abstract class Nibus2000OpMode extends LinearOpMode {
             nibus.teleopInit();
         }
         waitForStart();
-        nibus.startup(startupState);
+
+        if (!isStopRequested()) {
+            nibus.startup(startupState);
+        }
 
         while (!isStopRequested() && nibus.evaluate()) {}
         nibus.shutDown();

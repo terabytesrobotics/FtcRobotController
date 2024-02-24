@@ -112,6 +112,7 @@ public enum NibusAutonomousPlan {
             default:
                 commands = backStageScoringApproachCommands(allianceColor);
         }
+        commands.add(NibusCommand.turnOnFrontCamera());
         commands.addAll(afterScoringApproachCommands(allianceColor, alliancePropPosition.backdropPosition()));
         return commands;
     }
@@ -140,7 +141,7 @@ public enum NibusAutonomousPlan {
 
     private List<NibusCommand> getPrePlaceCommands(AllianceColor allianceColor, double robotHeadingDuringPixelDrop) {
         double INITIAL_NUDGE_Y = 2;
-        double INITIAL_LATERAL_MOVE_X = 12;
+        double INITIAL_LATERAL_MOVE_X = 18;
         double INITIAL_FORWARD_MOVE_Y = 24;
 
         double xDirection = this == START_BACKSTAGE ? 1 : -1;
@@ -182,13 +183,15 @@ public enum NibusAutonomousPlan {
                             default:
                                 return ((3 * Math.PI) / 2) + (Math.PI / 4);
                             case RIGHT:
-                                return 0;
+                                // Slight nudge to force turn direction
+                                return - (Math.PI / 32);
                         }
                     case BLUE:
                     default:
                         switch (alliancePropPosition) {
                             case LEFT:
-                                return 0;
+                                // Slight nudge to force turn direction
+                                return Math.PI / 32;
                             case MID:
                             default:
                                 return Math.PI / 4;

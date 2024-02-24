@@ -18,8 +18,10 @@ public class NibusCommand {
     public final Double MinTimeMillis;
     public final Double SettleTimeMillis;
     public final Double SettleThresholdRatio;
+    public final Boolean FrontCameraOn;
 
     public NibusCommand(
+            @Nullable Boolean frontCameraOn,
             @Nullable Double scoringHeight,
             @Nullable CollectorState collectorState,
             @Nullable BlueGrabberState blueGrabberState,
@@ -28,6 +30,7 @@ public class NibusCommand {
             @NonNull Double minTimeMillis,
             @NonNull Double settleTimeMillis,
             @NonNull Double settleThresholdRatio) {
+        FrontCameraOn = frontCameraOn;
         ScoringHeight = scoringHeight;
         CollectorState = collectorState;
         BlueGrabberState = blueGrabberState;
@@ -40,6 +43,7 @@ public class NibusCommand {
 
     public static NibusCommand collectorStateCommand(CollectorState collectorState) {
         return new NibusCommand(
+                null,
                 null,
                 collectorState,
                 null,
@@ -56,6 +60,7 @@ public class NibusCommand {
                 null,
                 null,
                 null,
+                null,
                 pose,
                 250d,
                 250d,
@@ -64,6 +69,7 @@ public class NibusCommand {
 
     public static NibusCommand driveDirectToPoseFastCommand(Pose2d pose) {
         return new NibusCommand(
+                null,
                 null,
                 null,
                 null,
@@ -77,6 +83,7 @@ public class NibusCommand {
     public static NibusCommand driveDirectToPoseWithCollectorStateCommand(Pose2d pose, CollectorState collectorState) {
         return new NibusCommand(
                 null,
+                null,
                 collectorState,
                 null,
                 null,
@@ -89,6 +96,7 @@ public class NibusCommand {
     public static NibusCommand driveDirectToPoseWithCollectorStatePreciseCommand(Pose2d pose, CollectorState collectorState) {
         return new NibusCommand(
                 null,
+                null,
                 collectorState,
                 null,
                 null,
@@ -100,6 +108,7 @@ public class NibusCommand {
 
     public static NibusCommand scoringHeightCommand(Double scoringHeight) {
         return new NibusCommand(
+                null,
                 scoringHeight,
                 null,
                 null,
@@ -114,6 +123,7 @@ public class NibusCommand {
         return new NibusCommand(
                 null,
                 null,
+                null,
                 blueGrabberState,
                 greenGrabberState,
                 null,
@@ -124,6 +134,7 @@ public class NibusCommand {
 
     public static NibusCommand grabberStateCollectorStateCommand(BlueGrabberState blueGrabberState, GreenGrabberState greenGrabberState, CollectorState collectorState) {
         return new NibusCommand(
+                null,
                 null,
                 collectorState,
                 blueGrabberState,
@@ -141,7 +152,21 @@ public class NibusCommand {
                 null,
                 null,
                 null,
+                null,
                 waitMillis,
+                0d,
+                1d);
+    }
+
+    public static NibusCommand turnOnFrontCamera() {
+        return new NibusCommand(
+                true,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1000d,
                 0d,
                 1d);
     }

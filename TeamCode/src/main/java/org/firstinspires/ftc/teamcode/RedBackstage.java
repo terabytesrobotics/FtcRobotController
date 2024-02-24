@@ -4,13 +4,12 @@ import com.acmerobotics.dashboard.config.Config;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
-import org.firstinspires.ftc.teamcode.util.UpstageBackstageStart;
 
 @Config
-@Autonomous(name="Red BackStage Start")
-public class NibusRedBackStage extends Nibus2000OpMode {
+@Autonomous(name="Red Backstage")
+public class RedBackstage extends Nibus2000OpMode {
 
-    public NibusRedBackStage() {
+    public RedBackstage() {
         super(AllianceColor.RED, NibusState.DETECT_ALLIANCE_MARKER, NibusAutonomousPlan.START_BACKSTAGE);
     }
 }

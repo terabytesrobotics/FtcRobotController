@@ -160,13 +160,15 @@ public class Nibus2000 {
     private double grabTime = 0;
     private double focalPointXOffset = 0;
     private double focalPointYOffset = 0;
+    private final boolean debugMode;
 
-    public Nibus2000(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, Telemetry telemetry) {
+    public Nibus2000(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, Telemetry telemetry, boolean debugMode) {
         this.allianceColor = allianceColor;
         this.gamepad1 = gamepad1;
         this.gamepad2 = gamepad2;
         this.telemetry = telemetry;
         this.state = NibusState.MANUAL_DRIVE;
+        this.debugMode = debugMode;
 
         frontCamera = hardwareMap.get(WebcamName.class, "Webcam 1");
         backCamera = hardwareMap.get(WebcamName.class, "Webcam 2");
@@ -853,6 +855,20 @@ public class Nibus2000 {
                 Range.clip(error.getHeading() * TURN_GAIN, -MAX_AUTO_TURN, MAX_AUTO_TURN));
     }
 
+    private void logPoseTelemetry(String caption, Pose2d pose2d) {
+        telemetry.addData(caption, "X: %.1f Y: %.1f H: %.1f",
+                pose2d.getX(),
+                pose2d.getY(),
+                Math.toDegrees(pose2d.getHeading()));
+    }
+
+    private void logDesiredPositionTelemetry(Pose2d pose2d) {
+        Pose2d poseEstimate = drive.getPoseEstimate();
+        logPoseTelemetry("Pose Target: ", pose2d);
+        logPoseTelemetry("Pose Estimate: ", poseEstimate);
+        logPoseTelemetry("Pose Error: ", pose2d.minus(poseEstimate));
+    }
+
     private NibusState evaluateDrivingAutonomously() {
         if (commandSequence.size() == 0) {
             NibusState _continuationState = continuationState;
@@ -880,9 +896,14 @@ public class Nibus2000 {
             if (currentCommand.GreenGrabberState != null) {
                 greenGrabberState = currentCommand.GreenGrabberState;
             }
+
+            if (currentCommand.FrontCameraOn != null && currentCommand.FrontCameraOn) {
+                activateFrontCameraProcessing();
+            }
         }
 
         if (currentCommand.DriveDirectToPose != null) {
+            logDesiredPositionTelemetry(currentCommand.DriveDirectToPose);
             drive.setWeightedDrivePower(
                     getPoseTargetAutoDriveControl(currentCommand.DriveDirectToPose));
         }
@@ -892,13 +913,15 @@ public class Nibus2000 {
         boolean settledRightNow = collectorSettled && driveCompleted;
 
         boolean minTimeElapsed = currentCommandTime.milliseconds() > currentCommand.MinTimeMillis;
-        if (!settledRightNow) {
-            currentCommandSettledTime.reset();
-        } else if (minTimeElapsed && currentCommandSettledTime.milliseconds() > currentCommand.SettleTimeMillis) {
+        boolean commandCompleted = minTimeElapsed && currentCommandSettledTime.milliseconds() > currentCommand.SettleTimeMillis;
+        boolean debugAdvance = !debugMode || gamepad1.a;
+        if (commandCompleted && debugAdvance) {
             Log.d("evaluateDrivingAutonomously", "Command completed, popping command");
             drive.setWeightedDrivePower(new Pose2d());
             commandSequence.remove(0);
             currentCommand = null;
+        } else if (!settledRightNow) {
+            currentCommandSettledTime.reset();
         }
 
         return NibusState.AUTONOMOUSLY_DRIVING;
@@ -956,7 +979,6 @@ public class Nibus2000 {
             Log.d("evaluateDetectAllianceMarker", String.format("Detected %s", alliancePropPosition.name()));
 
             if (autonomousPlan != null) {
-                activateFrontCameraProcessing();
                 setAutonomousCommands(
                         NibusState.STOPPED_UNTIL_END,
                         autonomousPlan.autonomousCommandsAfterPropDetect(allianceColor, alliancePropPosition));
