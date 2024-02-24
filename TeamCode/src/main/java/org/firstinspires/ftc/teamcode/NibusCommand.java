@@ -10,6 +10,7 @@ import org.firstinspires.ftc.teamcode.util.CollectorState;
 import org.firstinspires.ftc.teamcode.util.GreenGrabberState;
 
 public class NibusCommand {
+    public final Double ApproachDistance;
     public final Double ScoringHeight;
     public final CollectorState CollectorState;
     public final BlueGrabberState BlueGrabberState;
@@ -21,6 +22,7 @@ public class NibusCommand {
     public final Boolean FrontCameraOn;
 
     public NibusCommand(
+            @Nullable Double approachDistance,
             @Nullable Boolean frontCameraOn,
             @Nullable Double scoringHeight,
             @Nullable CollectorState collectorState,
@@ -30,6 +32,7 @@ public class NibusCommand {
             @NonNull Double minTimeMillis,
             @NonNull Double settleTimeMillis,
             @NonNull Double settleThresholdRatio) {
+        ApproachDistance = approachDistance;
         FrontCameraOn = frontCameraOn;
         ScoringHeight = scoringHeight;
         CollectorState = collectorState;
@@ -43,6 +46,7 @@ public class NibusCommand {
 
     public static NibusCommand collectorStateCommand(CollectorState collectorState) {
         return new NibusCommand(
+                null,
                 null,
                 null,
                 collectorState,
@@ -61,6 +65,7 @@ public class NibusCommand {
                 null,
                 null,
                 null,
+                null,
                 pose,
                 250d,
                 250d,
@@ -69,6 +74,7 @@ public class NibusCommand {
 
     public static NibusCommand driveDirectToPoseFastCommand(Pose2d pose) {
         return new NibusCommand(
+                null,
                 null,
                 null,
                 null,
@@ -84,6 +90,7 @@ public class NibusCommand {
         return new NibusCommand(
                 null,
                 null,
+                null,
                 collectorState,
                 null,
                 null,
@@ -97,6 +104,7 @@ public class NibusCommand {
         return new NibusCommand(
                 null,
                 null,
+                null,
                 collectorState,
                 null,
                 null,
@@ -108,6 +116,7 @@ public class NibusCommand {
 
     public static NibusCommand scoringHeightCommand(Double scoringHeight) {
         return new NibusCommand(
+                null,
                 null,
                 scoringHeight,
                 null,
@@ -124,6 +133,7 @@ public class NibusCommand {
                 null,
                 null,
                 null,
+                null,
                 blueGrabberState,
                 greenGrabberState,
                 null,
@@ -136,6 +146,7 @@ public class NibusCommand {
         return new NibusCommand(
                 null,
                 null,
+                null,
                 collectorState,
                 blueGrabberState,
                 greenGrabberState,
@@ -145,8 +156,11 @@ public class NibusCommand {
                 1d);
     }
 
+
+
     public static NibusCommand waitCommand(Double waitMillis) {
         return new NibusCommand(
+                null,
                 null,
                 null,
                 null,
@@ -160,6 +174,7 @@ public class NibusCommand {
 
     public static NibusCommand turnOnFrontCamera() {
         return new NibusCommand(
+                null,
                 true,
                 null,
                 null,
@@ -168,6 +183,20 @@ public class NibusCommand {
                 null,
                 1000d,
                 0d,
+                1d);
+    }
+
+    public static NibusCommand approachBackdrop() {
+        return new NibusCommand(
+                NibusConstants.BACKDROP_TARGET_DISTANCE_INCHES,
+                true,
+                null,
+                null,
+                null,
+                null,
+                null,
+                250d,
+                250d,
                 1d);
     }
 }

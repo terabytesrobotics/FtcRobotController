@@ -37,7 +37,6 @@ import org.firstinspires.ftc.teamcode.util.BlueGrabberState;
 import org.firstinspires.ftc.teamcode.util.CollectorState;
 import org.firstinspires.ftc.teamcode.util.GreenGrabberState;
 import org.firstinspires.ftc.teamcode.util.OnActivatedEvaluator;
-import org.firstinspires.ftc.teamcode.util.TrueForTime;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
@@ -150,8 +149,9 @@ public class Nibus2000 {
 //    private boolean aprilRight = false;
 //    private boolean aprilLeft = false;
     private boolean timerGoing = false;
-    private double backupTimer;
-    private final double backUpTime = 100;
+    private ElapsedTime backupTimer = null;
+    private final double BACKUP_DELAY_TIME = 175;
+    private final double BACKUP_TIME = 100;
     private boolean grabGreen = false;
     private boolean grabBlue = false;
     private boolean armedBlue = false;
@@ -400,11 +400,11 @@ public class Nibus2000 {
             indicator1Red.setState(false);
         }
 
-        if (collectorState == null) {
-            blinkinLedDriver.setPattern(allianceColor.getAllianceColorBlinkinPattern());
-        } else {
-            blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.CP1_STROBE);
-        }
+//        if (collectorState == null) {
+//            blinkinLedDriver.setPattern(allianceColor.getAllianceColorBlinkinPattern());
+//        } else {
+//            blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.CP1_STROBE);
+//        }
     }
 
     private void evaluatePositioningSystems() {
@@ -483,15 +483,16 @@ public class Nibus2000 {
             if (dpadDown1PressedEvaluator.evaluate()) {
                 setRobotHeading(allianceColor.OperatorHeadingOffset);
             }
-            if (dpadLeft1PressedEvaluator.evaluate()) {
-                setRobotHeading(allianceColor.OperatorHeadingOffset + (Math.PI / 2));
-            }
-            if (dpadRight1PressedEvaluator.evaluate()) {
-                setRobotHeading(allianceColor.OperatorHeadingOffset - (Math.PI / 2));
-            }
-            if (dpadDown1PressedEvaluator.evaluate()) {
-                setRobotHeading(allianceColor.OperatorHeadingOffset + Math.PI);
-            }
+            // Doesn't work correctly
+//            if (dpadLeft1PressedEvaluator.evaluate()) {
+//                setRobotHeading(allianceColor.OperatorHeadingOffset + (Math.PI / 2));
+//            }
+//            if (dpadRight1PressedEvaluator.evaluate()) {
+//                setRobotHeading(allianceColor.OperatorHeadingOffset - (Math.PI / 2));
+//            }
+//            if (dpadDown1PressedEvaluator.evaluate()) {
+//                setRobotHeading(allianceColor.OperatorHeadingOffset + Math.PI);
+//            }
         }
 
         // Toggle collect mode.
@@ -563,10 +564,6 @@ public class Nibus2000 {
                 grabTime = System.currentTimeMillis();
             }
         }
-        if (gamepad1.x) {
-            armedBlue = false;
-            armedGreen = false;
-        }
 
         //Auto grabber logic Blue
         if(armedBlue) {
@@ -631,35 +628,9 @@ public class Nibus2000 {
         boolean aprilUp = gamepad2.dpad_up;
         boolean aprilRight = gamepad2.dpad_right;
         boolean aprilLeft = gamepad2.dpad_left;
-        //Scoring Lock on to april tags
-//        if (gamepad2.dpad_up)  {
-//            aprilUp = true;
-//            aprilRight = false;
-//            aprilLeft = false;
-//        }
-//        if (gamepad2.dpad_right) {
-//            aprilRight = true;
-//            aprilUp = false;
-//            aprilLeft = false;
-//        }
-//        if (gamepad2.dpad_left)  {
-//            aprilLeft = true;
-//            aprilUp = false;
-//            aprilRight = false;
-//        }
-        if ((gamepad2.dpad_down && (aprilUp || aprilRight || aprilLeft)) ||
-                (greenGrabberState == GreenGrabberState.NOT_GRABBED && blueGrabberState == BlueGrabberState.NOT_GRABBED) && (aprilUp || aprilRight || aprilLeft)){
-            if (!timerGoing) {
-                backupTimer = System.currentTimeMillis();
-                timerGoing = true;
-            }
-            if (backUpTime < System.currentTimeMillis() - backupTimer){
-//                aprilLeft = false;
-//                aprilUp = false;
-//                aprilRight = false;
-                timerGoing = false;
-                collectorState = CollectorState.DRIVING_SAFE;
-            }
+        if (collectorState == null && backupTimer == null &&
+                (greenGrabberState == GreenGrabberState.NOT_GRABBED && blueGrabberState == BlueGrabberState.NOT_GRABBED)) {
+            backupTimer = new ElapsedTime();
         } else if (gamepad2.dpad_down) {
             collectorState = CollectorState.DRIVING_SAFE;
         }
@@ -669,7 +640,7 @@ public class Nibus2000 {
             blueGrabberState = BlueGrabberState.GRABBED;
         }
 
-        if (aprilUp || aprilRight || aprilLeft) {
+        if (hasPositionEstimate() && (aprilUp || aprilRight || aprilLeft)) {
             CenterStageBackdropPosition backdropPosition = CenterStageBackdropPosition.CENTER;
             if (aprilUp) {
                 backdropPosition = CenterStageBackdropPosition.CENTER;
@@ -683,11 +654,19 @@ public class Nibus2000 {
             Pose2d scoringFocalPoint =
                     allianceColor.getAprilTagForScoringPosition(backdropPosition)
                             .facingPose();
-            Pose2d robotPoseForFocalPoint = NibusHelpers.robotPose2(scoringFocalPoint, scoringPositionOffset + SCORING_X_SAFTEY_OFFSET, 0, 0);
-            telemetry.addData("scoringFocalPoint", "x: %5.1f, y: %5.1f, th: %5.1f", scoringFocalPoint.getX(), scoringFocalPoint.getY(), scoringFocalPoint.getHeading());
-            telemetry.addData("robotPoseForFocalPoint", "x: %5.1f, y: %5.1f, th: %5.1f", robotPoseForFocalPoint.getX(), robotPoseForFocalPoint.getY(), robotPoseForFocalPoint.getHeading());
-            driveControl = getPoseTargetAutoDriveControl(robotPoseForFocalPoint);
-        } else if (collectorState == null) {
+            //Pose2d robotPoseForFocalPoint = NibusHelpers.robotPose2(scoringFocalPoint, scoringPositionOffset + SCORING_X_SAFTEY_OFFSET, 0, 0);
+            //telemetry.addData("scoringFocalPoint", "x: %5.1f, y: %5.1f, th: %5.1f", scoringFocalPoint.getX(), scoringFocalPoint.getY(), scoringFocalPoint.getHeading());
+            //telemetry.addData("robotPoseForFocalPoint", "x: %5.1f, y: %5.1f, th: %5.1f", robotPoseForFocalPoint.getX(), robotPoseForFocalPoint.getY(), robotPoseForFocalPoint.getHeading());
+            driveControl =
+                    driveControl.plus(
+                        getPoseTargetAutoDriveControl(
+                            new Pose2d(
+                                    latestPoseEstimate.getX(),
+                                    scoringFocalPoint.getY(),
+                                    scoringFocalPoint.getHeading())));
+        }
+
+        if (collectorState == null) {
             double dis = collectorDistance.getDistance(DistanceUnit.INCH);
             telemetry.addData("collectorDistance", "inches: %5.1f",  dis);
             double errorX = dis - BACKDROP_TARGET_DISTANCE_INCHES;
@@ -695,6 +674,12 @@ public class Nibus2000 {
             double approachX = Range.clip(errorX * DISTANCE_ERROR_GAIN, -MAX_AUTO_SPEED / 2, MAX_AUTO_SPEED / 2);
             if (gamepad2.a) {
                 driveControl = driveControl.plus(new Pose2d(approachX, 0, 0));
+            }
+
+            if (hasPositionEstimate() && (gamepad2.a || gamepad1.x)) {
+                double errorHeading = Angle.normDelta(0 - latestPoseEstimate.getHeading());
+                double laneLockRotation = Range.clip(errorHeading * TURN_GAIN, -MAX_AUTO_TURN, MAX_AUTO_TURN);
+                driveControl = driveControl.plus(new Pose2d(0, 0, laneLockRotation));
             }
         } else if (hasPositionEstimate() && gamepad1.x) {
             int closestLaneY = CenterStageConstants.getClosestLane(latestPoseEstimate.getY());
@@ -704,6 +689,16 @@ public class Nibus2000 {
             double laneLockY = Range.clip(errorY * SPEED_GAIN, -MAX_AUTO_SPEED, MAX_AUTO_SPEED);
             double laneLockRotation = Range.clip(errorHeading * TURN_GAIN, -MAX_AUTO_TURN, MAX_AUTO_TURN);
             driveControl = driveControl.plus(new Pose2d(0, laneLockY, laneLockRotation));
+        }
+
+        if (backupTimer != null) {
+            if (backupTimer.milliseconds() > BACKUP_DELAY_TIME) {
+                driveControl = driveControl.plus(new Pose2d(-MAX_AUTO_SPEED, 0, 0));
+            }
+            if (backupTimer.milliseconds() > BACKUP_TIME + BACKUP_DELAY_TIME) {
+                backupTimer = null;
+                collectorState = CollectorState.DRIVING_SAFE;
+            }
         }
 
         drive.setWeightedDrivePower(driveControl);
@@ -872,9 +867,20 @@ public class Nibus2000 {
                     getPoseTargetAutoDriveControl(currentCommand.DriveDirectToPose));
         }
 
+        boolean approachCompleted = true;
+        if (currentCommand.ApproachDistance != null) {
+            double dis = collectorDistance.getDistance(DistanceUnit.INCH);
+            telemetry.addData("collectorDistance", "inches: %5.1f",  dis);
+            double errorX = dis - currentCommand.ApproachDistance;
+            double DISTANCE_ERROR_GAIN = 0.1;
+            double approachX = Range.clip(errorX * DISTANCE_ERROR_GAIN, -MAX_AUTO_SPEED / 2, MAX_AUTO_SPEED / 2);
+            drive.setWeightedDrivePower(new Pose2d(approachX, 0, 0));
+            approachCompleted = Math.abs(errorX) <= 1.25;
+        }
+
         boolean collectorSettled = (currentCommand.CollectorState == null && currentCommand.ScoringHeight == null) || armAndExtenderSettled();
         boolean driveCompleted = currentCommand.DriveDirectToPose == null || isAtPoseTarget(currentCommand.DriveDirectToPose, currentCommand.SettleThresholdRatio);
-        boolean settledRightNow = collectorSettled && driveCompleted;
+        boolean settledRightNow = collectorSettled && driveCompleted && approachCompleted;
 
         boolean minTimeElapsed = currentCommandTime.milliseconds() > currentCommand.MinTimeMillis;
         boolean commandCompleted = settledRightNow && minTimeElapsed && currentCommandSettledTime.milliseconds() > currentCommand.SettleTimeMillis;
