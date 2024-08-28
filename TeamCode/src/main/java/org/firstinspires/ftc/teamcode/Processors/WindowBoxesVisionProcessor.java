@@ -7,6 +7,7 @@ import android.view.SurfaceView;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibration;
+import org.firstinspires.ftc.teamcode.util.AllianceColor;
 import org.firstinspires.ftc.vision.VisionProcessor;
 import org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibration;
 import org.opencv.core.Core;
@@ -35,17 +36,7 @@ public class WindowBoxesVisionProcessor implements VisionProcessor {
 
     public Paint rectPaint;
 
-
     public String color = "";
-
-
-
-
-
-
-
-
-
 
     @Override
     public void init(int width, int height, org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibration calibration) {
@@ -93,12 +84,16 @@ public class WindowBoxesVisionProcessor implements VisionProcessor {
     }
 
 
-    public Object[] topbox (int width,int height, int rows, int cols, String color) {
+    // NOTE: This is very hacked to only check the second row of 3.
+    public Object[] topbox(int width,int height, int rows, int cols, AllianceColor color) {
+        if (lastFrame == null) {
+            return new Object[]{};
+        }
         // Comment out this is RGB Mat evalFrame = lastFrame.clone();
         //This converts to YCRCB
         Mat ycrcbEvalFrame = new Mat();
         Imgproc.cvtColor(lastFrame, ycrcbEvalFrame,Imgproc.COLOR_RGB2YCrCb);
-        Mat boxes[][] = new Mat[rows][cols];
+        Mat boxes[][] = new Mat[1][cols];
         double crvals[][] = new double[rows][cols];
         double cbvals[][] = new double[rows][cols];
         double yvals[][] = new double[rows][cols];
@@ -121,12 +116,12 @@ public class WindowBoxesVisionProcessor implements VisionProcessor {
         double maxval = -1;
 
 
-        if (color == "RED") {
+        if (color == AllianceColor.RED) {
             //index 2 for RGB, 1 for ycrcb
             colorindex = 1;
 
 
-        } else if (color == "BLUE") {
+        } else if (color == AllianceColor.BLUE) {
             //index 0 for RGB, 2 for ycrcb
 
             colorindex = 2;
@@ -137,22 +132,23 @@ public class WindowBoxesVisionProcessor implements VisionProcessor {
         int boxWidth = Width / Cols;
         int boxHeight = Height / Rows;
 
-        for (int r = 0; r < Rows; r++) {
+        // TODO: THIS IS HACKED
+        for (int r = 1; r < 2; r++) {
             //boxmaxes = null;
             for (int c = 0; c < Cols; c++) {
 
                 Rect roi = new Rect(c * boxWidth, r * boxHeight, boxWidth, boxHeight);
-                boxes[r][c] = new Mat(ycrcbEvalFrame, roi);
+                boxes[0][c] = new Mat(ycrcbEvalFrame, roi);
 
                 // Calculate the average selected color intensity in the box
-                Scalar avgColor = Core.mean(boxes[r][c]);
+                Scalar avgColor = Core.mean(boxes[0][c]);
 
 
-                if (color=="RED") {
+                if (color == AllianceColor.RED) {
 
                     boxmaxes.put(r, c, avgColor.val[1]);
 
-                } else if (color=="BLUE") {
+                } else if (color == AllianceColor.BLUE) {
 
                     boxmaxes.put(r, c, avgColor.val[2]);
 

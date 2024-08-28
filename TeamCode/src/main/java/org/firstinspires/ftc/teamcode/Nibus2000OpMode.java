@@ -1,65 +1,64 @@
 package org.firstinspires.ftc.teamcode;
 
-import com.acmerobotics.dashboard.FtcDashboard;
-import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
-import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
-import org.firstinspires.ftc.teamcode.util.AlliancePose;
+import org.firstinspires.ftc.teamcode.util.UpstageBackstageStart;
+import org.firstinspires.ftc.teamcode.util.BlueGrabberState;
+import org.firstinspires.ftc.teamcode.util.CollectorState;
+import org.firstinspires.ftc.teamcode.util.GreenGrabberState;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+class NibusSaveState {
+
+    public final Pose2d Pose;
+    public final int ArmPosition;
+    public final int ExtenderPosition;
+    public final CollectorState CollectorState;
+    public final BlueGrabberState BlueGrabberState;
+    public final GreenGrabberState GreenGrabberState;
+
+    public NibusSaveState(Pose2d pose, int armPosition, int extenderPosition, CollectorState collectorState, BlueGrabberState blueGrabberState, GreenGrabberState greenGrabberState) {
+        Pose = pose;
+        ArmPosition = armPosition;
+        ExtenderPosition = extenderPosition;
+        CollectorState = collectorState;
+        BlueGrabberState = blueGrabberState;
+        GreenGrabberState = greenGrabberState;
+    }
+}
 
 public abstract class Nibus2000OpMode extends LinearOpMode {
 
-    private final MultipleTelemetry multipleTelemetry;
+    protected final boolean debugMode;
     private final AllianceColor allianceColor;
-    private final Pose2d startPose;
+    private final NibusState startupState;
+    private Pose2d startPose = null;
+    private NibusAutonomousPlan autonomousPlan = null;
 
-    public Nibus2000OpMode(AllianceColor allianceColor) {
+    public Nibus2000OpMode(AllianceColor allianceColor, NibusState startupState) {
         super();
-        this.multipleTelemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
         this.allianceColor = allianceColor;
-        this.startPose = RecoverPoseEstimate();
+        this.startupState = startupState;
+        this.debugMode = false;
     }
 
-    public Nibus2000OpMode(AllianceColor allianceColor, AlliancePose startPose) {
+    public Nibus2000OpMode(AllianceColor allianceColor, NibusState startupState, NibusAutonomousPlan autonomousPlan) {
         super();
-        this.multipleTelemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
         this.allianceColor = allianceColor;
-        this.startPose = allianceColor.getAbsoluteFieldPose(startPose);
+        this.startupState = startupState;
+        this.autonomousPlan = autonomousPlan;
+        this.startPose = allianceColor.getAbsoluteFieldPose(autonomousPlan.StartingPosition);
+        this.debugMode = false;
     }
 
-    private static final String POSE_FILE = "PoseData.tmp";
-
-    private void SavePoseEstimate(Pose2d pose) {
-        try (FileOutputStream fos = new FileOutputStream(POSE_FILE);
-             ObjectOutputStream oos = new ObjectOutputStream(fos)) {
-            oos.writeObject(pose);
-        } catch (IOException e) {
-            multipleTelemetry.addData("Error", "Failed to save pose: " + e.getMessage());
-            multipleTelemetry.update();
-        }
-    }
-
-    private Pose2d RecoverPoseEstimate() {
-        File file = new File(POSE_FILE);
-        if (file.exists()) {
-            try (FileInputStream fis = new FileInputStream(file);
-                 ObjectInputStream ois = new ObjectInputStream(fis)) {
-                return (Pose2d) ois.readObject();
-            } catch (IOException | ClassNotFoundException e) {
-                multipleTelemetry.addData("Error", "Failed to recover pose: " + e.getMessage());
-                multipleTelemetry.update();
-            }
-        }
-        return new Pose2d();
+    public Nibus2000OpMode(AllianceColor allianceColor, NibusState startupState, NibusAutonomousPlan autonomousPlan, boolean debugMode) {
+        super();
+        this.allianceColor = allianceColor;
+        this.startupState = startupState;
+        this.autonomousPlan = autonomousPlan;
+        this.startPose = allianceColor.getAbsoluteFieldPose(autonomousPlan.StartingPosition);
+        this.debugMode = debugMode;
     }
 
     @Override
@@ -69,13 +68,21 @@ public abstract class Nibus2000OpMode extends LinearOpMode {
                 gamepad1,
                 gamepad2,
                 hardwareMap,
-                multipleTelemetry);
-        nibus.init(startPose);
-        waitForStart();
-        nibus.startup();
-        while (!isStopRequested()) {
-            nibus.evaluate();
+                telemetry,
+                debugMode);
+        boolean isSlowInit = startPose != null;
+        if (isSlowInit) {
+            nibus.autonomousInit(startPose, autonomousPlan);
+        } else {
+            nibus.teleopInit();
         }
-        SavePoseEstimate(nibus.getPoseEstimate());
+        waitForStart();
+
+        if (!isStopRequested()) {
+            nibus.startup(startupState);
+        }
+
+        while (!isStopRequested() && nibus.evaluate()) {}
+        nibus.shutDown();
     }
 }

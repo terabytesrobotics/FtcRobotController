@@ -6,10 +6,10 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
 
 @Config
-@Autonomous(name="Red Audience")
-public class RedAudience extends Nibus2000OpMode {
+@Autonomous(name="Blue Backstage")
+public class BlueBackstage extends Nibus2000OpMode {
 
-    public RedAudience() {
-        super(AllianceColor.RED, NibusState.DETECT_ALLIANCE_MARKER, NibusAutonomousPlan.START_FRONTSTAGE);
+    public BlueBackstage() {
+        super(AllianceColor.BLUE, NibusState.DETECT_ALLIANCE_MARKER, NibusAutonomousPlan.START_BACKSTAGE);
     }
 }
