@@ -20,7 +20,10 @@ public class WhippedCreamBot extends LinearOpMode {
 
 
     private DcMotorEx WhipMotor;
-    Double WhipPower = 0.5;
+    Double WhipPower = 1.0;
+    Double revpermin = 435.0;
+Double WhipSpeed=103.6*revpermin;
+
 
 
 
@@ -56,12 +59,13 @@ public class WhippedCreamBot extends LinearOpMode {
 
         while (opModeIsActive()) {
 
-WhipMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-            WhipMotor.setPower(WhipPower);
+WhipMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            //WhipMotor.setPower(WhipPower);
+            WhipMotor.setVelocity(WhipSpeed);
 
 
             telemetry.addData("WhipPower",WhipPower);
-            telemetry.addData("WhipSpeed", WhipMotor.getVelocity());
+            telemetry.addData("WhipSpeed", (WhipMotor.getVelocity()/-3000));
             telemetry.addData("WhipCurrent", WhipMotor.getCurrent (CurrentUnit.MILLIAMPS));
             telemetry.update();
 
