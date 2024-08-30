@@ -21,12 +21,16 @@ public class WhippedCreamBot extends LinearOpMode {
 
     private DcMotorEx WhipMotor;
     Double WhipPower = 1.0;
-    Double revpermin = 800.0;
+    Double revpermin = 1000.0;
     Double WhipSpeed=103.6*revpermin;
     int averages=100;
     double CsumReadings = 0;
     double CnumReadings=0;
-double WhipCAvg = 0;
+    double WhipCAvg = 0;
+    double maximumaveragereading = 0;
+    int countofreadingsbelowmaximum = 0;
+    static final int READINGCUTOFFCOUNT = 8;
+
 
 
 
@@ -47,14 +51,10 @@ double WhipCAvg = 0;
      */
     @Override
     public void runOpMode() throws InterruptedException {
-
-
         WhipMotor = hardwareMap.get(DcMotorEx.class,"Whipper");
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         WhipMotor.setDirection(DcMotorEx.Direction.FORWARD);
-
-
         // Wait for the game to start (driver presses PLAY)
         telemetry.addData("Status", "Initialized");
         telemetry.update();
@@ -67,26 +67,37 @@ double WhipCAvg = 0;
 
     if (opModeIsActive()) {
 
-        while (opModeIsActive()) {
+        while (opModeIsActive() && countofreadingsbelowmaximum < READINGCUTOFFCOUNT) {
 
             double CurrentCurrent = WhipMotor.getCurrent(CurrentUnit.MILLIAMPS);
             CsumReadings += CurrentCurrent;
             CnumReadings++;
 
-            if (CnumReadings == averages){
+            if (CnumReadings == averages) {
                 WhipCAvg=CsumReadings/CnumReadings;
-            CnumReadings=0;
-            CsumReadings=0;}
+                CnumReadings=0;
+                CsumReadings=0;
+               if (runtime.milliseconds() > 2000) {
+                   if (WhipCAvg > maximumaveragereading) {
+                        maximumaveragereading = WhipCAvg;
+                        countofreadingsbelowmaximum = 0;
+                    } else {
+                        countofreadingsbelowmaximum=countofreadingsbelowmaximum+1;
+                    }
+               }
+            }
+
+
 
             telemetry.addData("WhipPower",WhipPower);
             telemetry.addData("WhipSpeed", (WhipMotor.getVelocity()/-3000));
             telemetry.addData("WhipCurrent", CurrentCurrent);
             telemetry.addData("WhipCAvg", (WhipCAvg));
-
+            telemetry.addData("countbelowmax",countofreadingsbelowmaximum);
             telemetry.update();
           }
 
-
+            WhipMotor.setVelocity(0);
         }
     }
 
