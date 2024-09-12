@@ -980,7 +980,7 @@ public class Nibus2000 {
     }
 
     private Pose2d getScaledHeadlessDriverInput(Gamepad gamepad, double operatorHeadingOffset, boolean slow) {
-        Vector2d inputFieldDirection = NibusHelpers.headlessLeftStickFieldDirection(gamepad, operatorHeadingOffset, latestPoseEstimate.getHeading());
+        Vector2d inputFieldDirection = TerabytesHelpers.headlessLeftStickFieldDirection(gamepad, operatorHeadingOffset, latestPoseEstimate.getHeading());
         double scale = slow ? SLOW_MODE_SCALE : FAST_MODE_SCALE;
         double scaledRobotX = inputFieldDirection.getX() * scale;
         double scaledRobotY = inputFieldDirection.getY() * scale;
@@ -1015,7 +1015,7 @@ public class Nibus2000 {
         Integer wristNudgeCountBoxed = wristNudgesPerPosition.getOrDefault(collectorState, 0);
         int wristNudgeCount = wristNudgeCountBoxed == null ? 0 : wristNudgeCountBoxed;
 
-        Mat.Tuple4<Double> targets = NibusHelpers.armExtenderWristAndOffsetForScoringHeight(Math.max(0, scoringHeightOffset));
+        Mat.Tuple4<Double> targets = TerabytesHelpers.armExtenderWristAndOffsetForScoringHeight(Math.max(0, scoringHeightOffset));
         armTickTarget = targets.get_0();
         extenderTickTarget = targets.get_1();
         wristPosition = Math.min(1, Math.max(0, targets.get_2() + (wristNudgeCount * WRIST_SERVO_TRIM_INCREMENT)));
