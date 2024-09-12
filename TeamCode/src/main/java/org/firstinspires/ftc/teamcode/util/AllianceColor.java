@@ -7,6 +7,7 @@ import com.qualcomm.hardware.rev.RevBlinkinLedDriver;
 import org.firstinspires.ftc.teamcode.CenterStageAprilTags;
 import org.firstinspires.ftc.teamcode.CenterStageBackdropPosition;
 import org.firstinspires.ftc.teamcode.NibusApproach;
+import org.firstinspires.ftc.teamcode.TerabytesAutonomousPlan;
 
 public enum AllianceColor {
     BLUE(Math.toRadians(270)),
@@ -16,6 +17,10 @@ public enum AllianceColor {
 
     AllianceColor(double operatorHeadingOffset) {
         this.OperatorHeadingOffset = operatorHeadingOffset;
+    }
+
+    public Pose2d getStartingPose(TerabytesAutonomousPlan autonomousPlan) {
+        return new Pose2d();
     }
 
     public Pose2d getAbsoluteFieldPose(UpstageBackstageStart alliancePose) {

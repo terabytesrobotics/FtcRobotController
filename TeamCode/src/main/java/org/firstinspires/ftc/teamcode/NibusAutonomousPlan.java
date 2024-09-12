@@ -1,7 +1,5 @@
 package org.firstinspires.ftc.teamcode;
 
-import android.util.Log;
-
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.acmerobotics.roadrunner.util.Angle;
@@ -37,7 +35,7 @@ public enum NibusAutonomousPlan {
         double collectorHeading = getCollectorHeadingDuringPixelDrop(allianceColor, detectedPosition);
         Vector2d targetLocation = StartingPosition.getPixelTargetPosition(allianceColor, detectedPosition);
         Pose2d collectorPose = new Pose2d(targetLocation.getX(), targetLocation.getY(), collectorHeading);
-        return NibusHelpers.robotPose2(collectorPose, NibusConstants.COLLECT_HEAD_BASE_OFFSET_X, 1.5, Math.PI);
+        return TerabytesHelpers.robotPoseForDesiredAppendagePose(collectorPose, NibusConstants.COLLECT_HEAD_BASE_OFFSET_X, 1.5, Math.PI);
     }
 
     public ArrayList<NibusCommand> afterScoringApproachCommands(AllianceColor allianceColor, CenterStageBackdropPosition backdropPosition) {
@@ -46,10 +44,10 @@ public enum NibusAutonomousPlan {
 
         ArrayList<NibusCommand> commands = new ArrayList<>();
 
-        Mat.Tuple4<Double> scoringPositions = NibusHelpers.armExtenderWristAndOffsetForScoringHeight(AUTON_SCORING_HEIGHT);
+        Mat.Tuple4<Double> scoringPositions = TerabytesHelpers.armExtenderWristAndOffsetForScoringHeight(AUTON_SCORING_HEIGHT);
         double defaultPreScoringOffset = scoringPositions.get_3();
 
-        Pose2d preScoring = NibusHelpers.getPreScoringPose(allianceColor, backdropPosition, defaultPreScoringOffset + SAFTEY_DISTANCE, 1.75);
+        Pose2d preScoring = TerabytesHelpers.getPreScoringPose(allianceColor, backdropPosition, defaultPreScoringOffset + SAFTEY_DISTANCE, 1.75);
         commands.add(NibusCommand.driveDirectToPoseWithScoringHeightCommand(preScoring, AUTON_SCORING_HEIGHT));
         commands.add(NibusCommand.approachBackdrop());
         commands.add(NibusCommand.grabberStateCommand(BlueGrabberState.GRABBED, GreenGrabberState.NOT_GRABBED));
@@ -200,29 +198,6 @@ public enum NibusAutonomousPlan {
             case START_BACKSTAGE:
             default:
                 return Math.PI;
-/*                switch (allianceColor) {
-                    case RED:
-                        switch (alliancePropPosition) {
-                            case LEFT:
-                                return Math.PI;
-                            case MID:
-                            default:
-                                return Math.PI + (Math.PI / 4);
-                            case RIGHT:
-                                return (3 * Math.PI) / 2;
-                        }
-                    case BLUE:
-                    default:
-                        switch (alliancePropPosition) {
-                            case LEFT:
-                                return Math.PI / 2;
-                            case MID:
-                            default:
-                                return (Math.PI / 2) + (Math.PI / 4);
-                            case RIGHT:
-                                return Math.PI;
-                        }
-                }*/
         }
     }
 }
