@@ -404,11 +404,8 @@ public class TerabytesIntoTheDeep {
         double bearing = Math.toRadians(detection.ftcPose.bearing);
         double range = detection.ftcPose.range;
 
-        // Tag heading heuristic for into the deep
-        boolean tagIsAudience = tag.fieldPosition.get(1) < 0f;
-        boolean tagIsRear = tag.fieldPosition.get(1) > 0f;
-        boolean tagIsBlue = tag.fieldPosition.get(0) > 0f;
-        double tagFieldHeading = tagIsAudience ? 0 : tagIsRear ? Math.PI : tagIsBlue ? Math.PI / 4 : ((Math.PI * 3 ) / 4);
+        // Get the correct tagFieldHeading based on the tag ID
+        double tagFieldHeading = getTagFieldHeading(detection.id);
 
         double tagToCameraHeading = Angle.norm(tagFieldHeading + bearing - yaw);
         double cameraFieldX = tag.fieldPosition.get(0) + (range * Math.cos(tagToCameraHeading));
@@ -420,6 +417,23 @@ public class TerabytesIntoTheDeep {
         double robotFieldY = cameraFieldY - (cameraRobotOffset * Math.sin(cameraFieldHeading));
 
         return new Pose2d(robotFieldX, robotFieldY, cameraFieldHeading);
+    }
+
+    private double getTagFieldHeading(int tagId) {
+        switch (tagId) {
+            case 11: // BlueAudienceWall
+            case 16: // RedAudienceWall
+                return 0; // 0 degrees, facing along the X-axis
+            case 12: // BlueAllianceWall
+                return Math.PI / 2; // 90 degrees, facing along the Y-axis
+            case 13: // BlueRearWall
+            case 14: // RedRearWall
+                return Math.PI; // 180 degrees, facing opposite the X-axis
+            case 15: // RedAllianceWall
+                return -Math.PI / 2; // -90 degrees, facing negative Y-axis
+            default:
+                return 0; // Default to 0 if unknown
+        }
     }
 
     private void setCommandSequence(List<TerabytesCommand> commands) {
