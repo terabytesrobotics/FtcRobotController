@@ -35,9 +35,6 @@ import com.qualcomm.robotcore.util.Range;
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.AxesOrder;
-import org.firstinspires.ftc.robotcore.external.navigation.AxesReference;
 import org.firstinspires.ftc.robotcore.internal.camera.delegating.SwitchableCameraName;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
@@ -436,14 +433,14 @@ public class TerabytesIntoTheDeep {
         switch (tagId) {
             case 11: // BlueAudienceWall
             case 16: // RedAudienceWall
-                return 0; // 0 degrees, facing along the X-axis
+                return 0;
             case 12: // BlueAllianceWall
-                return Math.PI / 2; // 90 degrees, facing along the Y-axis
+                return -Math.PI / 2;
             case 13: // BlueRearWall
             case 14: // RedRearWall
-                return Math.PI; // 180 degrees, facing opposite the X-axis
+                return Math.PI;
             case 15: // RedAllianceWall
-                return -Math.PI / 2; // -90 degrees, facing negative Y-axis
+                return Math.PI / 2;
             default:
                 return 0; // Default to 0 if unknown
         }
