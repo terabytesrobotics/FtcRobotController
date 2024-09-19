@@ -55,6 +55,17 @@ import java.util.Queue;
 
 public class TerabytesIntoTheDeep {
 
+    // TODO: Trim these GPT fields down to only necessary
+    private double fieldTheta;
+    private double fieldRadius;
+    private double roundnessParameter = 0.5;
+    private ElapsedTime lastRadialModeLoopTime = new ElapsedTime();
+    private static final double FIELD_SIDE_LENGTH = 72.0;
+    private static final double MIN_FIELD_RADIUS = 48.0;
+    private static final double MAX_FIELD_THETA_RATE = Math.toRadians(30);
+    private static final double MAX_FIELD_RADIUS_RATE = 12.0;
+    // TODO: Trim these GPT fields down to only necessary
+
     private final AprilTagLibrary APRIL_TAG_LIBRARY = AprilTagGameDatabase.getIntoTheDeepTagLibrary();
     private final SampleMecanumDrive drive;
     private final Telemetry telemetry;
@@ -113,6 +124,12 @@ public class TerabytesIntoTheDeep {
             telemetry.addData("estimate-y", lastAprilTagFieldPosition.getY());
             telemetry.addData("etimate-heading", lastAprilTagFieldPosition.getHeading());
         }
+
+        if (state == TerabytesOpModeState.RADIAL_DRIVING_MODE) {
+            telemetry.addData("Field Theta (deg)", Math.toDegrees(fieldTheta));
+            telemetry.addData("Field Radius", fieldRadius);
+        }
+
         telemetry.addData("x", latestPoseEstimate.getX());
         telemetry.addData("y", latestPoseEstimate.getY());
         telemetry.addData("heading", latestPoseEstimate.getHeading());
@@ -161,6 +178,9 @@ public class TerabytesIntoTheDeep {
             case COMMAND_SEQUENCE:
                 nextState = evaluateCommandSequence();
                 break;
+            case RADIAL_DRIVING_MODE:
+              nextState = evaluateRadialDrivingMode();
+              break;
             case STOPPED_UNTIL_END:
                 // Hold the drive still.
                 drive.setWeightedDrivePower(new Pose2d());
@@ -187,6 +207,9 @@ public class TerabytesIntoTheDeep {
         } else if (gamepad1.y) {
             setCommandSequence(TerabytesAutonomousPlan.TWO.getCommandSequence());
             return TerabytesOpModeState.COMMAND_SEQUENCE;
+        } else if (gamepad1.x) {
+            initializeRadialDrivingMode();
+            return TerabytesOpModeState.RADIAL_DRIVING_MODE;
         } else if (gamepad1.b) {
             return TerabytesOpModeState.HALT_OPMODE;
         }
@@ -425,5 +448,68 @@ public class TerabytesIntoTheDeep {
     public void shutDown() {
         drive.setWeightedDrivePower(new Pose2d());
         visionPortal.close();
+    }
+
+    private void initializeRadialDrivingMode() {
+        Pose2d currentPose = latestPoseEstimate;
+        double x = currentPose.getX();
+        double y = currentPose.getY();
+
+        fieldTheta = Math.atan2(y, x);
+
+        // Compute the maximum allowable radius at the current theta
+        double maxRadius = fieldRadiusAtTheta(fieldTheta);
+
+        // Set fieldRadius to the lesser of the current radius and max allowable radius
+        fieldRadius = Math.min(Math.hypot(x, y), maxRadius);
+
+        lastRadialModeLoopTime.reset();
+    }
+
+    private TerabytesOpModeState evaluateRadialDrivingMode() {
+        // Compute deltaTime
+        double deltaTime = lastRadialModeLoopTime.seconds();
+        lastRadialModeLoopTime.reset();
+
+        // Adjust fieldTheta and fieldRadius based on joystick inputs
+        double deltaTheta = -gamepad1.right_stick_y * MAX_FIELD_THETA_RATE * deltaTime;
+        double deltaRadius = -gamepad1.left_stick_y * MAX_FIELD_RADIUS_RATE * deltaTime;
+
+        fieldTheta += deltaTheta;
+        fieldTheta = Angle.norm(fieldTheta); // Keep between -π and π
+
+        fieldRadius += deltaRadius;
+
+        // Limit fieldRadius to be between minRadius and maxRadius
+        double minRadius = MIN_FIELD_RADIUS;
+        double maxRadius = fieldRadiusAtTheta(fieldTheta);
+        fieldRadius = Range.clip(fieldRadius, minRadius, maxRadius);
+
+        // Compute target pose
+        double xTarget = fieldRadius * Math.cos(fieldTheta);
+        double yTarget = fieldRadius * Math.sin(fieldTheta);
+        double headingTarget = fieldTheta + Math.PI; // Face towards (0,0)
+
+        Pose2d targetPose = new Pose2d(xTarget, yTarget, headingTarget);
+
+        // Command robot to drive towards target pose
+        drive.setWeightedDrivePower(getPoseTargetAutoDriveControl(targetPose));
+
+        // Exit condition to return to manual control
+        if (gamepad1.b) {
+            return TerabytesOpModeState.MANUAL_CONTROL;
+        }
+
+        return TerabytesOpModeState.RADIAL_DRIVING_MODE;
+    }
+
+    private double fieldRadiusAtTheta(double theta) {
+        double s = FIELD_SIDE_LENGTH; // Side length
+        double k = 2 + roundnessParameter * 8; // k from 2 (circle) to 10 (square)
+
+        double denom = Math.pow(Math.abs(Math.cos(theta)), k) + Math.pow(Math.abs(Math.sin(theta)), k);
+        double radius = s / Math.pow(denom, 1.0 / k);
+
+        return radius;
     }
 }
