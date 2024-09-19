@@ -58,11 +58,11 @@ public class TerabytesIntoTheDeep {
     // TODO: Trim these GPT fields down to only necessary
     private double fieldTheta;
     private double fieldRadius;
-    private double roundnessParameter = 0.5;
+    private double roundnessParameter = 0.25;
     private ElapsedTime lastRadialModeLoopTime = new ElapsedTime();
-    private static final double FIELD_SIDE_LENGTH = 72.0;
-    private static final double MIN_FIELD_RADIUS = 48.0;
-    private static final double MAX_FIELD_THETA_RATE = Math.toRadians(30);
+    private static final double FIELD_SIDE_LENGTH = 64.0;
+    private static final double MIN_FIELD_RADIUS = 36.0;
+    private static final double MAX_FIELD_THETA_RATE = Math.toRadians(45);
     private static final double MAX_FIELD_RADIUS_RATE = 12.0;
     // TODO: Trim these GPT fields down to only necessary
 
@@ -90,8 +90,10 @@ public class TerabytesIntoTheDeep {
     private double lastAprilTagFieldPositionMillis = 0;
     private final Queue<Pose2d> poseQueue = new LinkedList<>();
     private final boolean debugMode;
+    private final AllianceColor allianceColor;
 
     public TerabytesIntoTheDeep(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, Telemetry telemetry, boolean debugMode) {
+        this.allianceColor = allianceColor;
         this.gamepad1 = gamepad1;
         this.telemetry = telemetry;
         this.state = TerabytesOpModeState.MANUAL_CONTROL;
@@ -178,6 +180,9 @@ public class TerabytesIntoTheDeep {
             case COMMAND_SEQUENCE:
                 nextState = evaluateCommandSequence();
                 break;
+            case HEADLESS_DRIVE:
+                nextState = evaluateHeadlessDrivingMode();
+                break;
             case RADIAL_DRIVING_MODE:
               nextState = evaluateRadialDrivingMode();
               break;
@@ -201,13 +206,7 @@ public class TerabytesIntoTheDeep {
 
     private TerabytesOpModeState evaluateManualControl() {
 
-        if (gamepad1.a) {
-            setCommandSequence(TerabytesAutonomousPlan.ONE.getCommandSequence());
-            return TerabytesOpModeState.COMMAND_SEQUENCE;
-        } else if (gamepad1.y) {
-            setCommandSequence(TerabytesAutonomousPlan.TWO.getCommandSequence());
-            return TerabytesOpModeState.COMMAND_SEQUENCE;
-        } else if (gamepad1.x) {
+        if (gamepad1.x) {
             initializeRadialDrivingMode();
             return TerabytesOpModeState.RADIAL_DRIVING_MODE;
         } else if (gamepad1.b) {
@@ -216,6 +215,20 @@ public class TerabytesIntoTheDeep {
 
         return TerabytesOpModeState.MANUAL_CONTROL;
     }
+
+    private TerabytesOpModeState evaluateHeadlessDrivingMode() {
+        if (gamepad1.b) {
+            return TerabytesOpModeState.MANUAL_CONTROL;
+        }
+
+        boolean slowMode = gamepad1.left_bumper;
+
+        Pose2d driveInput = getScaledHeadlessDriverInput(gamepad1, allianceColor.OperatorHeadingOffset, slowMode);
+        drive.setWeightedDrivePower(driveInput);
+
+        return TerabytesOpModeState.HEADLESS_DRIVE;
+    }
+
 
     private TerabytesOpModeState evaluateCommandSequence() {
         if (commandSequence.isEmpty()) {
