@@ -138,7 +138,7 @@ public class TerabytesIntoTheDeep {
     public void autonomousInit(Pose2d startPose, TerabytesAutonomousPlan autonomousPlan) {
         drive.setPoseEstimate(startPose);
         activateFrontCameraProcessing();
-        setCommandSequence(autonomousPlan.getCommandSequence());
+        setCommandSequence(autonomousPlan.getCommandSequence(allianceColor));
     }
 
     public void teleopInit() {

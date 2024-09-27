@@ -20,7 +20,14 @@ public enum AllianceColor {
     }
 
     public Pose2d getStartingPose(TerabytesAutonomousPlan autonomousPlan) {
-        return new Pose2d();
+        switch (this) {
+            case RED:
+                return new Pose2d(0, -60, (3.0 * Math.PI) / 2.0);
+            case BLUE:
+                return new Pose2d(0, 60, Math.PI / 2.0);
+            default:
+                return new Pose2d();
+        }
     }
 
     public Pose2d getAbsoluteFieldPose(UpstageBackstageStart alliancePose) {
