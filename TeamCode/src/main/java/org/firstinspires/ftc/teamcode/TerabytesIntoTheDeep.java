@@ -117,6 +117,10 @@ public class TerabytesIntoTheDeep {
         blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.DARK_GREEN);
     }
 
+    public Pose2d getLatestPoseEstimate() {
+        return latestPoseEstimate;
+    }
+
     private void runTelemetry() {
         if (lastAprilTagFieldPosition != null) {
             telemetry.addData("estimate-x", lastAprilTagFieldPosition.getX());
@@ -141,8 +145,8 @@ public class TerabytesIntoTheDeep {
         setCommandSequence(autonomousPlan.getCommandSequence(allianceColor));
     }
 
-    public void teleopInit() {
-        drive.setPoseEstimate(new Pose2d());
+    public void teleopInit(Pose2d startPose) {
+        drive.setPoseEstimate(startPose == null ? new Pose2d() : startPose);
         activateFrontCameraProcessing();
     }
 

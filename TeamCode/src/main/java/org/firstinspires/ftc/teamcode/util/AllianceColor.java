@@ -10,8 +10,8 @@ import org.firstinspires.ftc.teamcode.NibusApproach;
 import org.firstinspires.ftc.teamcode.TerabytesAutonomousPlan;
 
 public enum AllianceColor {
-    BLUE(Math.toRadians(270)),
-    RED(Math.toRadians(90));
+    BLUE(Math.toRadians(0)),
+    RED(Math.toRadians(0));
 
     public double OperatorHeadingOffset;
 
