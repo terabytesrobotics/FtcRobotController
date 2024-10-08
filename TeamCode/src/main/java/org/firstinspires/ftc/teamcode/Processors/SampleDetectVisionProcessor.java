@@ -137,8 +137,11 @@ public class SampleDetectVisionProcessor implements VisionProcessor {
         Bitmap bmp = Bitmap.createBitmap(lastFrame.cols(), lastFrame.rows(), Bitmap.Config.ARGB_8888);
         Utils.matToBitmap(lastFrame, bmp);
 
+        //Scale bitmap
+        Bitmap scaledBmp = Bitmap.createScaledBitmap(bmp,onscreenWidth,onscreenHeight,false);
+
         // Draw the Bitmap on the Canvas
-        canvas.drawBitmap(bmp, 0, 0, null);
+        canvas.drawBitmap(scaledBmp, 0, 0, null);
 
         /*if (lastFrame != null) {
             Bitmap bmp = Bitmap.createBitmap(lastFrame.cols(), lastFrame.rows(), Bitmap.Config.ARGB_8888);
