@@ -16,7 +16,6 @@ public abstract class TerabytesOpMode extends LinearOpMode {
     private static final long SAVE_INTERVAL_MS = 250; // Save every quarter second
     private long lastSaveTime = 0;
     private static final String POSE_FILE_NAME = "last_pose.txt";
-    private static final long FRESHNESS_LIMIT_MS = 30000; // 30 seconds
 
     protected final boolean debugMode;
     private final AllianceColor allianceColor;
@@ -107,10 +106,8 @@ public abstract class TerabytesOpMode extends LinearOpMode {
             SavedPose savedPose = readLastPose();
             if (savedPose != null) {
                 long currentTime = System.currentTimeMillis();
-                if (currentTime - savedPose.timestamp <= FRESHNESS_LIMIT_MS) {
-                    startPose = savedPose.pose;
-                    telemetry.addData("Using saved start pose", startPose);
-                }
+                startPose = savedPose.pose;
+                telemetry.addData("Using saved start pose", startPose);
             }
         }
 

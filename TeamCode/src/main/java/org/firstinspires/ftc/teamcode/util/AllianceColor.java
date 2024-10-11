@@ -22,9 +22,9 @@ public enum AllianceColor {
     public Pose2d getStartingPose(TerabytesAutonomousPlan autonomousPlan) {
         switch (this) {
             case RED:
-                return new Pose2d(0, -60, (3.0 * Math.PI) / 2.0);
+                return new Pose2d(0, -62, (3.0 * Math.PI) / 2.0);
             case BLUE:
-                return new Pose2d(0, 60, Math.PI / 2.0);
+                return new Pose2d(0, 62, Math.PI / 2.0);
             default:
                 return new Pose2d();
         }
