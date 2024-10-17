@@ -82,7 +82,6 @@ public abstract class TerabytesOpMode extends LinearOpMode {
                 }
             }
         } catch (Exception e) {
-            telemetry.log().add("Failed to read last pose: " + e.getMessage());
         }
         return savedPose;
     }
@@ -90,13 +89,12 @@ public abstract class TerabytesOpMode extends LinearOpMode {
     @Override
     public void runOpMode() {
         // Hooks up telemetry data to the dashboard
-        telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
+        FtcDashboard dashboard = FtcDashboard.getInstance();
         TerabytesIntoTheDeep terabytes = new TerabytesIntoTheDeep(
                 allianceColor,
                 gamepad1,
                 gamepad2,
                 hardwareMap,
-                telemetry,
                 debugMode);
 
         boolean isAutonomous = startPose != null;
@@ -105,9 +103,7 @@ public abstract class TerabytesOpMode extends LinearOpMode {
         if (startPose == null) {
             SavedPose savedPose = readLastPose();
             if (savedPose != null) {
-                long currentTime = System.currentTimeMillis();
                 startPose = savedPose.pose;
-                telemetry.addData("Using saved start pose", startPose);
             }
         }
 
@@ -133,6 +129,7 @@ public abstract class TerabytesOpMode extends LinearOpMode {
                     lastSaveTime = currentTime;
                 }
             }
+            dashboard.sendTelemetryPacket(terabytes.getTelemetryPacket());
         }
         terabytes.shutDown();
     }

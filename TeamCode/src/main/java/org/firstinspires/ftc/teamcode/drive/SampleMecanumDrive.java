@@ -29,6 +29,7 @@ import com.qualcomm.robotcore.hardware.VoltageSensor;
 import com.qualcomm.robotcore.hardware.configuration.typecontainers.MotorConfigurationType;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.teamcode.trajectorysequence.TrajectorySequence;
 import org.firstinspires.ftc.teamcode.trajectorysequence.TrajectorySequenceBuilder;
 import org.firstinspires.ftc.teamcode.trajectorysequence.TrajectorySequenceRunner;
@@ -300,6 +301,15 @@ public class SampleMecanumDrive extends MecanumDrive {
     @Override
     public Double getExternalHeadingVelocity() {
         return 0.0;
+    }
+
+    public Double[] getMotorCurrents() {
+        return new Double[] {
+                leftFront.getCurrent(CurrentUnit.MILLIAMPS),
+                leftRear.getCurrent(CurrentUnit.MILLIAMPS),
+                rightRear.getCurrent(CurrentUnit.MILLIAMPS),
+                rightFront.getCurrent(CurrentUnit.MILLIAMPS)
+        };
     }
 
     public static TrajectoryVelocityConstraint getVelocityConstraint(double maxVel, double maxAngularVel, double trackWidth) {

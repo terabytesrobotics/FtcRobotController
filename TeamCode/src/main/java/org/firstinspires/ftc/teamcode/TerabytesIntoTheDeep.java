@@ -21,6 +21,7 @@ import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.TURN_
 
 import android.util.Log;
 
+import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.acmerobotics.roadrunner.util.Angle;
@@ -58,14 +59,13 @@ public class TerabytesIntoTheDeep {
     private double squarenessParameter = 0.75;
     private ElapsedTime lastRadialModeLoopTime = new ElapsedTime();
     private static final double FIELD_SIDE_LENGTH = 60.0; // Not really real field side...it's the drivable square minus margins of robot
-    private static final double MIN_FIELD_RADIUS = 40.0;
+    private static final double MIN_FIELD_RADIUS = 46.0;
     private static final double MAX_FIELD_THETA_RATE = Math.toRadians(45);
     private static final double MAX_FIELD_RADIUS_RATE = 12.0;
     // TODO: Trim these GPT fields down to only necessary
 
     private final AprilTagLibrary APRIL_TAG_LIBRARY = AprilTagGameDatabase.getIntoTheDeepTagLibrary();
     private final SampleMecanumDrive drive;
-    private final Telemetry telemetry;
     private final Gamepad gamepad1;
     private final WebcamName frontCamera;
     private final WebcamName backCamera;
@@ -73,7 +73,6 @@ public class TerabytesIntoTheDeep {
     private final DigitalChannel indicator1Green;
     private final VisionPortal visionPortal;
     private final AprilTagProcessor aprilTagProcessor;
-    private final RevBlinkinLedDriver blinkinLedDriver;
     private TerabytesOpModeState state;
     private ElapsedTime timeSinceStart;
     private ElapsedTime timeInState;
@@ -89,10 +88,9 @@ public class TerabytesIntoTheDeep {
     private final boolean debugMode;
     private final AllianceColor allianceColor;
 
-    public TerabytesIntoTheDeep(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, Telemetry telemetry, boolean debugMode) {
+    public TerabytesIntoTheDeep(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, boolean debugMode) {
         this.allianceColor = allianceColor;
         this.gamepad1 = gamepad1;
-        this.telemetry = telemetry;
         this.state = TerabytesOpModeState.MANUAL_CONTROL;
         this.debugMode = debugMode;
 
@@ -109,34 +107,36 @@ public class TerabytesIntoTheDeep {
         drive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         drive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
-        blinkinLedDriver = hardwareMap.get(RevBlinkinLedDriver.class, "blinkin");
         indicator1Red = hardwareMap.get(DigitalChannel.class, "indicator1red");
         indicator1Green = hardwareMap.get(DigitalChannel.class, "indicator1green");
         indicator1Red.setMode(DigitalChannel.Mode.OUTPUT);
         indicator1Green.setMode(DigitalChannel.Mode.OUTPUT);
-        blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.DARK_GREEN);
     }
 
     public Pose2d getLatestPoseEstimate() {
         return latestPoseEstimate;
     }
 
-    private void runTelemetry() {
-        if (lastAprilTagFieldPosition != null) {
-            telemetry.addData("estimate-x", lastAprilTagFieldPosition.getX());
-            telemetry.addData("estimate-y", lastAprilTagFieldPosition.getY());
-            telemetry.addData("etimate-heading", lastAprilTagFieldPosition.getHeading());
-        }
+    public TelemetryPacket getTelemetryPacket() {
+        TelemetryPacket packet = new TelemetryPacket();
+        packet.put("x", latestPoseEstimate.getX());
+        packet.put("y", latestPoseEstimate.getY());
+        packet.put("heading", latestPoseEstimate.getHeading());
 
-        if (state == TerabytesOpModeState.RADIAL_DRIVING_MODE) {
-            telemetry.addData("Field Theta (deg)", Math.toDegrees(fieldTheta));
-            telemetry.addData("Field Radius", fieldRadius);
-        }
+        Double[] motorCurrents = drive.getMotorCurrents();
+        Double leftFrontCurrent = motorCurrents[0];
+        Double leftRearCurrent = motorCurrents[1];
+        Double rightFrontCurrent = motorCurrents[2];
+        Double rightRearCurrent = motorCurrents[3];
 
-        telemetry.addData("x", latestPoseEstimate.getX());
-        telemetry.addData("y", latestPoseEstimate.getY());
-        telemetry.addData("heading", latestPoseEstimate.getHeading());
-        telemetry.update();
+        packet.put("lf", leftFrontCurrent);
+        packet.put("lr", leftRearCurrent);
+        packet.put("rf", rightFrontCurrent);
+        packet.put("rr", rightRearCurrent);
+
+        //packet.fieldOverlay().setFill("lime").fillCircle(0, 0, 3);
+
+        return packet;
     }
 
     public void autonomousInit(Pose2d startPose, TerabytesAutonomousPlan autonomousPlan) {
@@ -200,8 +200,6 @@ public class TerabytesIntoTheDeep {
             state = nextState;
         }
 
-        runTelemetry();
-
         return state != TerabytesOpModeState.HALT_OPMODE;
     }
 
@@ -253,7 +251,6 @@ public class TerabytesIntoTheDeep {
         }
 
         if (currentCommand.DriveDirectToPose != null) {
-            logDesiredPositionTelemetry(currentCommand.DriveDirectToPose);
             drive.setWeightedDrivePower(
                     getPoseTargetAutoDriveControl(currentCommand.DriveDirectToPose));
         }
@@ -398,20 +395,6 @@ public class TerabytesIntoTheDeep {
                 Range.clip(error.getHeading() * TURN_GAIN, -MAX_AUTO_TURN, MAX_AUTO_TURN));
     }
 
-    private void logPoseTelemetry(String caption, Pose2d pose2d) {
-        telemetry.addData(caption, "X: %.1f Y: %.1f H: %.1f",
-                pose2d.getX(),
-                pose2d.getY(),
-                Math.toDegrees(pose2d.getHeading()));
-    }
-
-    private void logDesiredPositionTelemetry(Pose2d pose2d) {
-        Pose2d poseEstimate = drive.getPoseEstimate();
-        logPoseTelemetry("Pose Target: ", pose2d);
-        logPoseTelemetry("Pose Estimate: ", poseEstimate);
-        logPoseTelemetry("Pose Error: ", pose2d.minus(poseEstimate));
-    }
-
     private Pose2d calculateRobotPose(AprilTagDetection detection, double cameraRobotOffset, double cameraRobotHeadingOffset) {
         AprilTagMetadata tag = APRIL_TAG_LIBRARY.lookupTag(detection.id);
         if (tag == null) return null;
@@ -535,7 +518,7 @@ public class TerabytesIntoTheDeep {
 
     private double fieldRadiusAtTheta(double theta) {
         double s = FIELD_SIDE_LENGTH; // Side length
-        double k = 2 + squarenessParameter * 8; // k from 2 (circle) to 10 (square)
+        double k = 2 + (squarenessParameter * 48); // k from 2 (circle) to 50 (square)
 
         double denom = Math.pow(Math.abs(Math.cos(theta)), k) + Math.pow(Math.abs(Math.sin(theta)), k);
         double radius = s / Math.pow(denom, 1.0 / k);
