@@ -129,12 +129,35 @@ public class TerabytesIntoTheDeep {
         Double rightFrontCurrent = motorCurrents[2];
         Double rightRearCurrent = motorCurrents[3];
 
-        packet.put("lf", leftFrontCurrent);
-        packet.put("lr", leftRearCurrent);
-        packet.put("rf", rightFrontCurrent);
-        packet.put("rr", rightRearCurrent);
+        Double[] motorPowers = drive.getMotorPowers();
+        Double leftFrontPower = motorPowers[0];
+        Double leftRearPower = motorPowers[1];
+        Double rightFrontPower = motorPowers[2];
+        Double rightRearPower = motorPowers[3];
 
-        //packet.fieldOverlay().setFill("lime").fillCircle(0, 0, 3);
+        Double[] motorVelocities = drive.getMotorVelocities();
+        Double leftFrontVelocity = motorVelocities[0];
+        Double leftRearVelocity = motorVelocities[1];
+        Double rightFrontVelocity = motorVelocities[2];
+        Double rightRearVelocity = motorVelocities[3];
+
+
+        Pose2d poseVelocity = drive.getPoseVelocity();
+
+        packet.put("lfc", leftFrontCurrent);
+        packet.put("lrc", leftRearCurrent);
+        packet.put("rfc", rightFrontCurrent);
+        packet.put("rrc", rightRearCurrent);
+
+        packet.put("lfp", leftFrontPower);
+        packet.put("lrp", leftRearPower);
+        packet.put("rfp", rightFrontPower);
+        packet.put("rrp", rightRearPower);
+
+        packet.put("lfv", leftFrontVelocity);
+        packet.put("lrv", leftRearVelocity);
+        packet.put("rfv", rightFrontVelocity);
+        packet.put("rrv", rightRearVelocity);
 
         return packet;
     }

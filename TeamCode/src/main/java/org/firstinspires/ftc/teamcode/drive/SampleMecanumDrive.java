@@ -312,6 +312,24 @@ public class SampleMecanumDrive extends MecanumDrive {
         };
     }
 
+    public Double[] getMotorPowers() {
+        return new Double[] {
+                leftFront.getPower(),
+                leftRear.getPower(),
+                rightRear.getPower(),
+                rightFront.getPower()
+        };
+    }
+
+    public Double[] getMotorVelocities() {
+        return new Double[] {
+                leftFront.getVelocity(),
+                leftRear.getVelocity(),
+                rightRear.getVelocity(),
+                rightFront.getVelocity()
+        };
+    }
+
     public static TrajectoryVelocityConstraint getVelocityConstraint(double maxVel, double maxAngularVel, double trackWidth) {
         return new MinVelocityConstraint(Arrays.asList(
                 new AngularVelocityConstraint(maxAngularVel),
