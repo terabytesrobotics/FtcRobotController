@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.dashboard.FtcDashboard;
-import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.util.ReadWriteFile;
@@ -19,18 +18,18 @@ public abstract class TerabytesOpMode extends LinearOpMode {
 
     protected final boolean debugMode;
     private final AllianceColor allianceColor;
-    private final TerabytesOpModeState startupState;
+    private final IntoTheDeepOpModeState startupState;
     private Pose2d startPose = null;
     private TerabytesAutonomousPlan autonomousPlan = null;
 
-    public TerabytesOpMode(AllianceColor allianceColor, TerabytesOpModeState startupState) {
+    public TerabytesOpMode(AllianceColor allianceColor, IntoTheDeepOpModeState startupState) {
         super();
         this.allianceColor = allianceColor;
         this.startupState = startupState;
         this.debugMode = false;
     }
 
-    public TerabytesOpMode(AllianceColor allianceColor, TerabytesOpModeState startupState, TerabytesAutonomousPlan autonomousPlan) {
+    public TerabytesOpMode(AllianceColor allianceColor, IntoTheDeepOpModeState startupState, TerabytesAutonomousPlan autonomousPlan) {
         super();
         this.allianceColor = allianceColor;
         this.startupState = startupState;
@@ -39,7 +38,7 @@ public abstract class TerabytesOpMode extends LinearOpMode {
         this.debugMode = false;
     }
 
-    public TerabytesOpMode(AllianceColor allianceColor, TerabytesOpModeState startupState, TerabytesAutonomousPlan autonomousPlan, boolean debugMode) {
+    public TerabytesOpMode(AllianceColor allianceColor, IntoTheDeepOpModeState startupState, TerabytesAutonomousPlan autonomousPlan, boolean debugMode) {
         super();
         this.allianceColor = allianceColor;
         this.startupState = startupState;

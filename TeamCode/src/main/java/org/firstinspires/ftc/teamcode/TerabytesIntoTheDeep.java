@@ -25,20 +25,20 @@ import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.acmerobotics.roadrunner.util.Angle;
-import com.qualcomm.hardware.rev.RevBlinkinLedDriver;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
 
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
-import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.internal.camera.delegating.SwitchableCameraName;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
+import org.firstinspires.ftc.teamcode.util.OnActivatedEvaluator;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagGameDatabase;
@@ -73,7 +73,7 @@ public class TerabytesIntoTheDeep {
     private final DigitalChannel indicator1Green;
     private final VisionPortal visionPortal;
     private final AprilTagProcessor aprilTagProcessor;
-    private TerabytesOpModeState state;
+    private IntoTheDeepOpModeState state;
     private ElapsedTime timeSinceStart;
     private ElapsedTime timeInState;
     private Pose2d latestPoseEstimate = null;
@@ -81,17 +81,24 @@ public class TerabytesIntoTheDeep {
     private final ElapsedTime currentCommandSettledTime = new ElapsedTime();
     private TerabytesCommand currentCommand = null;
     private final ArrayList<TerabytesCommand> commandSequence = new ArrayList<>();
-    private TerabytesOpModeState continuationState = null;
+    private IntoTheDeepOpModeState continuationState = null;
     private Pose2d lastAprilTagFieldPosition = null;
     private double lastAprilTagFieldPositionMillis = 0;
     private final Queue<Pose2d> poseQueue = new LinkedList<>();
     private final boolean debugMode;
     private final AllianceColor allianceColor;
+    private final Servo pincer;
+
+    private final OnActivatedEvaluator rb1ActivatedEvaluator;
+    private final OnActivatedEvaluator a1ActivatedEvaluator;
+    private final OnActivatedEvaluator b1ActivatedEvaluator;
+    private final OnActivatedEvaluator y1ActivatedEvaluator;
+    private final OnActivatedEvaluator x1ActivatedEvaluator;
 
     public TerabytesIntoTheDeep(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, boolean debugMode) {
         this.allianceColor = allianceColor;
         this.gamepad1 = gamepad1;
-        this.state = TerabytesOpModeState.MANUAL_CONTROL;
+        this.state = IntoTheDeepOpModeState.HEADLESS_DRIVE;
         this.debugMode = debugMode;
 
         frontCamera = hardwareMap.get(WebcamName.class, "Webcam 1");
@@ -111,6 +118,14 @@ public class TerabytesIntoTheDeep {
         indicator1Green = hardwareMap.get(DigitalChannel.class, "indicator1green");
         indicator1Red.setMode(DigitalChannel.Mode.OUTPUT);
         indicator1Green.setMode(DigitalChannel.Mode.OUTPUT);
+
+        rb1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.right_bumper);
+        a1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.a);
+        b1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.b);
+        y1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.y);
+        x1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.x);
+
+        pincer = hardwareMap.get(Servo.class, "pincer");
     }
 
     public Pose2d getLatestPoseEstimate() {
@@ -173,7 +188,7 @@ public class TerabytesIntoTheDeep {
         activateFrontCameraProcessing();
     }
 
-    public void startup(TerabytesOpModeState startupState) {
+    public void startup(IntoTheDeepOpModeState startupState) {
         timeSinceStart = new ElapsedTime();
         timeInState = new ElapsedTime();
         state = startupState;
@@ -191,16 +206,14 @@ public class TerabytesIntoTheDeep {
         drive.update();
         latestPoseEstimate = drive.getPoseEstimate();
         evaluateIndicatorLights();
-        evaluatePositioningSystems();
+        evaluatePincer();
 
         // Determine whether there's been a state change
         // Run the state specific control logic
-        TerabytesOpModeState currentState = state;
-        TerabytesOpModeState nextState = state;
+        IntoTheDeepOpModeState currentState = state;
+        IntoTheDeepOpModeState nextState = evaluatePositioningSystems(currentState);
+
         switch (state) {
-            case MANUAL_CONTROL:
-                nextState = evaluateManualControl();
-                break;
             case COMMAND_SEQUENCE:
                 nextState = evaluateCommandSequence();
                 break;
@@ -208,11 +221,17 @@ public class TerabytesIntoTheDeep {
                 nextState = evaluateHeadlessDrivingMode();
                 break;
             case RADIAL_DRIVING_MODE:
-              nextState = evaluateRadialDrivingMode();
-              break;
+                nextState = evaluateRadialDrivingMode();
+                break;
+            case SUBMERSIBLE_APPROACH:
+                nextState = evaluateSubmersibleApproach();
+                break;
+            case BASKET_APPROACH:
+                nextState = evaluateBasketApproach();
+                break;
             case STOPPED_UNTIL_END:
                 // Hold the drive still.
-                drive.setWeightedDrivePower(new Pose2d());
+                setDrivePower(new Pose2d());
             default:
                 break;
         }
@@ -223,44 +242,113 @@ public class TerabytesIntoTheDeep {
             state = nextState;
         }
 
-        return state != TerabytesOpModeState.HALT_OPMODE;
+        return state != IntoTheDeepOpModeState.HALT_OPMODE;
     }
 
-    private TerabytesOpModeState evaluateManualControl() {
+    private void evaluatePincer() {
+        if (gamepad1.left_bumper) {
+            pincer.setPosition(0.7);
+        } else {
+            pincer.setPosition(0.4);
+        }
+    }
 
-        if (gamepad1.a) {
-            return TerabytesOpModeState.HEADLESS_DRIVE;
-        } else if (gamepad1.x && hasPositionEstimate()) {
-            initializeRadialDrivingMode();
-            return TerabytesOpModeState.RADIAL_DRIVING_MODE;
-        } else if (gamepad1.right_bumper && gamepad1.left_bumper) {
-            return TerabytesOpModeState.HALT_OPMODE;
+    private IntoTheDeepOpModeState evaluateSubmersibleApproach() {
+        if (latestPoseEstimate == null) {
+            // Cannot proceed without pose estimate
+            return IntoTheDeepOpModeState.HEADLESS_DRIVE;
         }
 
-        return TerabytesOpModeState.MANUAL_CONTROL;
+        double x = latestPoseEstimate.getX();
+        double y = latestPoseEstimate.getY();
+        double robotFieldTheta = Math.atan2(y, x);
+
+        // Define a helper class for approach targets
+        class ApproachTarget {
+            public Pose2d pose;
+            public double fieldTheta;
+
+            public ApproachTarget(Pose2d pose) {
+                this.pose = pose;
+                this.fieldTheta = Math.atan2(pose.getY(), pose.getX());
+            }
+        }
+
+        // Create an array of possible approach targets
+        ApproachTarget[] approachTargets = new ApproachTarget[] {
+                new ApproachTarget(IntoTheDeepPose.SUBMERSIBLE_APPROACH_ALLIANCE_SIDE.getPose(allianceColor)),
+                new ApproachTarget(IntoTheDeepPose.SUBMERSIBLE_APPROACH_REAR_SIDE.getPose(allianceColor)),
+                new ApproachTarget(IntoTheDeepPose.SUBMERSIBLE_APPROACH_OPPONENT_SIDE.getPose(allianceColor)),
+                new ApproachTarget(IntoTheDeepPose.SUBMERSIBLE_APPROACH_AUDIENCE_SIDE.getPose(allianceColor))
+        };
+
+        // Select the closest target based on angular difference
+        ApproachTarget selectedTarget = null;
+        double minDistance = Double.MAX_VALUE;
+        for (ApproachTarget approachTarget : approachTargets) {
+            Pose2d approachPose = approachTarget.pose;
+            double deltaX = approachPose.getX() - x;
+            double deltaY = approachPose.getY() - y;
+            double distance = Math.sqrt((deltaX * deltaX) + (deltaY * deltaY));
+            if (distance < minDistance) {
+                minDistance = distance;
+                selectedTarget = approachTarget;
+            }
+        }
+
+        // Command the robot to approach the selected target
+        if (selectedTarget != null) {
+            setDrivePower(getPoseTargetAutoDriveControl(selectedTarget.pose));
+        }
+
+        // Check for exit condition: if 'x' button is pressed, return to radial driving mode
+        if (x1ActivatedEvaluator.evaluate()) {
+            initializeRadialDrivingMode();
+            return IntoTheDeepOpModeState.RADIAL_DRIVING_MODE;
+        }
+
+        return IntoTheDeepOpModeState.SUBMERSIBLE_APPROACH;
     }
 
-    private TerabytesOpModeState evaluateHeadlessDrivingMode() {
-        if (gamepad1.x) {
-            return TerabytesOpModeState.RADIAL_DRIVING_MODE;
+    private IntoTheDeepOpModeState evaluateBasketApproach() {
+        if (latestPoseEstimate == null) {
+            // Cannot proceed without pose estimate
+            return IntoTheDeepOpModeState.HEADLESS_DRIVE;
+        }
+
+        Pose2d basketApproach = IntoTheDeepPose.BASKET_APPROACH.getPose(allianceColor);
+        setDrivePower(getPoseTargetAutoDriveControl(basketApproach));
+
+        if (x1ActivatedEvaluator.evaluate()) {
+            initializeRadialDrivingMode();
+            return IntoTheDeepOpModeState.RADIAL_DRIVING_MODE;
+        }
+
+        return IntoTheDeepOpModeState.BASKET_APPROACH;
+    }
+
+    private IntoTheDeepOpModeState evaluateHeadlessDrivingMode() {
+        if (rb1ActivatedEvaluator.evaluate() && hasPositionEstimate()) {
+            initializeRadialDrivingMode();
+            return IntoTheDeepOpModeState.RADIAL_DRIVING_MODE;
         }
 
         boolean slowMode = gamepad1.left_bumper;
 
         Pose2d driveInput = getScaledHeadlessDriverInput(gamepad1, allianceColor.OperatorHeadingOffset, slowMode);
-        drive.setWeightedDrivePower(driveInput);
+        setDrivePower(driveInput);
 
-        return TerabytesOpModeState.HEADLESS_DRIVE;
+        return IntoTheDeepOpModeState.HEADLESS_DRIVE;
     }
 
 
-    private TerabytesOpModeState evaluateCommandSequence() {
+    private IntoTheDeepOpModeState evaluateCommandSequence() {
         if (commandSequence.isEmpty()) {
-            TerabytesOpModeState _continuationState = continuationState;
+            IntoTheDeepOpModeState _continuationState = continuationState;
             continuationState = null;
             currentCommandTime.reset();
             currentCommandSettledTime.reset();
-            return _continuationState == null ? TerabytesOpModeState.MANUAL_CONTROL : _continuationState;
+            return _continuationState == null ? IntoTheDeepOpModeState.STOPPED_UNTIL_END : _continuationState;
         }
 
         if (currentCommand == null) {
@@ -274,7 +362,7 @@ public class TerabytesIntoTheDeep {
         }
 
         if (currentCommand.DriveDirectToPose != null) {
-            drive.setWeightedDrivePower(
+            setDrivePower(
                     getPoseTargetAutoDriveControl(currentCommand.DriveDirectToPose));
         }
 
@@ -286,14 +374,14 @@ public class TerabytesIntoTheDeep {
         boolean debugAdvance = !debugMode || gamepad1.a;
         if (commandCompleted && debugAdvance) {
             Log.d("evaluateDrivingAutonomously", "Command completed, popping command");
-            drive.setWeightedDrivePower(new Pose2d());
+            setDrivePower(new Pose2d());
             commandSequence.remove(0);
             currentCommand = null;
         } else if (!settledRightNow) {
             currentCommandSettledTime.reset();
         }
 
-        return TerabytesOpModeState.COMMAND_SEQUENCE;
+        return IntoTheDeepOpModeState.COMMAND_SEQUENCE;
     }
 
     private void evaluateIndicatorLights() {
@@ -318,7 +406,7 @@ public class TerabytesIntoTheDeep {
         }
     }
 
-    private void evaluatePositioningSystems() {
+    private IntoTheDeepOpModeState evaluatePositioningSystems(IntoTheDeepOpModeState currentState) {
         boolean usingBackCamera = visionPortal.getActiveCamera().equals(backCamera);
         double cameraDistanceOffset = usingBackCamera ? BACK_CAMERA_OFFSET_INCHES : FRONT_CAMERA_OFFSET_INCHES;
         double cameraAngleOffset = usingBackCamera ? Math.PI : 0;
@@ -361,6 +449,8 @@ public class TerabytesIntoTheDeep {
                 poseQueue.clear();
             }
         }
+
+        return currentState;
     }
 
     private Pose2d calculateAveragePose(Queue<Pose2d> poses) {
@@ -459,10 +549,10 @@ public class TerabytesIntoTheDeep {
     }
 
     private void setCommandSequence(List<TerabytesCommand> commands) {
-        setCommandSequence(TerabytesOpModeState.MANUAL_CONTROL, commands);
+        setCommandSequence(IntoTheDeepOpModeState.STOPPED_UNTIL_END, commands);
     }
 
-    private void setCommandSequence(TerabytesOpModeState _continuationState, List<TerabytesCommand> commands) {
+    private void setCommandSequence(IntoTheDeepOpModeState _continuationState, List<TerabytesCommand> commands) {
         commandSequence.clear();
         commandSequence.addAll(commands);
         continuationState = _continuationState;
@@ -482,8 +572,31 @@ public class TerabytesIntoTheDeep {
     }
 
     public void shutDown() {
-        drive.setWeightedDrivePower(new Pose2d());
+        setDrivePower(new Pose2d());
         visionPortal.close();
+    }
+
+    public void setDrivePower(Pose2d drivePower) {
+        Pose2d normalized = drivePower;
+        if (Math.abs(drivePower.getX()) + Math.abs(drivePower.getY())
+                + Math.abs(drivePower.getHeading()) > 1) {
+            double denom = Math.abs(drivePower.getX())
+                    + Math.abs(drivePower.getY())
+                    + Math.abs(drivePower.getHeading());
+
+            normalized = new Pose2d(
+                    drivePower.getX(),
+                    drivePower.getY(),
+                    drivePower.getHeading()
+            ).div(denom);
+        }
+
+        // This should be the only place we call drive.setDrivePower
+        drive.setDrivePower(new Pose2d(
+                Math.abs(normalized.getX()) < 0.005 ? 0 : normalized.getX(),
+                Math.abs(normalized.getY()) < 0.005 ? 0 : normalized.getY(),
+                Math.abs(normalized.getHeading()) < 0.005 * Math.PI ? 0 : normalized.getHeading()
+        ));
     }
 
     private void initializeRadialDrivingMode() {
@@ -502,7 +615,7 @@ public class TerabytesIntoTheDeep {
         lastRadialModeLoopTime.reset();
     }
 
-    private TerabytesOpModeState evaluateRadialDrivingMode() {
+    private IntoTheDeepOpModeState evaluateRadialDrivingMode() {
         // Compute deltaTime
         double deltaTime = lastRadialModeLoopTime.seconds();
         lastRadialModeLoopTime.reset();
@@ -529,14 +642,18 @@ public class TerabytesIntoTheDeep {
         Pose2d targetPose = new Pose2d(xTarget, yTarget, headingTarget);
 
         // Command robot to drive towards target pose
-        drive.setWeightedDrivePower(getPoseTargetAutoDriveControl(targetPose));
+        setDrivePower(getPoseTargetAutoDriveControl(targetPose));
 
         // Exit condition to return to manual control
-        if (gamepad1.a) {
-            return TerabytesOpModeState.HEADLESS_DRIVE;
+        if (rb1ActivatedEvaluator.evaluate()) {
+            return IntoTheDeepOpModeState.HEADLESS_DRIVE;
+        } else if (a1ActivatedEvaluator.evaluate()) {
+            return IntoTheDeepOpModeState.SUBMERSIBLE_APPROACH;
+        } else if (y1ActivatedEvaluator.evaluate()) {
+            return IntoTheDeepOpModeState.BASKET_APPROACH;
         }
 
-        return TerabytesOpModeState.RADIAL_DRIVING_MODE;
+        return IntoTheDeepOpModeState.RADIAL_DRIVING_MODE;
     }
 
     private double fieldRadiusAtTheta(double theta) {
