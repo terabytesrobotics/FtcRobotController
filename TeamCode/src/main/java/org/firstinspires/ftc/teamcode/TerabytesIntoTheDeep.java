@@ -1,5 +1,13 @@
 package org.firstinspires.ftc.teamcode;
 
+import static org.firstinspires.ftc.teamcode.NibusConstants.ARM_CONTROL_D;
+import static org.firstinspires.ftc.teamcode.NibusConstants.ARM_CONTROL_I;
+import static org.firstinspires.ftc.teamcode.NibusConstants.ARM_CONTROL_P;
+import static org.firstinspires.ftc.teamcode.NibusConstants.ARM_TOLERANCE;
+import static org.firstinspires.ftc.teamcode.NibusConstants.EXTENDER_MAX_LENGTH_INCHES;
+import static org.firstinspires.ftc.teamcode.NibusConstants.EXTENDER_POWER;
+import static org.firstinspires.ftc.teamcode.NibusConstants.EXTENDER_TICK_TOLERANCE;
+import static org.firstinspires.ftc.teamcode.NibusConstants.sleep;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.APRIL_TAG_QUEUE_CAPACITY;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.APRIL_TAG_RECOGNITION_BEARING_THRESHOLD;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.APRIL_TAG_RECOGNITION_MAX_RANGE;
@@ -24,11 +32,16 @@ import android.util.Log;
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.acmerobotics.roadrunner.util.Angle;
+import com.arcrobotics.ftclib.controller.PIDController;
 import com.qualcomm.hardware.rev.RevBlinkinLedDriver;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.TouchSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
 
@@ -38,6 +51,7 @@ import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.internal.camera.delegating.SwitchableCameraName;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
+import org.firstinspires.ftc.teamcode.util.OnActivatedEvaluator;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagGameDatabase;
@@ -51,6 +65,11 @@ import java.util.List;
 import java.util.Queue;
 
 public class TerabytesIntoTheDeep {
+
+    private final double PINCER_OPEN = 0.5;
+    private final double PINCER_CLOSED = 0.65;
+    private final double WRIST_CENTER = 0.582;
+    private final double WRIST_RANGE = 0.25;
 
     // TODO: Trim these GPT fields down to only necessary
     private double fieldTheta;
@@ -67,6 +86,7 @@ public class TerabytesIntoTheDeep {
     private final SampleMecanumDrive drive;
     private final Telemetry telemetry;
     private final Gamepad gamepad1;
+    private final Gamepad gamepad2;
     private final WebcamName frontCamera;
     private final WebcamName backCamera;
     private final DigitalChannel indicator1Red;
@@ -77,6 +97,7 @@ public class TerabytesIntoTheDeep {
     private TerabytesOpModeState state;
     private ElapsedTime timeSinceStart;
     private ElapsedTime timeInState;
+    private boolean isNewState;
     private Pose2d latestPoseEstimate = null;
     private final ElapsedTime currentCommandTime = new ElapsedTime();
     private final ElapsedTime currentCommandSettledTime = new ElapsedTime();
@@ -89,9 +110,23 @@ public class TerabytesIntoTheDeep {
     private final boolean debugMode;
     private final AllianceColor allianceColor;
 
+    private final PIDController armControl = new PIDController(ARM_CONTROL_P, ARM_CONTROL_I, ARM_CONTROL_D);
+    private final DcMotorEx armLeft;
+    private final DcMotorEx armRight;
+    private final DcMotorEx extender;
+    private final TouchSensor armMin;
+    private final TouchSensor extenderMin;
+    private final Servo wrist;
+    private final Servo pincer;
+    private final OnActivatedEvaluator a2Evaluator;
+
+    private boolean pincerClosed = true;
+    private double extenderTickTarget;
+
     public TerabytesIntoTheDeep(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, Telemetry telemetry, boolean debugMode) {
         this.allianceColor = allianceColor;
         this.gamepad1 = gamepad1;
+        this.gamepad2 = gamepad2;
         this.telemetry = telemetry;
         this.state = TerabytesOpModeState.MANUAL_CONTROL;
         this.debugMode = debugMode;
@@ -115,6 +150,17 @@ public class TerabytesIntoTheDeep {
         indicator1Red.setMode(DigitalChannel.Mode.OUTPUT);
         indicator1Green.setMode(DigitalChannel.Mode.OUTPUT);
         blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.DARK_GREEN);
+
+        armControl.setTolerance(ARM_TOLERANCE);
+        armMin = hardwareMap.get(TouchSensor.class, "armMin1");
+        extenderMin = hardwareMap.get(TouchSensor.class, "extenderMin3");
+        armLeft = hardwareMap.get(DcMotorEx.class, "armE0");
+        armRight = hardwareMap.get(DcMotorEx.class, "armE3");
+        extender = hardwareMap.get(DcMotorEx.class, "extenderE1");
+        pincer = hardwareMap.get(Servo.class, "pincer");
+        wrist = hardwareMap.get(Servo.class, "wrist");
+
+        a2Evaluator = new OnActivatedEvaluator(() -> gamepad2.a);
     }
 
     public Pose2d getLatestPoseEstimate() {
@@ -122,6 +168,7 @@ public class TerabytesIntoTheDeep {
     }
 
     private void runTelemetry() {
+        telemetry.addData("currentState", state.toString());
         if (lastAprilTagFieldPosition != null) {
             telemetry.addData("estimate-x", lastAprilTagFieldPosition.getX());
             telemetry.addData("estimate-y", lastAprilTagFieldPosition.getY());
@@ -136,6 +183,13 @@ public class TerabytesIntoTheDeep {
         telemetry.addData("x", latestPoseEstimate.getX());
         telemetry.addData("y", latestPoseEstimate.getY());
         telemetry.addData("heading", latestPoseEstimate.getHeading());
+
+        telemetry.addData("wrist", (gamepad2.left_stick_x + 1.0) / 2);
+        telemetry.addData("pincer", (gamepad2.right_stick_x + 1.0) / 2);
+        telemetry.addData("extenderPos", extender.getCurrentPosition());
+        telemetry.addData("extenderTarget", extender.getTargetPosition());
+        telemetry.addData("extenderMin", extenderMin.isPressed());
+        telemetry.addData("armMin", armMin.isPressed());
         telemetry.update();
     }
 
@@ -170,11 +224,18 @@ public class TerabytesIntoTheDeep {
         evaluateIndicatorLights();
         evaluatePositioningSystems();
 
+        if (state != TerabytesOpModeState.INITIALIZE_TELEOP) {
+            extender.setTargetPosition((int) extenderTickTarget);
+        }
+
         // Determine whether there's been a state change
         // Run the state specific control logic
         TerabytesOpModeState currentState = state;
         TerabytesOpModeState nextState = state;
         switch (state) {
+            case INITIALIZE_TELEOP:
+                nextState = evaluateInitializeTeleop();
+                break;
             case MANUAL_CONTROL:
                 nextState = evaluateManualControl();
                 break;
@@ -195,6 +256,7 @@ public class TerabytesIntoTheDeep {
         }
 
         // Reset the timer so that the state logic can use it to tell how long it's been in that state
+        isNewState = currentState != nextState;
         if (nextState != currentState) {
             timeInState.reset();
             state = nextState;
@@ -203,6 +265,69 @@ public class TerabytesIntoTheDeep {
         runTelemetry();
 
         return state != TerabytesOpModeState.HALT_OPMODE;
+    }
+
+    private void zeroExtender() {
+        extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        extender.setTargetPosition(0);
+        extender.setTargetPositionTolerance(EXTENDER_TICK_TOLERANCE);
+        extender.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
+        extender.setPower(EXTENDER_POWER);
+    }
+
+    private void zeroArmMotors() {
+        armLeft.setPower(0);
+        armLeft.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        armLeft.setDirection(DcMotorSimple.Direction.FORWARD);
+        armLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+
+        armRight.setPower(0);
+        armRight.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        armRight.setDirection(DcMotorSimple.Direction.FORWARD);
+        armRight.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+    }
+
+    private void controlArmMotor(DcMotorEx armMotor, int targetPosition) {
+        int armPosition = armMotor.getCurrentPosition();
+        double armPower = armControl.calculate(armPosition, targetPosition);
+        if(Math.abs(armPower) < 0.02) armPower = 0;
+        if(armPower < 0 && armMin.isPressed()) armPower = 0;
+        telemetry.addData("armMotorPower", "%s: %5.2f", armMotor.getDeviceName(), armPower);
+        armMotor.setPower(armPower);
+    }
+
+    private TerabytesOpModeState evaluateInitializeTeleop() {
+        if (isNewState) {
+            zeroExtender();
+            extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+            extender.setDirection(DcMotorEx.Direction.FORWARD);
+            extender.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            extender.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        }
+
+        boolean zeroExtender = extenderMin.isPressed();
+        if (zeroExtender) {
+            extender.setPower(0.0);
+            zeroExtender();
+        } else {
+            extender.setPower(-0.4);
+        }
+
+        boolean zeroArm = armMin.isPressed();
+        if (zeroArm) {
+            armLeft.setPower(0);
+            armRight.setPower(0);
+            zeroArmMotors();
+        } else if (zeroExtender) {
+            armLeft.setPower(-0.30);
+            armRight.setPower(-0.30);
+        }
+
+        if (zeroExtender && zeroArm) {
+            return TerabytesOpModeState.HEADLESS_DRIVE;
+        }
+
+        return TerabytesOpModeState.INITIALIZE_TELEOP;
     }
 
     private TerabytesOpModeState evaluateManualControl() {
@@ -222,12 +347,30 @@ public class TerabytesIntoTheDeep {
     private TerabytesOpModeState evaluateHeadlessDrivingMode() {
         if (gamepad1.x) {
             return TerabytesOpModeState.RADIAL_DRIVING_MODE;
+        } else if (gamepad1.right_stick_button) {
+            return TerabytesOpModeState.INITIALIZE_TELEOP;
         }
+
+        double EXTENDER_GEAR_RATIO = 5.2d;
+        double EXTENDER_TICS_PER_INCH = (EXTENDER_GEAR_RATIO * 28 / 0.8 / 2) * 2.54;
+        double effectiveExtenderPositionInches = Math.max(0f, Math.min(2.0 + gamepad1.right_stick_x, EXTENDER_MAX_LENGTH_INCHES));
+        extenderTickTarget = effectiveExtenderPositionInches * EXTENDER_TICS_PER_INCH;
 
         boolean slowMode = gamepad1.left_bumper;
 
         Pose2d driveInput = getScaledHeadlessDriverInput(gamepad1, allianceColor.OperatorHeadingOffset, slowMode);
-        drive.setWeightedDrivePower(driveInput);
+        //drive.setWeightedDrivePower(driveInput);
+        pincer.setPosition(pincerClosed ? PINCER_CLOSED : PINCER_OPEN);
+        wrist.setPosition(WRIST_CENTER + (gamepad2.left_stick_x * WRIST_RANGE));
+
+        int armTickTarget = 1000 + (int)(((1.0 + gamepad1.left_stick_x) / 2.0) * 5000);
+
+        controlArmMotor(armLeft, armTickTarget);
+        controlArmMotor(armRight, armTickTarget);
+
+        if (a2Evaluator.evaluate()) {
+            pincerClosed = !pincerClosed;
+        }
 
         return TerabytesOpModeState.HEADLESS_DRIVE;
     }
