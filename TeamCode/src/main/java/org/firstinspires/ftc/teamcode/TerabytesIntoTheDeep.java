@@ -67,10 +67,10 @@ import java.util.Queue;
 
 public class TerabytesIntoTheDeep {
 
-    private final double TILT_TICKS_PER_DEGREE = 1.0 / 300.0;
+    private final double TILT_TICKS_PER_DEGREE = 1.0 / 270.0;
     private final double TILT_RANGE_DEGREES = 30.0;
     private final double TILT_RANGE = TILT_TICKS_PER_DEGREE * TILT_RANGE_DEGREES;
-    private final double TILT_CENTER = 0.65;
+    private final double TILT_CENTER = 0.5;
     private final double ARM_TICKS_VERTICAL = 3390;
     private final double ARM_TICKS_HORIZONTAL = 840;
     private final double ARM_TICKS_PER_DEGREE = (ARM_TICKS_VERTICAL - ARM_TICKS_HORIZONTAL) / 90.0;
@@ -394,14 +394,13 @@ public class TerabytesIntoTheDeep {
         //drive.setWeightedDrivePower(driveInput);
         pincer.setPosition(pincerClosed ? PINCER_CLOSED : PINCER_OPEN)  ;
         wrist.setPosition(WRIST_CENTER + (gamepad2.left_stick_x * WRIST_RANGE));
-        //armTickTarget += gamepad1.left_stick_x * dtMillis * ARM_MAX_SETPOINT_SPEED_TICKS_PER_MILLI;
+        armTickTarget += gamepad1.left_stick_x * dtMillis * ARM_MAX_SETPOINT_SPEED_TICKS_PER_MILLI;
         armTickTarget = Math.max(-50, Math.min(4000, armTickTarget));
 
-        double armAveragePosition = (armLeft.getCurrentPosition() + armRight.getCurrentPosition()) / 2.0;
-        double armPositionDegrees = ARM_ZERO_DEGREES + (armAveragePosition * ARM_TICKS_PER_DEGREE);
-        double tiltDegrees = Math.min(-TILT_RANGE_DEGREES, Math.max(TILT_RANGE_DEGREES, -armPositionDegrees));
-        //tilt.setPosition(TILT_CENTER + (tiltDegrees * TILT_TICKS_PER_DEGREE));
-        tilt.setPosition(TILT_CENTER + (gamepad1.left_stick_x * TILT_RANGE));
+        double armAveragePositionTicks = (armLeft.getCurrentPosition() + armRight.getCurrentPosition()) / 2.0;
+        double armPositionDegrees = ARM_ZERO_DEGREES + (armAveragePositionTicks / ARM_TICKS_PER_DEGREE);
+        double tiltDegrees = Math.max(-TILT_RANGE_DEGREES, Math.min(TILT_RANGE_DEGREES, -armPositionDegrees));
+        tilt.setPosition(TILT_CENTER + (tiltDegrees * TILT_TICKS_PER_DEGREE));
 
         controlArmMotors();
 
