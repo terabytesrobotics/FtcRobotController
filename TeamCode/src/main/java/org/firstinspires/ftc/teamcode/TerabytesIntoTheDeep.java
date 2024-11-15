@@ -58,6 +58,7 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagGameDatabase;
 import org.firstinspires.ftc.vision.apriltag.AprilTagLibrary;
 import org.firstinspires.ftc.vision.apriltag.AprilTagMetadata;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
+import org.opencv.core.Mat;
 
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -66,6 +67,15 @@ import java.util.Queue;
 
 public class TerabytesIntoTheDeep {
 
+    private final double TILT_TICKS_PER_DEGREE = 1.0 / 300.0;
+    private final double TILT_RANGE_DEGREES = 30.0;
+    private final double TILT_RANGE = TILT_TICKS_PER_DEGREE * TILT_RANGE_DEGREES;
+    private final double TILT_CENTER = 0.65;
+    private final double ARM_TICKS_VERTICAL = 3390;
+    private final double ARM_TICKS_HORIZONTAL = 840;
+    private final double ARM_TICKS_PER_DEGREE = (ARM_TICKS_VERTICAL - ARM_TICKS_HORIZONTAL) / 90.0;
+    private final double ARM_ZERO_DEGREES = -ARM_TICKS_HORIZONTAL / ARM_TICKS_PER_DEGREE;
+    private final double ARM_MAX_SETPOINT_SPEED_TICKS_PER_MILLI = (ARM_TICKS_PER_DEGREE * 30.0 / 1000.0);
     private final double PINCER_OPEN = 0.5;
     private final double PINCER_CLOSED = 0.65;
     private final double WRIST_CENTER = 0.582;
@@ -110,18 +120,23 @@ public class TerabytesIntoTheDeep {
     private final boolean debugMode;
     private final AllianceColor allianceColor;
 
-    private final PIDController armControl = new PIDController(ARM_CONTROL_P, ARM_CONTROL_I, ARM_CONTROL_D);
+    private final PIDController leftArmControl = new PIDController(0.005, 0.00125, 0.0);
+    private final PIDController rightArmControl = new PIDController(0.005, 0.00125, 0.0);
     private final DcMotorEx armLeft;
     private final DcMotorEx armRight;
     private final DcMotorEx extender;
     private final TouchSensor armMin;
     private final TouchSensor extenderMin;
+    private final Servo tilt;
     private final Servo wrist;
     private final Servo pincer;
     private final OnActivatedEvaluator a2Evaluator;
+    private final ElapsedTime loopTime = new ElapsedTime();
 
     private boolean pincerClosed = true;
     private double extenderTickTarget;
+    private double armTickTarget;
+    private double dtMillis = 0;
 
     public TerabytesIntoTheDeep(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, Telemetry telemetry, boolean debugMode) {
         this.allianceColor = allianceColor;
@@ -151,12 +166,14 @@ public class TerabytesIntoTheDeep {
         indicator1Green.setMode(DigitalChannel.Mode.OUTPUT);
         blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.DARK_GREEN);
 
-        armControl.setTolerance(ARM_TOLERANCE);
+        leftArmControl.setTolerance(20);
+        rightArmControl.setTolerance(20);
         armMin = hardwareMap.get(TouchSensor.class, "armMin1");
         extenderMin = hardwareMap.get(TouchSensor.class, "extenderMin3");
         armLeft = hardwareMap.get(DcMotorEx.class, "armE0");
         armRight = hardwareMap.get(DcMotorEx.class, "armE3");
         extender = hardwareMap.get(DcMotorEx.class, "extenderE1");
+        tilt = hardwareMap.get(Servo.class, "tilt");
         pincer = hardwareMap.get(Servo.class, "pincer");
         wrist = hardwareMap.get(Servo.class, "wrist");
 
@@ -184,12 +201,18 @@ public class TerabytesIntoTheDeep {
         telemetry.addData("y", latestPoseEstimate.getY());
         telemetry.addData("heading", latestPoseEstimate.getHeading());
 
-        telemetry.addData("wrist", (gamepad2.left_stick_x + 1.0) / 2);
-        telemetry.addData("pincer", (gamepad2.right_stick_x + 1.0) / 2);
+        telemetry.addData("tilt", tilt.getPosition());
+        telemetry.addData("wrist", wrist.getPosition());
+        telemetry.addData("pincer", pincer.getPosition());
         telemetry.addData("extenderPos", extender.getCurrentPosition());
         telemetry.addData("extenderTarget", extender.getTargetPosition());
         telemetry.addData("extenderMin", extenderMin.isPressed());
         telemetry.addData("armMin", armMin.isPressed());
+        telemetry.addData("armTickTarget", armTickTarget);
+        telemetry.addData("ArmLeft-Power", armLeft.getPower());
+        telemetry.addData("ArmRight-Power", armRight.getPower());
+        telemetry.addData("ArmLeft-Position" + armLeft.getDeviceName(), armLeft.getCurrentPosition());
+        telemetry.addData("ArmRight-Position" + armRight.getDeviceName(), armRight.getCurrentPosition());
         telemetry.update();
     }
 
@@ -262,6 +285,9 @@ public class TerabytesIntoTheDeep {
             state = nextState;
         }
 
+        dtMillis = loopTime.milliseconds();
+        loopTime.reset();
+
         runTelemetry();
 
         return state != TerabytesOpModeState.HALT_OPMODE;
@@ -272,28 +298,34 @@ public class TerabytesIntoTheDeep {
         extender.setTargetPosition(0);
         extender.setTargetPositionTolerance(EXTENDER_TICK_TOLERANCE);
         extender.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
+        extender.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         extender.setPower(EXTENDER_POWER);
     }
 
     private void zeroArmMotors() {
+        leftArmControl.reset();
         armLeft.setPower(0);
         armLeft.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         armLeft.setDirection(DcMotorSimple.Direction.FORWARD);
         armLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
+        rightArmControl.reset();
         armRight.setPower(0);
         armRight.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         armRight.setDirection(DcMotorSimple.Direction.FORWARD);
         armRight.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
     }
 
-    private void controlArmMotor(DcMotorEx armMotor, int targetPosition) {
-        int armPosition = armMotor.getCurrentPosition();
-        double armPower = armControl.calculate(armPosition, targetPosition);
+    private void controlArmMotor(PIDController controller, DcMotorEx armMotor) {
+        double armPower = controller.calculate(armMotor.getCurrentPosition(), armTickTarget);
         if(Math.abs(armPower) < 0.02) armPower = 0;
         if(armPower < 0 && armMin.isPressed()) armPower = 0;
-        telemetry.addData("armMotorPower", "%s: %5.2f", armMotor.getDeviceName(), armPower);
         armMotor.setPower(armPower);
+    }
+
+    private void controlArmMotors() {
+        controlArmMotor(leftArmControl, armLeft);
+        controlArmMotor(rightArmControl, armRight);
     }
 
     private TerabytesOpModeState evaluateInitializeTeleop() {
@@ -315,9 +347,9 @@ public class TerabytesIntoTheDeep {
 
         boolean zeroArm = armMin.isPressed();
         if (zeroArm) {
+            zeroArmMotors();
             armLeft.setPower(0);
             armRight.setPower(0);
-            zeroArmMotors();
         } else if (zeroExtender) {
             armLeft.setPower(-0.30);
             armRight.setPower(-0.30);
@@ -360,13 +392,18 @@ public class TerabytesIntoTheDeep {
 
         Pose2d driveInput = getScaledHeadlessDriverInput(gamepad1, allianceColor.OperatorHeadingOffset, slowMode);
         //drive.setWeightedDrivePower(driveInput);
-        pincer.setPosition(pincerClosed ? PINCER_CLOSED : PINCER_OPEN);
+        pincer.setPosition(pincerClosed ? PINCER_CLOSED : PINCER_OPEN)  ;
         wrist.setPosition(WRIST_CENTER + (gamepad2.left_stick_x * WRIST_RANGE));
+        //armTickTarget += gamepad1.left_stick_x * dtMillis * ARM_MAX_SETPOINT_SPEED_TICKS_PER_MILLI;
+        armTickTarget = Math.max(-50, Math.min(4000, armTickTarget));
 
-        int armTickTarget = 1000 + (int)(((1.0 + gamepad1.left_stick_x) / 2.0) * 5000);
+        double armAveragePosition = (armLeft.getCurrentPosition() + armRight.getCurrentPosition()) / 2.0;
+        double armPositionDegrees = ARM_ZERO_DEGREES + (armAveragePosition * ARM_TICKS_PER_DEGREE);
+        double tiltDegrees = Math.min(-TILT_RANGE_DEGREES, Math.max(TILT_RANGE_DEGREES, -armPositionDegrees));
+        //tilt.setPosition(TILT_CENTER + (tiltDegrees * TILT_TICKS_PER_DEGREE));
+        tilt.setPosition(TILT_CENTER + (gamepad1.left_stick_x * TILT_RANGE));
 
-        controlArmMotor(armLeft, armTickTarget);
-        controlArmMotor(armRight, armTickTarget);
+        controlArmMotors();
 
         if (a2Evaluator.evaluate()) {
             pincerClosed = !pincerClosed;
