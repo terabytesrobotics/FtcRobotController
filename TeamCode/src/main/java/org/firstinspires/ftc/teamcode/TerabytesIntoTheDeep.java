@@ -1,5 +1,8 @@
 package org.firstinspires.ftc.teamcode;
 
+import static org.firstinspires.ftc.teamcode.NibusConstants.EXTENDER_MAX_LENGTH_INCHES;
+import static org.firstinspires.ftc.teamcode.NibusConstants.EXTENDER_POWER;
+import static org.firstinspires.ftc.teamcode.NibusConstants.EXTENDER_TICK_TOLERANCE;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.APRIL_TAG_QUEUE_CAPACITY;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.APRIL_TAG_RECOGNITION_BEARING_THRESHOLD;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.APRIL_TAG_RECOGNITION_MAX_RANGE;
@@ -25,15 +28,21 @@ import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.acmerobotics.roadrunner.util.Angle;
+import com.arcrobotics.ftclib.controller.PIDController;
+import com.qualcomm.hardware.rev.RevBlinkinLedDriver;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.TouchSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
 
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.internal.camera.delegating.SwitchableCameraName;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
@@ -53,6 +62,20 @@ import java.util.Queue;
 
 public class TerabytesIntoTheDeep {
 
+    private final double TILT_TICKS_PER_DEGREE = 1.0 / 270.0;
+    private final double TILT_RANGE_DEGREES = 30.0;
+    private final double TILT_RANGE = TILT_TICKS_PER_DEGREE * TILT_RANGE_DEGREES;
+    private final double TILT_CENTER = 0.5;
+    private final double ARM_TICKS_VERTICAL = 3390;
+    private final double ARM_TICKS_HORIZONTAL = 840;
+    private final double ARM_TICKS_PER_DEGREE = (ARM_TICKS_VERTICAL - ARM_TICKS_HORIZONTAL) / 90.0;
+    private final double ARM_ZERO_DEGREES = -ARM_TICKS_HORIZONTAL / ARM_TICKS_PER_DEGREE;
+    private final double ARM_MAX_SETPOINT_SPEED_TICKS_PER_MILLI = (ARM_TICKS_PER_DEGREE * 30.0 / 1000.0);
+    private final double PINCER_OPEN = 0.5;
+    private final double PINCER_CLOSED = 0.65;
+    private final double WRIST_CENTER = 0.582;
+    private final double WRIST_RANGE = 0.25;
+
     // TODO: Trim these GPT fields down to only necessary
     private double fieldTheta;
     private double fieldRadius;
@@ -67,6 +90,7 @@ public class TerabytesIntoTheDeep {
     private final AprilTagLibrary APRIL_TAG_LIBRARY = AprilTagGameDatabase.getIntoTheDeepTagLibrary();
     private final SampleMecanumDrive drive;
     private final Gamepad gamepad1;
+    private final Gamepad gamepad2;
     private final WebcamName frontCamera;
     private final WebcamName backCamera;
     private final DigitalChannel indicator1Red;
@@ -76,6 +100,7 @@ public class TerabytesIntoTheDeep {
     private IntoTheDeepOpModeState state;
     private ElapsedTime timeSinceStart;
     private ElapsedTime timeInState;
+    private boolean isNewState;
     private Pose2d latestPoseEstimate = null;
     private final ElapsedTime currentCommandTime = new ElapsedTime();
     private final ElapsedTime currentCommandSettledTime = new ElapsedTime();
@@ -88,17 +113,34 @@ public class TerabytesIntoTheDeep {
     private final boolean debugMode;
     private final AllianceColor allianceColor;
     private final Servo pincer;
-
     private final OnActivatedEvaluator rb1ActivatedEvaluator;
     private final OnActivatedEvaluator a1ActivatedEvaluator;
     private final OnActivatedEvaluator b1ActivatedEvaluator;
     private final OnActivatedEvaluator y1ActivatedEvaluator;
     private final OnActivatedEvaluator x1ActivatedEvaluator;
 
+    private final PIDController leftArmControl = new PIDController(0.005, 0.00125, 0.0);
+    private final PIDController rightArmControl = new PIDController(0.005, 0.00125, 0.0);
+    private final DcMotorEx armLeft;
+    private final DcMotorEx armRight;
+    private final DcMotorEx extender;
+    private final TouchSensor armMin;
+    private final TouchSensor extenderMin;
+    private final Servo tilt;
+    private final Servo wrist;
+    private final OnActivatedEvaluator a2Evaluator;
+    private final ElapsedTime loopTime = new ElapsedTime();
+
+    private boolean pincerClosed = true;
+    private double extenderTickTarget;
+    private double armTickTarget;
+    private double dtMillis = 0;
+
     public TerabytesIntoTheDeep(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, boolean debugMode) {
         this.allianceColor = allianceColor;
         this.gamepad1 = gamepad1;
-        this.state = IntoTheDeepOpModeState.HEADLESS_DRIVE;
+        this.gamepad2 = gamepad2;
+        this.state = IntoTheDeepOpModeState.MANUAL_CONTROL;
         this.debugMode = debugMode;
 
         frontCamera = hardwareMap.get(WebcamName.class, "Webcam 1");
@@ -125,7 +167,21 @@ public class TerabytesIntoTheDeep {
         y1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.y);
         x1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.x);
 
+        // TODO: Setup the blinkin LEDs
+        //blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.DARK_GREEN);
+
+        leftArmControl.setTolerance(20);
+        rightArmControl.setTolerance(20);
+        armMin = hardwareMap.get(TouchSensor.class, "armMin1");
+        extenderMin = hardwareMap.get(TouchSensor.class, "extenderMin3");
+        armLeft = hardwareMap.get(DcMotorEx.class, "armE0");
+        armRight = hardwareMap.get(DcMotorEx.class, "armE3");
+        extender = hardwareMap.get(DcMotorEx.class, "extenderE1");
+        tilt = hardwareMap.get(Servo.class, "tilt");
         pincer = hardwareMap.get(Servo.class, "pincer");
+        wrist = hardwareMap.get(Servo.class, "wrist");
+
+        a2Evaluator = new OnActivatedEvaluator(() -> gamepad2.a);
     }
 
     public Pose2d getLatestPoseEstimate() {
@@ -174,6 +230,37 @@ public class TerabytesIntoTheDeep {
         packet.put("rfv", rightFrontVelocity);
         packet.put("rrv", rightRearVelocity);
 
+        // TODO: Get this reported into telemetry
+//        telemetry.addData("currentState", state.toString());
+//        if (lastAprilTagFieldPosition != null) {
+//            telemetry.addData("estimate-x", lastAprilTagFieldPosition.getX());
+//            telemetry.addData("estimate-y", lastAprilTagFieldPosition.getY());
+//            telemetry.addData("etimate-heading", lastAprilTagFieldPosition.getHeading());
+//        }
+//
+//        if (state == TerabytesOpModeState.RADIAL_DRIVING_MODE) {
+//            telemetry.addData("Field Theta (deg)", Math.toDegrees(fieldTheta));
+//            telemetry.addData("Field Radius", fieldRadius);
+//        }
+//
+//        telemetry.addData("x", latestPoseEstimate.getX());
+//        telemetry.addData("y", latestPoseEstimate.getY());
+//        telemetry.addData("heading", latestPoseEstimate.getHeading());
+//
+//        telemetry.addData("tilt", tilt.getPosition());
+//        telemetry.addData("wrist", wrist.getPosition());
+//        telemetry.addData("pincer", pincer.getPosition());
+//        telemetry.addData("extenderPos", extender.getCurrentPosition());
+//        telemetry.addData("extenderTarget", extender.getTargetPosition());
+//        telemetry.addData("extenderMin", extenderMin.isPressed());
+//        telemetry.addData("armMin", armMin.isPressed());
+//        telemetry.addData("armTickTarget", armTickTarget);
+//        telemetry.addData("ArmLeft-Power", armLeft.getPower());
+//        telemetry.addData("ArmRight-Power", armRight.getPower());
+//        telemetry.addData("ArmLeft-Position" + armLeft.getDeviceName(), armLeft.getCurrentPosition());
+//        telemetry.addData("ArmRight-Position" + armRight.getDeviceName(), armRight.getCurrentPosition());
+//        telemetry.update();
+
         return packet;
     }
 
@@ -208,17 +295,24 @@ public class TerabytesIntoTheDeep {
         evaluateIndicatorLights();
         evaluatePincer();
 
+        if (state != IntoTheDeepOpModeState.INITIALIZE_TELEOP) {
+            extender.setTargetPosition((int) extenderTickTarget);
+        }
+
         // Determine whether there's been a state change
         // Run the state specific control logic
         IntoTheDeepOpModeState currentState = state;
         IntoTheDeepOpModeState nextState = evaluatePositioningSystems(currentState);
 
         switch (state) {
+            case INITIALIZE_TELEOP:
+                nextState = evaluateInitializeTeleop();
+                break;
+            case MANUAL_CONTROL:
+                nextState = evaluateManualControl();
+                break;
             case COMMAND_SEQUENCE:
                 nextState = evaluateCommandSequence();
-                break;
-            case HEADLESS_DRIVE:
-                nextState = evaluateHeadlessDrivingMode();
                 break;
             case RADIAL_DRIVING_MODE:
                 nextState = evaluateRadialDrivingMode();
@@ -237,10 +331,14 @@ public class TerabytesIntoTheDeep {
         }
 
         // Reset the timer so that the state logic can use it to tell how long it's been in that state
+        isNewState = currentState != nextState;
         if (nextState != currentState) {
             timeInState.reset();
             state = nextState;
         }
+
+        dtMillis = loopTime.milliseconds();
+        loopTime.reset();
 
         return state != IntoTheDeepOpModeState.HALT_OPMODE;
     }
@@ -256,7 +354,7 @@ public class TerabytesIntoTheDeep {
     private IntoTheDeepOpModeState evaluateSubmersibleApproach() {
         if (latestPoseEstimate == null) {
             // Cannot proceed without pose estimate
-            return IntoTheDeepOpModeState.HEADLESS_DRIVE;
+            return IntoTheDeepOpModeState.MANUAL_CONTROL;
         }
 
         double x = latestPoseEstimate.getX();
@@ -313,7 +411,7 @@ public class TerabytesIntoTheDeep {
     private IntoTheDeepOpModeState evaluateBasketApproach() {
         if (latestPoseEstimate == null) {
             // Cannot proceed without pose estimate
-            return IntoTheDeepOpModeState.HEADLESS_DRIVE;
+            return IntoTheDeepOpModeState.MANUAL_CONTROL;
         }
 
         Pose2d basketApproach = IntoTheDeepPose.BASKET_APPROACH.getPose(allianceColor);
@@ -327,18 +425,109 @@ public class TerabytesIntoTheDeep {
         return IntoTheDeepOpModeState.BASKET_APPROACH;
     }
 
-    private IntoTheDeepOpModeState evaluateHeadlessDrivingMode() {
+    private void zeroExtender() {
+        extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        extender.setTargetPosition(0);
+        extender.setTargetPositionTolerance(EXTENDER_TICK_TOLERANCE);
+        extender.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
+        extender.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        extender.setPower(EXTENDER_POWER);
+    }
+
+    private void zeroArmMotors() {
+        leftArmControl.reset();
+        armLeft.setPower(0);
+        armLeft.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        armLeft.setDirection(DcMotorSimple.Direction.FORWARD);
+        armLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+
+        rightArmControl.reset();
+        armRight.setPower(0);
+        armRight.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        armRight.setDirection(DcMotorSimple.Direction.FORWARD);
+        armRight.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+    }
+
+    private void controlArmMotor(PIDController controller, DcMotorEx armMotor) {
+        double armPower = controller.calculate(armMotor.getCurrentPosition(), armTickTarget);
+        if(Math.abs(armPower) < 0.02) armPower = 0;
+        if(armPower < 0 && armMin.isPressed()) armPower = 0;
+        armMotor.setPower(armPower);
+    }
+
+    private void controlArmMotors() {
+        controlArmMotor(leftArmControl, armLeft);
+        controlArmMotor(rightArmControl, armRight);
+    }
+
+    private IntoTheDeepOpModeState evaluateInitializeTeleop() {
+        if (isNewState) {
+            zeroExtender();
+            extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+            extender.setDirection(DcMotorEx.Direction.FORWARD);
+            extender.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            extender.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        }
+
+        boolean zeroExtender = extenderMin.isPressed();
+        if (zeroExtender) {
+            extender.setPower(0.0);
+            zeroExtender();
+        } else {
+            extender.setPower(-0.4);
+        }
+
+        boolean zeroArm = armMin.isPressed();
+        if (zeroArm) {
+            zeroArmMotors();
+            armLeft.setPower(0);
+            armRight.setPower(0);
+        } else if (zeroExtender) {
+            armLeft.setPower(-0.30);
+            armRight.setPower(-0.30);
+        }
+
+        if (zeroExtender && zeroArm) {
+            return IntoTheDeepOpModeState.MANUAL_CONTROL;
+        }
+
+        return IntoTheDeepOpModeState.INITIALIZE_TELEOP;
+    }
+
+    private IntoTheDeepOpModeState evaluateManualControl() {
         if (rb1ActivatedEvaluator.evaluate() && hasPositionEstimate()) {
             initializeRadialDrivingMode();
             return IntoTheDeepOpModeState.RADIAL_DRIVING_MODE;
         }
+
+        double EXTENDER_GEAR_RATIO = 5.2d;
+        double EXTENDER_TICS_PER_INCH = (EXTENDER_GEAR_RATIO * 28 / 0.8 / 2) * 2.54;
+        double effectiveExtenderPositionInches = Math.max(0f, Math.min(2.0 + gamepad1.right_stick_x, EXTENDER_MAX_LENGTH_INCHES));
+        extenderTickTarget = effectiveExtenderPositionInches * EXTENDER_TICS_PER_INCH;
 
         boolean slowMode = gamepad1.left_bumper;
 
         Pose2d driveInput = getScaledHeadlessDriverInput(gamepad1, allianceColor.OperatorHeadingOffset, slowMode);
         setDrivePower(driveInput);
 
-        return IntoTheDeepOpModeState.HEADLESS_DRIVE;
+        //drive.setWeightedDrivePower(driveInput);
+        pincer.setPosition(pincerClosed ? PINCER_CLOSED : PINCER_OPEN)  ;
+        wrist.setPosition(WRIST_CENTER + (gamepad2.left_stick_x * WRIST_RANGE));
+        armTickTarget += gamepad1.left_stick_x * dtMillis * ARM_MAX_SETPOINT_SPEED_TICKS_PER_MILLI;
+        armTickTarget = Math.max(-50, Math.min(4000, armTickTarget));
+
+        double armAveragePositionTicks = (armLeft.getCurrentPosition() + armRight.getCurrentPosition()) / 2.0;
+        double armPositionDegrees = ARM_ZERO_DEGREES + (armAveragePositionTicks / ARM_TICKS_PER_DEGREE);
+        double tiltDegrees = Math.max(-TILT_RANGE_DEGREES, Math.min(TILT_RANGE_DEGREES, -armPositionDegrees));
+        tilt.setPosition(TILT_CENTER + (tiltDegrees * TILT_TICKS_PER_DEGREE));
+
+        controlArmMotors();
+
+        if (a2Evaluator.evaluate()) {
+            pincerClosed = !pincerClosed;
+        }
+
+        return IntoTheDeepOpModeState.MANUAL_CONTROL;
     }
 
 
@@ -646,7 +835,7 @@ public class TerabytesIntoTheDeep {
 
         // Exit condition to return to manual control
         if (rb1ActivatedEvaluator.evaluate()) {
-            return IntoTheDeepOpModeState.HEADLESS_DRIVE;
+            return IntoTheDeepOpModeState.MANUAL_CONTROL;
         } else if (a1ActivatedEvaluator.evaluate()) {
             return IntoTheDeepOpModeState.SUBMERSIBLE_APPROACH;
         } else if (y1ActivatedEvaluator.evaluate()) {

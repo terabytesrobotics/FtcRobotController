@@ -10,6 +10,6 @@ import org.firstinspires.ftc.teamcode.util.AllianceColor;
 public class TerabytesTeleOpRed extends TerabytesOpMode {
 
     public TerabytesTeleOpRed() {
-        super(AllianceColor.RED, IntoTheDeepOpModeState.HEADLESS_DRIVE);
+        super(AllianceColor.RED, IntoTheDeepOpModeState.MANUAL_CONTROL);
     }
 }
