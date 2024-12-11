@@ -135,6 +135,7 @@ public class TerabytesIntoTheDeep {
     private double extenderTickTarget;
     private double armTickTarget;
     private double dtMillis = 0;
+    private IntoTheDeepOpModeState stateAfterInitialization = IntoTheDeepOpModeState.MANUAL_CONTROL;
 
     public TerabytesIntoTheDeep(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, boolean debugMode) {
         this.allianceColor = allianceColor;
@@ -488,13 +489,18 @@ public class TerabytesIntoTheDeep {
         }
 
         if (zeroExtender && zeroArm) {
-            return IntoTheDeepOpModeState.MANUAL_CONTROL;
+            return stateAfterInitialization;
         }
 
         return IntoTheDeepOpModeState.INITIALIZE_TELEOP;
     }
 
     private IntoTheDeepOpModeState evaluateManualControl() {
+        if (b1ActivatedEvaluator.evaluate()) {
+            stateAfterInitialization = IntoTheDeepOpModeState.MANUAL_CONTROL;
+            return IntoTheDeepOpModeState.INITIALIZE_TELEOP;
+        }
+
         if (rb1ActivatedEvaluator.evaluate() && hasPositionEstimate()) {
             initializeRadialDrivingMode();
             return IntoTheDeepOpModeState.RADIAL_DRIVING_MODE;
@@ -805,6 +811,11 @@ public class TerabytesIntoTheDeep {
     }
 
     private IntoTheDeepOpModeState evaluateRadialDrivingMode() {
+        if (b1ActivatedEvaluator.evaluate()) {
+            stateAfterInitialization = IntoTheDeepOpModeState.RADIAL_DRIVING_MODE;
+            return IntoTheDeepOpModeState.INITIALIZE_TELEOP;
+        }
+
         // Compute deltaTime
         double deltaTime = lastRadialModeLoopTime.seconds();
         lastRadialModeLoopTime.reset();
