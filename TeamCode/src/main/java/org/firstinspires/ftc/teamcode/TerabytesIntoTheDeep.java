@@ -87,17 +87,23 @@ public class TerabytesIntoTheDeep {
         private final double ARM_TICKS_PER_DEGREE = WORM_RATIO * 28.0d * GEAR_RATIO / 360.0d;
         private final double ARM_LEVEL_DEGREES_ABOVE_ZERO = 45; // TODO: Tune this to actual level up from min.
         private final double ARM_LEVEL_TICKS = ARM_LEVEL_DEGREES_ABOVE_ZERO * ARM_TICKS_PER_DEGREE;
+        private final double ARM_COLLECT_MINIMUM_DEGREES = -22.5;
+        private final double ARM_LEVEL_HEIGHT_INCHES = 15.5d;
+        private final double ARM_COLLECT_HEIGHT_INCHES = 10d; // TODO: Tune this to actual desired
+        private final double ARM_COLLECT_DEPTH_INCHES = ARM_LEVEL_HEIGHT_INCHES - ARM_COLLECT_HEIGHT_INCHES;
         private final double ARM_MAX_SETPOINT_SPEED_TICKS_PER_MILLI = (ARM_TICKS_PER_DEGREE * 30.0 / 1000.0);
 
-        private final double EXTENDER_MIN_INCHES = 16d;
+        // TODO: tune extender parameters to get accurate ratio of tick per inch and no-extension length
+        private final double EXTENDER_MIN_LENGTH_INCHES = 16d;
         private final double EXTENDER_GEAR_RATIO = 5.2d;
         private final double EXTENDER_TICS_PER_INCH = (EXTENDER_GEAR_RATIO * 28 / 0.8 / 2) * 2.54;
-        private final double EXTENDER_MAX_INCHES = 14.5d;
-        private final double EXTENDER_MAX_TICKS = EXTENDER_MAX_INCHES * EXTENDER_TICS_PER_INCH;
+        private final double EXTENDER_MAX_LENGTH_INCHES = 14.5d;
+        private final double EXTENDER_MAX_LENGTH_TICKS = EXTENDER_MAX_LENGTH_INCHES * EXTENDER_TICS_PER_INCH;
         private final double EXTENDER_SETPOINT_SPEED_TICKS_PER_MILLIS = (EXTENDER_TICS_PER_INCH * 1.5 / 1000.0);
 
         private final double TILT_CENTER = 0.5;
         private final double TILT_TICKS_PER_DEGREE = 1.0 / 270.0;
+        private final double TILT_STRAIGHT = TILT_CENTER + (90 * TILT_TICKS_PER_DEGREE);
         private final double TILT_RANGE_DEGREES = 30.0;
         private final double TILT_RANGE = TILT_TICKS_PER_DEGREE * TILT_RANGE_DEGREES;
 
@@ -110,7 +116,9 @@ public class TerabytesIntoTheDeep {
 
         private AppendageControlState currentState;
         private ElapsedTime stateTimer;
-        public final AppendageControlTarget target = new AppendageControlTarget(0, 0, 0, 0, 0);
+        public final AppendageControlTarget target = new AppendageControlTarget(0, 0, TILT_CENTER, WRIST_CENTER, PINCER_CENTER);
+
+        private double collectDistance = 0d;
 
         public AppendageControl() {
             currentState = AppendageControlState.DEFENSIVE;
@@ -135,6 +143,10 @@ public class TerabytesIntoTheDeep {
             currentState = state;
         }
 
+        public void setCollectDistance(double collectDistance) {
+            this.collectDistance = collectDistance;
+        }
+
         private AppendageControlTarget evaluateDefensive(double t) {
             double angle = 90, extInches = 0;
             target.armTickTarget = ARM_LEVEL_TICKS + angle * ARM_TICKS_PER_DEGREE;
@@ -146,12 +158,25 @@ public class TerabytesIntoTheDeep {
         }
 
         private AppendageControlTarget evaluateCollecting(double t) {
-            double angle = 0, extInches = 0;
-            target.armTickTarget = ARM_LEVEL_TICKS + angle * ARM_TICKS_PER_DEGREE;
-            target.extenderTickTarget = EXTENDER_TICS_PER_INCH * extInches;
-            target.tiltTarget = TILT_CENTER + (-angle * TILT_TICKS_PER_DEGREE);
+
+            double clampedCollectDistance = Math.max(0, Math.min(1, collectDistance));
+            double minimumAchievableDistance = EXTENDER_MIN_LENGTH_INCHES * Math.sin(Math.toRadians(ARM_COLLECT_MINIMUM_DEGREES));
+            double maximumAchievableDistance = Math.sqrt((EXTENDER_MAX_LENGTH_INCHES * EXTENDER_MAX_LENGTH_INCHES) - (ARM_COLLECT_DEPTH_INCHES * ARM_COLLECT_DEPTH_INCHES));
+            double desiredDistance = minimumAchievableDistance + (clampedCollectDistance * (maximumAchievableDistance - minimumAchievableDistance));
+            double armAngle = -Math.toDegrees(Math.atan2(ARM_COLLECT_DEPTH_INCHES, desiredDistance));
+            double desiredTotalLength = Math.sqrt((ARM_COLLECT_DEPTH_INCHES * ARM_COLLECT_DEPTH_INCHES) + (desiredDistance * desiredDistance));
+            double desiredExtensionLength = EXTENDER_MIN_LENGTH_INCHES - desiredTotalLength;
+            double extensionInches = Math.max(0, Math.min(EXTENDER_MIN_LENGTH_INCHES, desiredExtensionLength));
+
+            target.armTickTarget = ARM_LEVEL_TICKS + armAngle * ARM_TICKS_PER_DEGREE;
+            target.extenderTickTarget = EXTENDER_TICS_PER_INCH * extensionInches;
+
+            // Keep tilt level with arm
+            target.tiltTarget = TILT_CENTER + (-armAngle * TILT_TICKS_PER_DEGREE);
+
             target.wristTarget = WRIST_CENTER;
             target.pincerTarget = PINCER_CENTER;
+
             return target;
         }
 
@@ -622,14 +647,26 @@ public class TerabytesIntoTheDeep {
     }
 
     private IntoTheDeepOpModeState evaluateManualControl() {
-        if (rb1ActivatedEvaluator.evaluate() && hasPositionEstimate()) {
-            initializeRadialDrivingMode();
-            return IntoTheDeepOpModeState.RADIAL_DRIVING_MODE;
-        }
+        //if (rb1ActivatedEvaluator.evaluate() && hasPositionEstimate()) {
+            //initializeRadialDrivingMode();
+            //return IntoTheDeepOpModeState.RADIAL_DRIVING_MODE;
+        //}
 
         if (gamepad2.a) {
             // re init the arm
             appendageControl = null;
+        }
+
+        if (gamepad2.y && appendageControl != null) {
+            appendageControl.setControlState(AppendageControlState.COLLECTING);
+        }
+
+        if (gamepad2.x && appendageControl != null) {
+            appendageControl.setControlState(AppendageControlState.DEFENSIVE);
+        }
+
+        if (appendageControl != null) {
+            appendageControl.setCollectDistance(-gamepad2.right_stick_y);
         }
 
         boolean slowMode = gamepad1.left_bumper;
