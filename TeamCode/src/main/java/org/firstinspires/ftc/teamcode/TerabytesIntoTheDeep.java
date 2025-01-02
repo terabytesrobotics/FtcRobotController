@@ -143,12 +143,14 @@ public class TerabytesIntoTheDeep {
         private double collectDistance = 0d;
         private boolean lowProfile = false;
         private ElapsedTime grabTimer = null;
+        private ElapsedTime untuckTimer = null;
 
         public AppendageControl() {
             currentState = AppendageControlState.TUCKED;
         }
 
         public AppendageControlTarget evaluate() {
+            if (untuckTimer != null) return evaluateUntucking();
             switch (currentState) {
                 case TUCKED:     return evaluateTucked();
                 case DEFENSIVE:  return evaluateDefensive();
@@ -157,6 +159,14 @@ public class TerabytesIntoTheDeep {
                 case HIGH_BASKET:return evaluateHighBasket();
                 default:         throw new IllegalArgumentException("Unexpected state: " + state);
             }
+        }
+
+        public void triggerUntuck() {
+            untuckTimer = new ElapsedTime();
+        }
+
+        public void stopUntuck() {
+            untuckTimer = null;
         }
 
         public void triggerGrab() {
@@ -174,6 +184,7 @@ public class TerabytesIntoTheDeep {
 
         public void setControlState(AppendageControlState state) {
             stopGrab();
+            if (currentState == AppendageControlState.TUCKED) triggerUntuck();
             currentState = state;
         }
 
@@ -190,6 +201,31 @@ public class TerabytesIntoTheDeep {
             return target;
         }
 
+        private AppendageControlTarget evaluateUntucking() {
+            double t = untuckTimer.milliseconds();
+            if (t < 2000) { // Arm moves toward level for 2s
+                target.armTickTarget = ARM_LEVEL_TICKS;
+                target.tiltTarget = TILT_TUCKED;
+                target.wristTarget = WRIST_TUCKED;
+                target.pincerTarget = PINCER_CLOSED;
+            } else if (t < 2750) { // Wrist from tucked to center over 750ms
+                double frac = (t - 2000) / 750.0;
+                target.armTickTarget = ARM_LEVEL_TICKS;
+                target.wristTarget = WRIST_TUCKED + frac * (WRIST_CENTER - WRIST_TUCKED);
+                target.tiltTarget = TILT_TUCKED;
+                target.pincerTarget = PINCER_CLOSED;
+            } else if (t < 3500) { // Tilt from tucked to center over next 750ms
+                double frac = (t - 2750) / 750.0;
+                target.armTickTarget = ARM_LEVEL_TICKS;
+                target.wristTarget = WRIST_CENTER;
+                target.tiltTarget = TILT_TUCKED + frac * (TILT_CENTER - TILT_TUCKED);
+                target.pincerTarget = PINCER_CLOSED;
+            } else {
+                stopUntuck();
+            }
+            return target;
+        }
+
         private AppendageControlTarget evaluateDefensive() {
             double angle = 90, extInches = 0;
             target.armTickTarget = ARM_LEVEL_TICKS + angle * ARM_TICKS_PER_DEGREE;
@@ -201,7 +237,6 @@ public class TerabytesIntoTheDeep {
         }
 
         private AppendageControlTarget evaluateCollecting() {
-
             double clampedCollectDistance = Math.max(0, Math.min(1, collectDistance));
             double minimumAchievableDistance = EXTENDER_MIN_LENGTH_INCHES * Math.sin(Math.toRadians(ARM_COLLECT_MINIMUM_DEGREES));
             double maximumAchievableDistance = Math.sqrt((EXTENDER_MAX_LENGTH_INCHES * EXTENDER_MAX_LENGTH_INCHES) - (ARM_COLLECT_DEPTH_INCHES * ARM_COLLECT_DEPTH_INCHES));
@@ -274,7 +309,7 @@ public class TerabytesIntoTheDeep {
         }
     }
 
-    // Doubles as a maintainance mode where centered command can be easily found
+    // Doubles as a maintenance mode where centered command can be easily found
     public final ServoInitStage[] SERVO_INIT_STAGES_AUTON = {
             new ServoInitStage(TILT_CENTER, WRIST_CENTER, PINCER_CENTER, 7500),
             new ServoInitStage(TILT_CENTER, WRIST_TUCKED, PINCER_OPEN, 3750),
