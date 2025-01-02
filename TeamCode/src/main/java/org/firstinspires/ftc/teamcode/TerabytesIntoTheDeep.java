@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.teamcode;
 
-import static org.firstinspires.ftc.teamcode.NibusConstants.EXTENDER_TICK_TOLERANCE;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.APRIL_TAG_QUEUE_CAPACITY;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.APRIL_TAG_RECOGNITION_BEARING_THRESHOLD;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.APRIL_TAG_RECOGNITION_MAX_RANGE;
@@ -27,7 +26,6 @@ import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.acmerobotics.roadrunner.util.Angle;
 import com.arcrobotics.ftclib.controller.PIDController;
-import com.qualcomm.hardware.rev.RevBlinkinLedDriver;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
@@ -40,7 +38,6 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
 
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
-import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.internal.camera.delegating.SwitchableCameraName;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
@@ -60,89 +57,107 @@ import java.util.Queue;
 
 public class TerabytesIntoTheDeep {
 
-    private final double TILT_TICKS_PER_DEGREE = 1.0 / 270.0;
-    private final double TILT_RANGE_DEGREES = 30.0;
-    private final double TILT_RANGE = TILT_TICKS_PER_DEGREE * TILT_RANGE_DEGREES;
-    private final double TILT_CENTER = 0.5;
-    private final double ARM_TICKS_HORIZONTAL = 160;
-    private final double ARM_TICKS_PER_DEGREE = 28.333;
-    private final double ARM_ZERO_DEGREES = -ARM_TICKS_HORIZONTAL / ARM_TICKS_PER_DEGREE;
+    private final AprilTagLibrary APRIL_TAG_LIBRARY = AprilTagGameDatabase.getIntoTheDeepTagLibrary();
+
+    private final double RADIAL_FIELD_SIDE_LENGTH = 60.0; // Not really real field side...it's the drivable square minus margins of robot
+    private final double RADIAL_MIN_FIELD_RADIUS = 46.0;
+    private final double RADIAL_MAX_FIELD_THETA_RATE = Math.toRadians(45);
+    private final double RADIAL_MAX_FIELD_RADIUS_RATE = 12.0;
+    private final double RADIAL_SQUARENESS_FACTOR = 0.75;
+
+    private final double GEAR_RATIO = 13.7d;
+    private final double WORM_RATIO = 28.0d;
+    private final double ARM_TICKS_PER_DEGREE = WORM_RATIO * 28.0d * GEAR_RATIO / 360.0d;
+    private final double ARM_TICK_TARGET_LEVEL = 1350; // TODO: Tune this to level.
+    private final double ARM_ZERO_DEGREES = -ARM_TICK_TARGET_LEVEL / ARM_TICKS_PER_DEGREE;
     private final double ARM_MAX_SETPOINT_SPEED_TICKS_PER_MILLI = (ARM_TICKS_PER_DEGREE * 30.0 / 1000.0);
+
     private final int EXTENDER_TICK_TOLERANCE = 20;
     private final double EXTENDER_MAX_LENGTH_INCHES = 12d;
     private final double EXTENDER_POWER = 0.8d;
     private final double EXTENDER_GEAR_RATIO = 5.2d;
     private final double EXTENDER_TICS_PER_INCH = (EXTENDER_GEAR_RATIO * 28 / 0.8) * 2.54;
     private final double EXTENDER_SETPOINT_SPEED_TICKS_PER_MILLIS = (EXTENDER_TICS_PER_INCH * 1.5 / 1000.0);
-    private final double PINCER_OPEN = 0.5;
-    private final double PINCER_CLOSED = 0.65;
+
+    private final double TILT_CENTER = 0.5;
+    private final double TILT_TICKS_PER_DEGREE = 1.0 / 270.0;
+    private final double TILT_RANGE_DEGREES = 30.0;
+    private final double TILT_RANGE = TILT_TICKS_PER_DEGREE * TILT_RANGE_DEGREES;
+
     private final double WRIST_CENTER = 0.582;
     private final double WRIST_RANGE = 0.25;
 
-    // TODO: Trim these GPT fields down to only necessary
-    private double fieldTheta;
-    private double fieldRadius;
-    private double squarenessParameter = 0.75;
-    private ElapsedTime lastRadialModeLoopTime = new ElapsedTime();
-    private static final double FIELD_SIDE_LENGTH = 60.0; // Not really real field side...it's the drivable square minus margins of robot
-    private static final double MIN_FIELD_RADIUS = 46.0;
-    private static final double MAX_FIELD_THETA_RATE = Math.toRadians(45);
-    private static final double MAX_FIELD_RADIUS_RATE = 12.0;
-    // TODO: Trim these GPT fields down to only necessary
+    private final double PINCER_OPEN = 0.5;
+    private final double PINCER_CLOSED = 0.65;
 
-    private final AprilTagLibrary APRIL_TAG_LIBRARY = AprilTagGameDatabase.getIntoTheDeepTagLibrary();
-    private final SampleMecanumDrive drive;
-    private final Gamepad gamepad1;
-    private final Gamepad gamepad2;
-    private final WebcamName frontCamera;
-    private final WebcamName backCamera;
-    private final DigitalChannel indicator1Red;
-    private final DigitalChannel indicator1Green;
-    private final VisionPortal visionPortal;
-    private final AprilTagProcessor aprilTagProcessor;
+    // Basic state
+    private final boolean debugMode;
+    private final ElapsedTime loopTime = new ElapsedTime();
     private IntoTheDeepOpModeState state;
     private ElapsedTime timeSinceStart;
     private ElapsedTime timeInState;
-    private boolean isNewState;
     private Pose2d latestPoseEstimate = null;
-    private final ElapsedTime currentCommandTime = new ElapsedTime();
-    private final ElapsedTime currentCommandSettledTime = new ElapsedTime();
-    private TerabytesCommand currentCommand = null;
-    private final ArrayList<TerabytesCommand> commandSequence = new ArrayList<>();
-    private IntoTheDeepOpModeState continuationState = null;
+
+    // Basic gameplay state
+    private final AllianceColor allianceColor;
+
+    // April tag state
     private Pose2d lastAprilTagFieldPosition = null;
     private double lastAprilTagFieldPositionMillis = 0;
     private final Queue<Pose2d> poseQueue = new LinkedList<>();
-    private final boolean debugMode;
-    private final AllianceColor allianceColor;
-    private final Servo pincer;
-    private final OnActivatedEvaluator rb1ActivatedEvaluator;
-    private final OnActivatedEvaluator a1ActivatedEvaluator;
-    private final OnActivatedEvaluator b1ActivatedEvaluator;
-    private final OnActivatedEvaluator y1ActivatedEvaluator;
-    private final OnActivatedEvaluator x1ActivatedEvaluator;
 
+    // Command sequence state
+    private final ArrayList<TerabytesCommand> commandSequence = new ArrayList<>();
+    private TerabytesCommand currentCommand = null;
+    private final ElapsedTime currentCommandTime = new ElapsedTime();
+    private final ElapsedTime currentCommandSettledTime = new ElapsedTime();
+    private IntoTheDeepOpModeState continuationState = null;
+
+    // Radial State
+    private double fieldTheta;
+    private double fieldRadius;
+    private ElapsedTime lastRadialModeLoopTime = new ElapsedTime();
+
+    // Actuation
+    private final SampleMecanumDrive drive;
     private final PIDController leftArmControl = new PIDController(0.005, 0.00125, 0.0);
     private final PIDController rightArmControl = new PIDController(0.005, 0.00125, 0.0);
     private final DcMotorEx armLeft;
     private final DcMotorEx armRight;
     private final DcMotorEx extender;
-    private final TouchSensor armMin;
-    private final TouchSensor extenderMin;
     private final Servo tilt;
     private final Servo wrist;
-    private final OnActivatedEvaluator a2Evaluator;
-    private final ElapsedTime loopTime = new ElapsedTime();
+    private final Servo pincer;
 
+    // Controller
+    private final Gamepad gamepad1;
+    private final Gamepad gamepad2;
+    private final OnActivatedEvaluator rb1ActivatedEvaluator;
+    private final OnActivatedEvaluator a1ActivatedEvaluator;
+    private final OnActivatedEvaluator b1ActivatedEvaluator;
+    private final OnActivatedEvaluator y1ActivatedEvaluator;
+    private final OnActivatedEvaluator x1ActivatedEvaluator;
+    private final OnActivatedEvaluator a2ActivatedEvaluator;
+
+    // Sensing
+    private final TouchSensor armMin;
+    private final TouchSensor extenderMin;
+    private final WebcamName frontCamera;
+    private final WebcamName backCamera;
+    private final VisionPortal visionPortal;
+    private final AprilTagProcessor aprilTagProcessor;
+
+    // Indication
+    private final DigitalChannel indicator1Red;
+    private final DigitalChannel indicator1Green;
+
+    // Appendage state
     private boolean pincerClosed = true;
-
     private boolean initializing = false;
-    private AppendageControl appendageControl = null;
-
+    private boolean initialized = false;
     private double extenderTickTarget;
     private double armTickTarget;
     private double dtMillis = 0;
-    private IntoTheDeepOpModeState stateAfterInitialization = IntoTheDeepOpModeState.MANUAL_CONTROL;
 
     public TerabytesIntoTheDeep(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, boolean debugMode) {
         this.allianceColor = allianceColor;
@@ -189,7 +204,7 @@ public class TerabytesIntoTheDeep {
         pincer = hardwareMap.get(Servo.class, "pincer");
         wrist = hardwareMap.get(Servo.class, "wrist");
 
-        a2Evaluator = new OnActivatedEvaluator(() -> gamepad2.a);
+        a2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.a);
     }
 
     public Pose2d getLatestPoseEstimate() {
@@ -323,7 +338,7 @@ public class TerabytesIntoTheDeep {
 
         if (zeroExtender && zeroArm) {
             initializing = false;
-            appendageControl = new AppendageControl();
+            initialized = true;
         }
     }
 
@@ -349,7 +364,7 @@ public class TerabytesIntoTheDeep {
 
         controlArmMotors();
 
-        if (a2Evaluator.evaluate()) {
+        if (a2ActivatedEvaluator.evaluate()) {
             pincerClosed = !pincerClosed;
         }
 
@@ -357,10 +372,10 @@ public class TerabytesIntoTheDeep {
     }
 
     private void evaluateAppendageInitOrControl() {
-        if (appendageControl == null) {
-            evaluateAppendageInit();
-        } else {
+        if (initialized) {
             evaluateAppendageControl();
+        } else {
+            evaluateAppendageInit();
         }
     }
 
@@ -403,7 +418,6 @@ public class TerabytesIntoTheDeep {
         }
 
         // Reset the timer so that the state logic can use it to tell how long it's been in that state
-        isNewState = currentState != nextState;
         if (nextState != currentState) {
             timeInState.reset();
             state = nextState;
@@ -541,7 +555,7 @@ public class TerabytesIntoTheDeep {
 
         if (gamepad2.a) {
             // re init the arm
-            appendageControl = null;
+            initialized = false;
         }
 
         boolean slowMode = gamepad1.left_bumper;
@@ -830,8 +844,8 @@ public class TerabytesIntoTheDeep {
         lastRadialModeLoopTime.reset();
 
         // Adjust fieldTheta and fieldRadius based on joystick inputs
-        double deltaTheta = -gamepad1.right_stick_y * MAX_FIELD_THETA_RATE * deltaTime;
-        double deltaRadius = -gamepad1.left_stick_y * MAX_FIELD_RADIUS_RATE * deltaTime;
+        double deltaTheta = -gamepad1.right_stick_y * RADIAL_MAX_FIELD_THETA_RATE * deltaTime;
+        double deltaRadius = -gamepad1.left_stick_y * RADIAL_MAX_FIELD_RADIUS_RATE * deltaTime;
 
         fieldTheta += deltaTheta;
         fieldTheta = Angle.norm(fieldTheta); // Keep between -π and π
@@ -839,7 +853,7 @@ public class TerabytesIntoTheDeep {
         fieldRadius += deltaRadius;
 
         // Limit fieldRadius to be between minRadius and maxRadius
-        double minRadius = MIN_FIELD_RADIUS;
+        double minRadius = RADIAL_MIN_FIELD_RADIUS;
         double maxRadius = fieldRadiusAtTheta(fieldTheta);
         fieldRadius = Range.clip(fieldRadius, minRadius, maxRadius);
 
@@ -866,41 +880,12 @@ public class TerabytesIntoTheDeep {
     }
 
     private double fieldRadiusAtTheta(double theta) {
-        double s = FIELD_SIDE_LENGTH; // Side length
-        double k = 2 + (squarenessParameter * 48); // k from 2 (circle) to 50 (square)
+        double s = RADIAL_FIELD_SIDE_LENGTH; // Side length
+        double k = 2 + (RADIAL_SQUARENESS_FACTOR * 48); // k from 2 (circle) to 50 (square)
 
         double denom = Math.pow(Math.abs(Math.cos(theta)), k) + Math.pow(Math.abs(Math.sin(theta)), k);
         double radius = s / Math.pow(denom, 1.0 / k);
 
         return radius;
-    }
-
-    private class AppendageControlParameters  {
-
-        public double armTickTarget;
-        public double extenderTickTarget;
-        public double tiltSetpoint;
-        public double wristSetpoint;
-        public double pincerSetpoint;
-
-        public AppendageControlParameters() {
-            armTickTarget = 0;
-            extenderTickTarget = 0;
-            tiltSetpoint = TILT_CENTER;
-            wristSetpoint = WRIST_CENTER;
-            pincerSetpoint = PINCER_OPEN;
-        }
-    }
-
-    private class AppendageControl {
-
-
-
-        public AppendageControl() {
-        }
-
-        public AppendageControlParameters getControlParameters() {
-            return  null;
-        }
     }
 }
