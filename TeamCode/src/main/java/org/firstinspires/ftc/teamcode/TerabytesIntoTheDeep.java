@@ -57,6 +57,125 @@ import java.util.Queue;
 
 public class TerabytesIntoTheDeep {
 
+    private enum AppendageControlState {
+        DEFENSIVE,
+        COLLECTING,
+        LOW_BASKET,
+        HIGH_BASKET
+    }
+
+    private class AppendageControlTarget {
+        public double armTickTarget;
+        public double extenderTickTarget;
+        public double tiltTarget;
+        public double wristTarget;
+        public double pincerTarget;
+
+        public AppendageControlTarget(double a, double e, double t, double w, double p) {
+            this.armTickTarget = a;
+            this.extenderTickTarget = e;
+            this.tiltTarget = t;
+            this.wristTarget = w;
+            this.pincerTarget = p;
+        }
+    }
+
+    private class AppendageControl {
+
+        private final double GEAR_RATIO = 13.7d;
+        private final double WORM_RATIO = 28.0d;
+        private final double ARM_TICKS_PER_DEGREE = WORM_RATIO * 28.0d * GEAR_RATIO / 360.0d;
+        private final double ARM_LEVEL_DEGREES_ABOVE_ZERO = 45; // TODO: Tune this to actual level up from min.
+        private final double ARM_LEVEL_TICKS = ARM_LEVEL_DEGREES_ABOVE_ZERO * ARM_TICKS_PER_DEGREE;
+        private final double ARM_MAX_SETPOINT_SPEED_TICKS_PER_MILLI = (ARM_TICKS_PER_DEGREE * 30.0 / 1000.0);
+
+        private final double EXTENDER_MIN_INCHES = 16d;
+        private final double EXTENDER_GEAR_RATIO = 5.2d;
+        private final double EXTENDER_TICS_PER_INCH = (EXTENDER_GEAR_RATIO * 28 / 0.8 / 2) * 2.54;
+        private final double EXTENDER_MAX_INCHES = 14.5d;
+        private final double EXTENDER_MAX_TICKS = EXTENDER_MAX_INCHES * EXTENDER_TICS_PER_INCH;
+        private final double EXTENDER_SETPOINT_SPEED_TICKS_PER_MILLIS = (EXTENDER_TICS_PER_INCH * 1.5 / 1000.0);
+
+        private final double TILT_CENTER = 0.5;
+        private final double TILT_TICKS_PER_DEGREE = 1.0 / 270.0;
+        private final double TILT_RANGE_DEGREES = 30.0;
+        private final double TILT_RANGE = TILT_TICKS_PER_DEGREE * TILT_RANGE_DEGREES;
+
+        private final double WRIST_CENTER = 0.582;
+        private final double WRIST_RANGE = 0.25;
+
+        private final double PINCER_CENTER = 0.575;
+        private final double PINCER_OPEN = 0.5;
+        private final double PINCER_CLOSED = 0.65;
+
+        private AppendageControlState currentState;
+        private ElapsedTime stateTimer;
+        public final AppendageControlTarget target = new AppendageControlTarget(0, 0, 0, 0, 0);
+
+        public AppendageControl() {
+            currentState = AppendageControlState.DEFENSIVE;
+            stateTimer = new ElapsedTime();
+        }
+
+        public AppendageControlTarget evaluate() {
+            double elapsed = stateTimer.milliseconds();
+            switch (currentState) {
+                case DEFENSIVE:  return evaluateDefensive(elapsed);
+                case COLLECTING: return evaluateCollecting(elapsed);
+                case LOW_BASKET: return evaluateLowBasket(elapsed);
+                case HIGH_BASKET:return evaluateHighBasket(elapsed);
+                default:         throw new IllegalArgumentException("Unexpected state: " + state);
+            }
+        }
+
+        public void setControlState(AppendageControlState state) {
+            if (currentState != state) {
+                stateTimer.reset();
+            }
+            currentState = state;
+        }
+
+        private AppendageControlTarget evaluateDefensive(double t) {
+            double angle = 90, extInches = 0;
+            target.armTickTarget = ARM_LEVEL_TICKS + angle * ARM_TICKS_PER_DEGREE;
+            target.extenderTickTarget = EXTENDER_TICS_PER_INCH * extInches;
+            target.tiltTarget = TILT_CENTER;
+            target.wristTarget = WRIST_CENTER;
+            target.pincerTarget = PINCER_CENTER;
+            return target;
+        }
+
+        private AppendageControlTarget evaluateCollecting(double t) {
+            double angle = 0, extInches = 0;
+            target.armTickTarget = ARM_LEVEL_TICKS + angle * ARM_TICKS_PER_DEGREE;
+            target.extenderTickTarget = EXTENDER_TICS_PER_INCH * extInches;
+            target.tiltTarget = TILT_CENTER + (-angle * TILT_TICKS_PER_DEGREE);
+            target.wristTarget = WRIST_CENTER;
+            target.pincerTarget = PINCER_CENTER;
+            return target;
+        }
+
+        private AppendageControlTarget evaluateLowBasket(double t) {
+            double angle = 105, extInches = 3;
+            target.armTickTarget = ARM_LEVEL_TICKS + angle * ARM_TICKS_PER_DEGREE;
+            target.extenderTickTarget = EXTENDER_TICS_PER_INCH * extInches;
+            target.tiltTarget = TILT_CENTER;
+            target.wristTarget = WRIST_CENTER;
+            target.pincerTarget = PINCER_CENTER;
+            return target;
+        }
+
+        private AppendageControlTarget evaluateHighBasket(double t) {
+            double angle = 105, extInches = 3;
+            target.armTickTarget = ARM_LEVEL_TICKS + angle * ARM_TICKS_PER_DEGREE;
+            target.extenderTickTarget = EXTENDER_TICS_PER_INCH * extInches;
+            target.tiltTarget = TILT_CENTER;
+            target.wristTarget = WRIST_CENTER;
+            target.pincerTarget = PINCER_CENTER;
+            return target;
+        }
+    }
+
     private final AprilTagLibrary APRIL_TAG_LIBRARY = AprilTagGameDatabase.getIntoTheDeepTagLibrary();
 
     private final double RADIAL_FIELD_SIDE_LENGTH = 60.0; // Not really real field side...it's the drivable square minus margins of robot
@@ -64,31 +183,6 @@ public class TerabytesIntoTheDeep {
     private final double RADIAL_MAX_FIELD_THETA_RATE = Math.toRadians(45);
     private final double RADIAL_MAX_FIELD_RADIUS_RATE = 12.0;
     private final double RADIAL_SQUARENESS_FACTOR = 0.75;
-
-    private final double GEAR_RATIO = 13.7d;
-    private final double WORM_RATIO = 28.0d;
-    private final double ARM_TICKS_PER_DEGREE = WORM_RATIO * 28.0d * GEAR_RATIO / 360.0d;
-    private final double ARM_TICK_TARGET_LEVEL = 1350; // TODO: Tune this to level.
-    private final double ARM_ZERO_DEGREES = -ARM_TICK_TARGET_LEVEL / ARM_TICKS_PER_DEGREE;
-    private final double ARM_MAX_SETPOINT_SPEED_TICKS_PER_MILLI = (ARM_TICKS_PER_DEGREE * 30.0 / 1000.0);
-
-    private final int EXTENDER_TICK_TOLERANCE = 20;
-    private final double EXTENDER_MAX_LENGTH_INCHES = 12d;
-    private final double EXTENDER_POWER = 0.8d;
-    private final double EXTENDER_GEAR_RATIO = 5.2d;
-    private final double EXTENDER_TICS_PER_INCH = (EXTENDER_GEAR_RATIO * 28 / 0.8) * 2.54;
-    private final double EXTENDER_SETPOINT_SPEED_TICKS_PER_MILLIS = (EXTENDER_TICS_PER_INCH * 1.5 / 1000.0);
-
-    private final double TILT_CENTER = 0.5;
-    private final double TILT_TICKS_PER_DEGREE = 1.0 / 270.0;
-    private final double TILT_RANGE_DEGREES = 30.0;
-    private final double TILT_RANGE = TILT_TICKS_PER_DEGREE * TILT_RANGE_DEGREES;
-
-    private final double WRIST_CENTER = 0.582;
-    private final double WRIST_RANGE = 0.25;
-
-    private final double PINCER_OPEN = 0.5;
-    private final double PINCER_CLOSED = 0.65;
 
     // Basic state
     private final boolean debugMode;
@@ -152,11 +246,8 @@ public class TerabytesIntoTheDeep {
     private final DigitalChannel indicator1Green;
 
     // Appendage state
-    private boolean pincerClosed = true;
     private boolean initializing = false;
-    private boolean initialized = false;
-    private double extenderTickTarget;
-    private double armTickTarget;
+    private AppendageControl appendageControl = null;
     private double dtMillis = 0;
 
     public TerabytesIntoTheDeep(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, boolean debugMode) {
@@ -274,7 +365,10 @@ public class TerabytesIntoTheDeep {
         packet.put("extenderTarget", extender.getTargetPosition());
         packet.put("extenderMin", extenderMin.isPressed());
         packet.put("armMin", armMin.isPressed());
-        packet.put("armTickTarget", armTickTarget);
+
+        if (appendageControl != null) {
+            packet.put("armTickTarget", appendageControl.target.armTickTarget);
+        }
         packet.put("ArmLeft-Power", armLeft.getPower());
         packet.put("ArmRight-Power", armRight.getPower());
         packet.put("ArmLeft-Position" + armLeft.getDeviceName(), armLeft.getCurrentPosition());
@@ -338,41 +432,21 @@ public class TerabytesIntoTheDeep {
 
         if (zeroExtender && zeroArm) {
             initializing = false;
-            initialized = true;
+            appendageControl = new AppendageControl();
         }
     }
 
     private void evaluateAppendageControl() {
-        double EXTENDER_GEAR_RATIO = 5.2d;
-        double EXTENDER_TICS_PER_INCH = (EXTENDER_GEAR_RATIO * 28 / 0.8 / 2) * 2.54;
-        double effectiveExtenderPositionInches = Math.max(0f, Math.min(2.0 + gamepad2.right_stick_x, EXTENDER_MAX_LENGTH_INCHES));
-        double maxExtenderTicks = EXTENDER_MAX_LENGTH_INCHES * EXTENDER_TICS_PER_INCH;
-
-        extenderTickTarget += gamepad2.right_stick_x * EXTENDER_SETPOINT_SPEED_TICKS_PER_MILLIS * dtMillis;
-        extenderTickTarget = Math.max(0, Math.min(maxExtenderTicks, extenderTickTarget));
-
-        //pincer.setPosition(pincerClosed ? PINCER_CLOSED : PINCER_OPEN)  ;
-        //wrist.setPosition(WRIST_CENTER + (gamepad2.left_stick_x * WRIST_RANGE));
-
-        armTickTarget += gamepad2.right_stick_y * dtMillis * ARM_MAX_SETPOINT_SPEED_TICKS_PER_MILLI;
-        armTickTarget = Math.max(-50, Math.min(4000, armTickTarget));
-
-        double armAveragePositionTicks = (armLeft.getCurrentPosition() + armRight.getCurrentPosition()) / 2.0;
-        double armPositionDegrees = ARM_ZERO_DEGREES + (armAveragePositionTicks / ARM_TICKS_PER_DEGREE);
-        double tiltDegrees = Math.max(-TILT_RANGE_DEGREES, Math.min(TILT_RANGE_DEGREES, -armPositionDegrees));
-        //tilt.setPosition(TILT_CENTER + (tiltDegrees * TILT_TICKS_PER_DEGREE));
-
-        controlArmMotors();
-
-        if (a2ActivatedEvaluator.evaluate()) {
-            pincerClosed = !pincerClosed;
-        }
-
-        extender.setTargetPosition((int) extenderTickTarget);
+        AppendageControlTarget controlTarget = appendageControl.evaluate();
+        controlArmMotors(controlTarget.armTickTarget);
+        extender.setTargetPosition((int) controlTarget.extenderTickTarget);
+        tilt.setPosition(controlTarget.tiltTarget);
+        wrist.setPosition(controlTarget.wristTarget);
+        pincer.setPosition(controlTarget.pincerTarget);
     }
 
     private void evaluateAppendageInitOrControl() {
-        if (initialized) {
+        if (appendageControl != null) {
             evaluateAppendageControl();
         } else {
             evaluateAppendageInit();
@@ -515,10 +589,10 @@ public class TerabytesIntoTheDeep {
     private void zeroExtender() {
         extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         extender.setTargetPosition(0);
-        extender.setTargetPositionTolerance(EXTENDER_TICK_TOLERANCE);
+        extender.setTargetPositionTolerance(20);
         extender.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
         extender.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-        extender.setPower(EXTENDER_POWER);
+        extender.setPower(0.8);
     }
 
     private void zeroArmMotors() {
@@ -535,16 +609,16 @@ public class TerabytesIntoTheDeep {
         armRight.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
     }
 
-    private void controlArmMotor(PIDController controller, DcMotorEx armMotor) {
+    private void controlArmMotor(double armTickTarget, PIDController controller, DcMotorEx armMotor) {
         double armPower = controller.calculate(armMotor.getCurrentPosition(), armTickTarget);
         if(Math.abs(armPower) < 0.02) armPower = 0;
         if(armPower < 0 && armMin.isPressed()) armPower = 0;
         armMotor.setPower(armPower);
     }
 
-    private void controlArmMotors() {
-        controlArmMotor(leftArmControl, armLeft);
-        controlArmMotor(rightArmControl, armRight);
+    private void controlArmMotors(double armTickTarget) {
+        controlArmMotor(armTickTarget, leftArmControl, armLeft);
+        controlArmMotor(armTickTarget, rightArmControl, armRight);
     }
 
     private IntoTheDeepOpModeState evaluateManualControl() {
@@ -555,7 +629,7 @@ public class TerabytesIntoTheDeep {
 
         if (gamepad2.a) {
             // re init the arm
-            initialized = false;
+            appendageControl = null;
         }
 
         boolean slowMode = gamepad1.left_bumper;
