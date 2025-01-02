@@ -111,6 +111,9 @@ public abstract class TerabytesOpMode extends LinearOpMode {
         } else {
             terabytes.teleopInit(startPose);
         }
+
+        terabytes.initializeMechanicalBlocking();
+
         waitForStart();
 
         if (!isStopRequested()) {
