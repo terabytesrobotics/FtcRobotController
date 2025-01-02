@@ -23,7 +23,6 @@ import android.util.Log;
 
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.acmerobotics.roadrunner.geometry.Pose2d;
-import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.acmerobotics.roadrunner.util.Angle;
 import com.arcrobotics.ftclib.controller.PIDController;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -115,6 +114,9 @@ public class TerabytesIntoTheDeep {
     private final double TILT_RANGE = TILT_TICKS_PER_DEGREE * TILT_RANGE_DEGREES;
     private final double TILT_TUCKED = TILT_CENTER; // TODO: Find real value
     private final double TILT_LOW_PROFILE = 0.25; // TODO: Find real value
+    private final double TILT_PREGRAB = 0.55; // TODO: Find real value
+    private static final long GRAB_MOVE_DURATION_MS = 750;
+    private static final long GRAB_HOLD_DURATION_MS = 150;
 
     private final double WRIST_CENTER = 0.582;
     private final double WRIST_RANGE = 0.25;
@@ -129,48 +131,57 @@ public class TerabytesIntoTheDeep {
     private final double MAX_NUDGE_INCHES = 6;
     private final double MAX_NUDGE_RADIANS = Math.toRadians(15);
 
+    private static final long GRAB_PHASE_1_MS = 750;
+    private static final long GRAB_PHASE_2_MS = 150;
+    private static final long GRAB_PHASE_3_MS = 750;
+
     private class AppendageControl {
 
         private AppendageControlState currentState;
-        private ElapsedTime stateTimer;
         public final AppendageControlTarget target = new AppendageControlTarget(0, 0, TILT_CENTER, WRIST_CENTER, PINCER_CENTER);
 
         private double collectDistance = 0d;
         private boolean lowProfile = false;
+        private ElapsedTime grabTimer = null;
 
         public AppendageControl() {
             currentState = AppendageControlState.TUCKED;
-            stateTimer = new ElapsedTime();
         }
 
         public AppendageControlTarget evaluate() {
-            double elapsed = stateTimer.milliseconds();
             switch (currentState) {
-                case TUCKED:     return evaluateTucked(elapsed);
-                case DEFENSIVE:  return evaluateDefensive(elapsed);
-                case COLLECTING: return evaluateCollecting(elapsed);
-                case LOW_BASKET: return evaluateLowBasket(elapsed);
-                case HIGH_BASKET:return evaluateHighBasket(elapsed);
+                case TUCKED:     return evaluateTucked();
+                case DEFENSIVE:  return evaluateDefensive();
+                case COLLECTING: return evaluateCollecting();
+                case LOW_BASKET: return evaluateLowBasket();
+                case HIGH_BASKET:return evaluateHighBasket();
                 default:         throw new IllegalArgumentException("Unexpected state: " + state);
             }
         }
 
-        public void setLowProfileCollection() {
+        public void triggerGrab() {
+            grabTimer = new ElapsedTime();
+        }
 
+        public void stopGrab() {
+            grabTimer = null;
+        }
+
+        public void applyLowProfileCollection(boolean isLowProfile) {
+            if (isLowProfile) stopGrab();
+            lowProfile = isLowProfile;
         }
 
         public void setControlState(AppendageControlState state) {
-            if (currentState != state) {
-                stateTimer.reset();
-            }
+            stopGrab();
             currentState = state;
         }
 
-        public void setCollectDistance(double collectDistance) {
+        public void applyCollectDistance(double collectDistance) {
             this.collectDistance = collectDistance;
         }
 
-        private AppendageControlTarget evaluateTucked(double t) {
+        private AppendageControlTarget evaluateTucked() {
             target.armTickTarget = 0;
             target.extenderTickTarget = 0;
             target.tiltTarget = TILT_TUCKED;
@@ -179,8 +190,7 @@ public class TerabytesIntoTheDeep {
             return target;
         }
 
-
-        private AppendageControlTarget evaluateDefensive(double t) {
+        private AppendageControlTarget evaluateDefensive() {
             double angle = 90, extInches = 0;
             target.armTickTarget = ARM_LEVEL_TICKS + angle * ARM_TICKS_PER_DEGREE;
             target.extenderTickTarget = EXTENDER_TICS_PER_INCH * extInches;
@@ -190,7 +200,7 @@ public class TerabytesIntoTheDeep {
             return target;
         }
 
-        private AppendageControlTarget evaluateCollecting(double t) {
+        private AppendageControlTarget evaluateCollecting() {
 
             double clampedCollectDistance = Math.max(0, Math.min(1, collectDistance));
             double minimumAchievableDistance = EXTENDER_MIN_LENGTH_INCHES * Math.sin(Math.toRadians(ARM_COLLECT_MINIMUM_DEGREES));
@@ -201,19 +211,49 @@ public class TerabytesIntoTheDeep {
             double desiredExtensionLength = EXTENDER_MIN_LENGTH_INCHES - desiredTotalLength;
             double extensionInches = Math.max(0, Math.min(EXTENDER_MIN_LENGTH_INCHES, desiredExtensionLength));
 
-            target.armTickTarget = ARM_LEVEL_TICKS + armAngle * ARM_TICKS_PER_DEGREE;
-            target.extenderTickTarget = EXTENDER_TICS_PER_INCH * extensionInches;
+            // Now handle tilt & pincer:
+            // 0) By default, if we are *not* grabbing, tilt is at “pregrab” and pincer is closed
+            if (grabTimer == null) {
+                target.tiltTarget = lowProfile ? TILT_LOW_PROFILE : TILT_PREGRAB;
+                target.pincerTarget = PINCER_CLOSED;
+            } else {
+                double t = grabTimer.milliseconds();
+                double p1End = GRAB_PHASE_1_MS;
+                double p2End = GRAB_PHASE_1_MS + GRAB_PHASE_2_MS;
+                double p3End = GRAB_PHASE_1_MS + GRAB_PHASE_2_MS + GRAB_PHASE_3_MS;
 
-            // Keep tilt orthogonal with arm unless low profile
-            target.tiltTarget = lowProfile ? TILT_LOW_PROFILE : TILT_CENTER + (-armAngle * TILT_TICKS_PER_DEGREE);
+                if (t < p1End) {
+                    // Phase 1: pincer opens, tilt moves from TILT_PREGRAB -> TILT_CENTER
+                    double frac = t / GRAB_PHASE_1_MS;
+                    double start = (lowProfile ? TILT_LOW_PROFILE : TILT_PREGRAB);
+                    double end   = TILT_CENTER;
+                    target.tiltTarget   = start + frac * (end - start);
+                    target.pincerTarget = PINCER_OPEN;
+                } else if (t < p2End) {
+                    // Phase 2: pincer is closed, tilt stays at TILT_CENTER
+                    target.tiltTarget   = TILT_CENTER;
+                    target.pincerTarget = PINCER_CLOSED;
+                } else if (t < p3End) {
+                    // Phase 3: tilt goes from TILT_CENTER -> TILT_PREGRAB, pincer still closed
+                    double frac = (t - p2End) / GRAB_PHASE_3_MS;
+                    double start = TILT_CENTER;
+                    double end   = (lowProfile ? TILT_LOW_PROFILE : TILT_PREGRAB);
+                    target.tiltTarget   = start + frac * (end - start);
+                    target.pincerTarget = PINCER_CLOSED;
+                } else {
+                    // Done with the grab sequence
+                    stopGrab();
+                    target.tiltTarget   = lowProfile ? TILT_LOW_PROFILE : TILT_PREGRAB;
+                    target.pincerTarget = PINCER_CLOSED;
+                }
+            }
 
+            // Keep wrist neutral in collecting
             target.wristTarget = WRIST_CENTER;
-            target.pincerTarget = PINCER_CENTER;
-
             return target;
         }
 
-        private AppendageControlTarget evaluateLowBasket(double t) {
+        private AppendageControlTarget evaluateLowBasket() {
             double angle = 105, extInches = 3;
             target.armTickTarget = ARM_LEVEL_TICKS + angle * ARM_TICKS_PER_DEGREE;
             target.extenderTickTarget = EXTENDER_TICS_PER_INCH * extInches;
@@ -223,7 +263,7 @@ public class TerabytesIntoTheDeep {
             return target;
         }
 
-        private AppendageControlTarget evaluateHighBasket(double t) {
+        private AppendageControlTarget evaluateHighBasket() {
             double angle = 105, extInches = 3;
             target.armTickTarget = ARM_LEVEL_TICKS + angle * ARM_TICKS_PER_DEGREE;
             target.extenderTickTarget = EXTENDER_TICS_PER_INCH * extInches;
@@ -394,7 +434,6 @@ public class TerabytesIntoTheDeep {
         Double rightFrontVelocity = motorVelocities[2];
         Double rightRearVelocity = motorVelocities[3];
 
-
         Pose2d poseVelocity = drive.getPoseVelocity();
 
 //        packet.put("lfc", leftFrontCurrent);
@@ -534,6 +573,9 @@ public class TerabytesIntoTheDeep {
 
     // Control loop.  Returns true iff the op-mode should continue running.
     public boolean evaluate() {
+        double dt = loopTime.milliseconds();
+        loopTime.reset();
+
         // Do the things we should do regardless of state
         // keep updating the drive and keep the machine alive
         drive.update();
@@ -546,9 +588,6 @@ public class TerabytesIntoTheDeep {
         // Run the state specific control logic
         IntoTheDeepOpModeState currentState = state;
         IntoTheDeepOpModeState nextState = evaluatePositioningSystems(currentState);
-
-        double dt = loopTime.milliseconds();
-        loopTime.reset();
 
         switch (state) {
             case MANUAL_CONTROL:
@@ -650,10 +689,15 @@ public class TerabytesIntoTheDeep {
     private IntoTheDeepOpModeState evaluateManualControl(double dtMillis) {
         // Example usage on gamepad2
         if (gamepad2.a) forceArmInit();
-        if (gamepad2.y && appendageControl != null) appendageControl.setControlState(AppendageControlState.COLLECTING);
-        if (gamepad2.x && appendageControl != null) appendageControl.setControlState(AppendageControlState.DEFENSIVE);
-        if (gamepad2.b && appendageControl != null) appendageControl.setControlState(AppendageControlState.DEFENSIVE);
-        if (appendageControl != null) appendageControl.setCollectDistance(-gamepad2.right_stick_y);
+
+        if (appendageControl != null) {
+            if (gamepad2.left_bumper) appendageControl.setControlState(AppendageControlState.COLLECTING);
+            if (gamepad2.x || gamepad2.b) appendageControl.setControlState(AppendageControlState.DEFENSIVE);
+            if (gamepad2.right_bumper) appendageControl.setControlState(AppendageControlState.HIGH_BASKET);
+            if (gamepad2.a) appendageControl.triggerGrab();
+            appendageControl.applyLowProfileCollection(gamepad2.y);
+            appendageControl.applyCollectDistance(-gamepad2.right_trigger);
+        }
 
         boolean slowMode = gamepad1.left_bumper;
 
@@ -669,38 +713,10 @@ public class TerabytesIntoTheDeep {
             Pose2d target = basketApproach.plus(basketNudge);
             setDrivePower(getPoseTargetAutoDriveControl(target));
         } else {
-            // Normal manual driving if neither a nor y is held
-            boolean isRearForward = false;
-            driveInput = getEmbodiedDriverInput(gamepad1, isRearForward, slowMode);
+            driveInput = new Pose2d(-gamepad1.left_stick_y, -gamepad1.left_stick_x, -gamepad1.right_stick_x);
             setDrivePower(driveInput);
         }
         return IntoTheDeepOpModeState.MANUAL_CONTROL;
-    }
-
-    private Pose2d getEmbodiedDriverInput(Gamepad gamepad, boolean isRearForward, boolean slow) {
-        double scale = slow ? SLOW_MODE_SCALE : FAST_MODE_SCALE;
-
-        double rawStickY = gamepad.left_stick_y;     // +up / -down from driver’s perspective
-        double rawStickX = gamepad.left_stick_x;     // +right / -left from driver’s perspective
-        double rawTurn   = gamepad.right_stick_x;    // +clockwise turn from driver’s perspective
-
-        // Typically, we invert left_stick_y so pushing up is “forward” in code
-        double forward   = -rawStickY;
-        double strafe    = rawStickX;
-        double rotation  = -rawTurn;
-
-        // If your rear is forward, invert forward & rotation so “forward on stick” moves robot “backward”
-        if (isRearForward) {
-            forward  = -forward;
-            rotation = -rotation;
-        }
-
-        forward  *= scale;
-        strafe   *= scale;
-        rotation *= scale;
-
-        // Return a Pose2d where x=strafe, y=forward, heading=turn
-        return new Pose2d(strafe, forward, rotation);
     }
 
     private Pose2d accumulateNudge(Pose2d prior, Gamepad gp, boolean submersibleMode, double dtMillis) {
