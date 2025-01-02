@@ -5,16 +5,13 @@ import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.APRIL
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.APRIL_TAG_RECOGNITION_MAX_RANGE;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.APRIL_TAG_RECOGNITION_MIN_RANGE;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.APRIL_TAG_RECOGNITION_YAW_THRESHOLD;
-import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.BACK_CAMERA_OFFSET_INCHES;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.DRIVE_TO_POSE_THRESHOLD;
-import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.FAST_MODE_SCALE;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.FRONT_CAMERA_OFFSET_INCHES;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.MAX_AUTO_SPEED;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.MAX_AUTO_STRAFE;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.MAX_AUTO_TURN;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.POSITION_ACQUIRED_INDICATE_MILLIS;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.POSITION_ACQUIRED_PULSE_MILLIS;
-import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.SLOW_MODE_SCALE;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.SPEED_GAIN;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.TURN_ERROR_THRESHOLD;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.TURN_GAIN;
@@ -36,9 +33,7 @@ import com.qualcomm.robotcore.hardware.TouchSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
 
-import org.firstinspires.ftc.robotcore.external.ClassFactory;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
-import org.firstinspires.ftc.robotcore.internal.camera.delegating.SwitchableCameraName;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
 import org.firstinspires.ftc.teamcode.util.OnActivatedEvaluator;
@@ -332,7 +327,7 @@ public class TerabytesIntoTheDeep {
     private final ElapsedTime loopTime = new ElapsedTime();
     private boolean isAutonomous = false;
     private IntoTheDeepOpModeState state;
-    private ElapsedTime timeSinceStart;
+    private ElapsedTime timeSinceInit;
     private ElapsedTime timeInState;
     private Pose2d latestPoseEstimate = null;
 
@@ -376,7 +371,6 @@ public class TerabytesIntoTheDeep {
     private final TouchSensor armMin;
     private final TouchSensor extenderMin;
     private final WebcamName frontCamera;
-    private final WebcamName backCamera;
     private final VisionPortal visionPortal;
     private final AprilTagProcessor aprilTagProcessor;
 
@@ -400,11 +394,9 @@ public class TerabytesIntoTheDeep {
         this.debugMode = debugMode;
 
         frontCamera = hardwareMap.get(WebcamName.class, "Webcam 1");
-        backCamera = hardwareMap.get(WebcamName.class, "Webcam 2");
-        SwitchableCameraName switchableCamera = ClassFactory.getInstance().getCameraManager().nameForSwitchableCamera(frontCamera, backCamera);
         aprilTagProcessor = new AprilTagProcessor.Builder().build();
         visionPortal = new VisionPortal.Builder()
-                .setCamera(switchableCamera)
+                .setCamera(frontCamera)
                 .addProcessor(aprilTagProcessor)
                 .build();
 
@@ -517,6 +509,7 @@ public class TerabytesIntoTheDeep {
     }
 
     public void autonomousInit(Pose2d startPose, TerabytesAutonomousPlan autonomousPlan) {
+        timeSinceInit = new ElapsedTime();
         isAutonomous = true;
         drive.setPoseEstimate(startPose);
         activateFrontCameraProcessing();
@@ -524,6 +517,7 @@ public class TerabytesIntoTheDeep {
     }
 
     public void teleopInit(Pose2d startPose) {
+        timeSinceInit = new ElapsedTime();
         drive.setPoseEstimate(startPose == null ? new Pose2d() : startPose);
         activateFrontCameraProcessing();
     }
@@ -536,13 +530,11 @@ public class TerabytesIntoTheDeep {
     }
 
     public void startup(IntoTheDeepOpModeState startupState) {
-        timeSinceStart = new ElapsedTime();
         timeInState = new ElapsedTime();
         state = startupState;
     }
 
     private void activateFrontCameraProcessing() {
-        visionPortal.setActiveCamera(frontCamera);
         visionPortal.setProcessorEnabled(aprilTagProcessor, true);
     }
 
@@ -819,7 +811,7 @@ public class TerabytesIntoTheDeep {
 
     private void evaluateIndicatorLights() {
 
-        double timeSincePositionSet = (timeSinceStart.milliseconds() - lastAprilTagFieldPositionMillis);
+        double timeSincePositionSet = (timeSinceInit.milliseconds() - lastAprilTagFieldPositionMillis);
         if (lastAprilTagFieldPosition != null && timeSincePositionSet < POSITION_ACQUIRED_INDICATE_MILLIS) {
             if (timeSincePositionSet % (2 * POSITION_ACQUIRED_PULSE_MILLIS) > POSITION_ACQUIRED_PULSE_MILLIS) {
                 indicator1Green.setState(true);
@@ -840,9 +832,8 @@ public class TerabytesIntoTheDeep {
     }
 
     private IntoTheDeepOpModeState evaluatePositioningSystems(IntoTheDeepOpModeState currentState) {
-        boolean usingBackCamera = visionPortal.getActiveCamera().equals(backCamera);
-        double cameraDistanceOffset = usingBackCamera ? BACK_CAMERA_OFFSET_INCHES : FRONT_CAMERA_OFFSET_INCHES;
-        double cameraAngleOffset = usingBackCamera ? Math.PI : 0;
+        double cameraDistanceOffset = FRONT_CAMERA_OFFSET_INCHES;
+        double cameraAngleOffset = 0;
 
         List<AprilTagDetection> detections = aprilTagProcessor.getFreshDetections();
         if (detections != null) {
@@ -878,7 +869,7 @@ public class TerabytesIntoTheDeep {
             if (variancePose.getX() <= translationVarianceThreshold && variancePose.getY() <= translationVarianceThreshold && variancePose.getHeading() <= headingVarianceThreshold) {
                 drive.setPoseEstimate(averagePose);
                 lastAprilTagFieldPosition = averagePose;
-                lastAprilTagFieldPositionMillis = timeSinceStart.milliseconds();
+                lastAprilTagFieldPositionMillis = timeSinceInit.milliseconds();
                 poseQueue.clear();
             }
         }
