@@ -543,17 +543,19 @@ public class TerabytesIntoTheDeep {
     private void evaluateAppendageInit() {
         ServoInitStage[] servoInitStages = isAutonomous ? SERVO_INIT_STAGES_AUTON : SERVO_INIT_STAGES_TELEOP;
         ServoInitStage stage = servoInitStages[servoInitStageIndex];
+        boolean isFullyTuckedStage = servoInitStageIndex == servoInitStages.length - 1;
+        boolean isStageFinished = initStageTimer.milliseconds() > stage.durationMs;
+
         tilt.setPosition(stage.tilt);
         wrist.setPosition(stage.wrist);
         pincer.setPosition(stage.pincer);
 
-        if ((initStageTimer.milliseconds() > stage.durationMs) && (servoInitStageIndex < servoInitStages.length - 1)) {
+        if (isStageFinished && (servoInitStageIndex < servoInitStages.length - 1)) {
             servoInitStageIndex++;
             initStageTimer.reset();
         }
 
-        if (servoInitStageIndex == servoInitStages.length - 1) {
-            // == Existing motor zeroing logic ==
+        if (isFullyTuckedStage) {
             boolean zeroExtender = extenderMin.isPressed();
             if (zeroExtender) {
                 extender.setPower(0.0);
@@ -572,7 +574,7 @@ public class TerabytesIntoTheDeep {
                 armRight.setPower(-0.30);
             }
 
-            if (zeroExtender && zeroArm && appendageControl == null) {
+            if (isStageFinished && zeroExtender && zeroArm && appendageControl == null) {
                 appendageControl = new AppendageControl();
             }
         }
