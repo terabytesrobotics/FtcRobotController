@@ -95,7 +95,7 @@ public class TerabytesIntoTheDeep {
     private final double ARM_MAX_SETPOINT_SPEED_TICKS_PER_MILLI = (ARM_TICKS_PER_DEGREE * 30.0 / 1000.0);
 
     // TODO: tune extender parameters to get accurate ratio of tick per inch and no-extension length
-    private final double EXTENDER_MIN_LENGTH_INCHES = 16d;
+    private final double EXTENDER_MIN_LENGTH_INCHES = 15.75d;
     private final double EXTENDER_GEAR_RATIO = 5.2d;
     private final double EXTENDER_TICS_PER_INCH = (EXTENDER_GEAR_RATIO * 28 / 0.8 / 2) * 2.54;
     private final double EXTENDER_MAX_LENGTH_INCHES = 14.5d;
@@ -232,14 +232,16 @@ public class TerabytesIntoTheDeep {
         }
 
         private AppendageControlTarget evaluateCollecting() {
-            double clampedCollectDistance = Math.max(0, Math.min(1, collectDistance));
-            double minimumAchievableDistance = EXTENDER_MIN_LENGTH_INCHES * Math.sin(Math.toRadians(ARM_COLLECT_MINIMUM_DEGREES));
+            double clampedCollectDistance = Math.max(0, Math.min(1, collectDistance)); // TODO: Figure out what's wrong with this collect distance
+            double minimumAchievableDistance = Math.sqrt((EXTENDER_MIN_LENGTH_INCHES * EXTENDER_MIN_LENGTH_INCHES) - (ARM_COLLECT_DEPTH_INCHES * ARM_COLLECT_DEPTH_INCHES));
             double maximumAchievableDistance = Math.sqrt((EXTENDER_MAX_LENGTH_INCHES * EXTENDER_MAX_LENGTH_INCHES) - (ARM_COLLECT_DEPTH_INCHES * ARM_COLLECT_DEPTH_INCHES));
             double desiredDistance = minimumAchievableDistance + (clampedCollectDistance * (maximumAchievableDistance - minimumAchievableDistance));
-            double armAngle = -Math.toDegrees(Math.atan2(ARM_COLLECT_DEPTH_INCHES, desiredDistance));
+            double armAngleBelowHorizontal = Math.toDegrees(Math.atan2(ARM_COLLECT_DEPTH_INCHES, desiredDistance));
             double desiredTotalLength = Math.sqrt((ARM_COLLECT_DEPTH_INCHES * ARM_COLLECT_DEPTH_INCHES) + (desiredDistance * desiredDistance));
             double desiredExtensionLength = EXTENDER_MIN_LENGTH_INCHES - desiredTotalLength;
-            double extensionInches = Math.max(0, Math.min(EXTENDER_MIN_LENGTH_INCHES, desiredExtensionLength));
+
+            target.armTickTarget = ARM_LEVEL_TICKS - (armAngleBelowHorizontal * ARM_TICKS_PER_DEGREE);
+            target.extenderTickTarget = desiredExtensionLength * EXTENDER_TICS_PER_INCH;
 
             // Now handle tilt & pincer:
             // 0) By default, if we are *not* grabbing, tilt is at “pregrab” and pincer is closed
@@ -713,7 +715,7 @@ public class TerabytesIntoTheDeep {
             if (gamepad2.right_bumper) appendageControl.setControlState(AppendageControlState.HIGH_BASKET);
             if (gamepad2.a) appendageControl.triggerGrab();
             appendageControl.applyLowProfileCollection(gamepad2.y);
-            appendageControl.applyCollectDistance(-gamepad2.right_trigger);
+            appendageControl.applyCollectDistance(gamepad2.right_trigger);
         }
 
         boolean slowMode = gamepad1.left_bumper;
