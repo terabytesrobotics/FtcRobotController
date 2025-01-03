@@ -238,7 +238,7 @@ public class TerabytesIntoTheDeep {
             double desiredDistance = minimumAchievableDistance + (clampedCollectDistance * (maximumAchievableDistance - minimumAchievableDistance));
             double armAngleBelowHorizontal = Math.toDegrees(Math.atan2(ARM_COLLECT_DEPTH_INCHES, desiredDistance));
             double desiredTotalLength = Math.sqrt((ARM_COLLECT_DEPTH_INCHES * ARM_COLLECT_DEPTH_INCHES) + (desiredDistance * desiredDistance));
-            double desiredExtensionLength = EXTENDER_MIN_LENGTH_INCHES - desiredTotalLength;
+            double desiredExtensionLength = desiredTotalLength - EXTENDER_MIN_LENGTH_INCHES;
 
             target.armTickTarget = ARM_LEVEL_TICKS - (armAngleBelowHorizontal * ARM_TICKS_PER_DEGREE);
             target.extenderTickTarget = desiredExtensionLength * EXTENDER_TICS_PER_INCH;
