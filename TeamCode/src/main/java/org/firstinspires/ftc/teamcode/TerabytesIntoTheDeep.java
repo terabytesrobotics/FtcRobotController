@@ -102,20 +102,20 @@ public class TerabytesIntoTheDeep {
     private final double EXTENDER_MAX_LENGTH_TICKS = EXTENDER_MAX_LENGTH_INCHES * EXTENDER_TICS_PER_INCH;
     private final double EXTENDER_SETPOINT_SPEED_TICKS_PER_MILLIS = (EXTENDER_TICS_PER_INCH * 1.5 / 1000.0);
 
-    private final double TILT_CENTER = 0.5;
+    private final double TILT_ORIGIN = 0.0;
     private final double TILT_TICKS_PER_DEGREE = 1.0 / 270.0;
-    private final double TILT_STRAIGHT = TILT_CENTER + (90 * TILT_TICKS_PER_DEGREE);
+    private final double TILT_STRAIGHT = TILT_ORIGIN + (90 * TILT_TICKS_PER_DEGREE);
     private final double TILT_RANGE_DEGREES = 30.0;
     private final double TILT_RANGE = TILT_TICKS_PER_DEGREE * TILT_RANGE_DEGREES;
-    private final double TILT_TUCKED = TILT_CENTER; // TODO: Find real value
-    private final double TILT_LOW_PROFILE = 0.25; // TODO: Find real value
-    private final double TILT_PREGRAB = 0.55; // TODO: Find real value
+    private final double TILT_TUCKED = 0.925;
+    private final double TILT_LOW_PROFILE = TILT_STRAIGHT;
+    private final double TILT_PREGRAB = TILT_STRAIGHT / 2;
     private static final long GRAB_MOVE_DURATION_MS = 750;
     private static final long GRAB_HOLD_DURATION_MS = 150;
 
-    private final double WRIST_CENTER = 0.582;
+    private final double WRIST_CENTER = 0.95;
     private final double WRIST_RANGE = 0.25;
-    private final double WRIST_TUCKED = WRIST_CENTER; // TODO: Find real value
+    private final double WRIST_TUCKED = WRIST_CENTER;
 
     private final double PINCER_CENTER = 0.575;
     private final double PINCER_OPEN = 0.5;
@@ -133,7 +133,7 @@ public class TerabytesIntoTheDeep {
     private class AppendageControl {
 
         private AppendageControlState currentState;
-        public final AppendageControlTarget target = new AppendageControlTarget(0, 0, TILT_CENTER, WRIST_CENTER, PINCER_CENTER);
+        public final AppendageControlTarget target = new AppendageControlTarget(0, 0, TILT_ORIGIN, WRIST_CENTER, PINCER_CENTER);
 
         private double collectDistance = 0d;
         private boolean lowProfile = false;
@@ -213,7 +213,7 @@ public class TerabytesIntoTheDeep {
                 double frac = (t - 2750) / 750.0;
                 target.armTickTarget = ARM_LEVEL_TICKS;
                 target.wristTarget = WRIST_CENTER;
-                target.tiltTarget = TILT_TUCKED + frac * (TILT_CENTER - TILT_TUCKED);
+                target.tiltTarget = TILT_TUCKED + frac * (TILT_ORIGIN - TILT_TUCKED);
                 target.pincerTarget = PINCER_CLOSED;
             } else {
                 stopUntuck();
@@ -225,7 +225,7 @@ public class TerabytesIntoTheDeep {
             double angle = 90, extInches = 0;
             target.armTickTarget = ARM_LEVEL_TICKS + angle * ARM_TICKS_PER_DEGREE;
             target.extenderTickTarget = EXTENDER_TICS_PER_INCH * extInches;
-            target.tiltTarget = TILT_CENTER;
+            target.tiltTarget = TILT_ORIGIN;
             target.wristTarget = WRIST_CENTER;
             target.pincerTarget = PINCER_CENTER;
             return target;
@@ -256,17 +256,17 @@ public class TerabytesIntoTheDeep {
                     // Phase 1: pincer opens, tilt moves from TILT_PREGRAB -> TILT_CENTER
                     double frac = t / GRAB_PHASE_1_MS;
                     double start = (lowProfile ? TILT_LOW_PROFILE : TILT_PREGRAB);
-                    double end   = TILT_CENTER;
+                    double end   = TILT_ORIGIN;
                     target.tiltTarget   = start + frac * (end - start);
                     target.pincerTarget = PINCER_OPEN;
                 } else if (t < p2End) {
                     // Phase 2: pincer is closed, tilt stays at TILT_CENTER
-                    target.tiltTarget   = TILT_CENTER;
+                    target.tiltTarget   = TILT_ORIGIN;
                     target.pincerTarget = PINCER_CLOSED;
                 } else if (t < p3End) {
                     // Phase 3: tilt goes from TILT_CENTER -> TILT_PREGRAB, pincer still closed
                     double frac = (t - p2End) / GRAB_PHASE_3_MS;
-                    double start = TILT_CENTER;
+                    double start = TILT_ORIGIN;
                     double end   = (lowProfile ? TILT_LOW_PROFILE : TILT_PREGRAB);
                     target.tiltTarget   = start + frac * (end - start);
                     target.pincerTarget = PINCER_CLOSED;
@@ -287,7 +287,7 @@ public class TerabytesIntoTheDeep {
             double angle = 105, extInches = 3;
             target.armTickTarget = ARM_LEVEL_TICKS + angle * ARM_TICKS_PER_DEGREE;
             target.extenderTickTarget = EXTENDER_TICS_PER_INCH * extInches;
-            target.tiltTarget = TILT_CENTER;
+            target.tiltTarget = TILT_ORIGIN;
             target.wristTarget = WRIST_CENTER;
             target.pincerTarget = PINCER_CENTER;
             return target;
@@ -297,7 +297,7 @@ public class TerabytesIntoTheDeep {
             double angle = 105, extInches = 3;
             target.armTickTarget = ARM_LEVEL_TICKS + angle * ARM_TICKS_PER_DEGREE;
             target.extenderTickTarget = EXTENDER_TICS_PER_INCH * extInches;
-            target.tiltTarget = TILT_CENTER;
+            target.tiltTarget = TILT_ORIGIN;
             target.wristTarget = WRIST_CENTER;
             target.pincerTarget = PINCER_CENTER;
             return target;
@@ -306,8 +306,6 @@ public class TerabytesIntoTheDeep {
 
     // Doubles as a maintenance mode where centered command can be easily found
     public final ServoInitStage[] SERVO_INIT_STAGES_AUTON = {
-            new ServoInitStage(TILT_CENTER, WRIST_CENTER, PINCER_CENTER, 7500),
-            new ServoInitStage(TILT_CENTER, WRIST_TUCKED, PINCER_OPEN, 3750),
             new ServoInitStage(TILT_TUCKED, WRIST_TUCKED, PINCER_OPEN, 3750),
             new ServoInitStage(TILT_TUCKED, WRIST_TUCKED, PINCER_CLOSED, 1000),
             new ServoInitStage(TILT_TUCKED, WRIST_TUCKED, PINCER_OPEN,3750),
@@ -316,8 +314,7 @@ public class TerabytesIntoTheDeep {
 
     // Optimized for speed
     public final ServoInitStage[] SERVO_INIT_STAGES_TELEOP = {
-            new ServoInitStage(TILT_CENTER, WRIST_TUCKED, PINCER_OPEN,1000),
-            new ServoInitStage(TILT_TUCKED, WRIST_TUCKED, PINCER_OPEN, 2000)
+            new ServoInitStage(TILT_TUCKED, WRIST_TUCKED, PINCER_OPEN,1000)
     };
 
     private final AprilTagLibrary APRIL_TAG_LIBRARY = AprilTagGameDatabase.getIntoTheDeepTagLibrary();
@@ -609,7 +606,6 @@ public class TerabytesIntoTheDeep {
         latestPoseEstimate = drive.getPoseEstimate();
         evaluateAppendageInitOrControl();
         evaluateIndicatorLights();
-        evaluatePincer();
 
         // Determine whether there's been a state change
         // Run the state specific control logic
@@ -638,14 +634,6 @@ public class TerabytesIntoTheDeep {
 
 
         return state != IntoTheDeepOpModeState.HALT_OPMODE;
-    }
-
-    private void evaluatePincer() {
-        if (gamepad1.left_bumper) {
-            pincer.setPosition(0.7);
-        } else {
-            pincer.setPosition(0.4);
-        }
     }
 
     private Pose2d findNearestSubmersibleApproach() {
