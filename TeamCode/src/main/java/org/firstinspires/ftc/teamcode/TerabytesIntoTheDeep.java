@@ -98,8 +98,9 @@ public class TerabytesIntoTheDeep {
     private final double EXTENDER_MIN_LENGTH_INCHES = 15.75d;
     private final double EXTENDER_GEAR_RATIO = 5.2d;
     private final double EXTENDER_TICS_PER_INCH = (EXTENDER_GEAR_RATIO * 28 / 0.8 / 2) * 2.54;
-    private final double EXTENDER_MAX_LENGTH_INCHES = 14.5d;
-    private final double EXTENDER_MAX_LENGTH_TICKS = EXTENDER_MAX_LENGTH_INCHES * EXTENDER_TICS_PER_INCH;
+    private final double EXTENDER_MAX_EXTENSION_INCHES = 14.5d;
+    private final double EXTENDER_MAX_TOTAL_LENGTH = EXTENDER_MIN_LENGTH_INCHES + EXTENDER_MAX_EXTENSION_INCHES;
+    private final double EXTENDER_MAX_LENGTH_TICKS = EXTENDER_MAX_EXTENSION_INCHES * EXTENDER_TICS_PER_INCH;
     private final double EXTENDER_SETPOINT_SPEED_TICKS_PER_MILLIS = (EXTENDER_TICS_PER_INCH * 1.5 / 1000.0);
 
     private final double TILT_ORIGIN = 0.0;
@@ -234,7 +235,7 @@ public class TerabytesIntoTheDeep {
         private AppendageControlTarget evaluateCollecting() {
             double clampedCollectDistance = Math.max(0, Math.min(1, collectDistance)); // TODO: Figure out what's wrong with this collect distance
             double minimumAchievableDistance = Math.sqrt((EXTENDER_MIN_LENGTH_INCHES * EXTENDER_MIN_LENGTH_INCHES) - (ARM_COLLECT_DEPTH_INCHES * ARM_COLLECT_DEPTH_INCHES));
-            double maximumAchievableDistance = Math.sqrt((EXTENDER_MAX_LENGTH_INCHES * EXTENDER_MAX_LENGTH_INCHES) - (ARM_COLLECT_DEPTH_INCHES * ARM_COLLECT_DEPTH_INCHES));
+            double maximumAchievableDistance = Math.sqrt((EXTENDER_MAX_TOTAL_LENGTH * EXTENDER_MAX_TOTAL_LENGTH) - (ARM_COLLECT_DEPTH_INCHES * ARM_COLLECT_DEPTH_INCHES));
             double desiredDistance = minimumAchievableDistance + (clampedCollectDistance * (maximumAchievableDistance - minimumAchievableDistance));
             double armAngleBelowHorizontal = Math.toDegrees(Math.atan2(ARM_COLLECT_DEPTH_INCHES, desiredDistance));
             double desiredTotalLength = Math.sqrt((ARM_COLLECT_DEPTH_INCHES * ARM_COLLECT_DEPTH_INCHES) + (desiredDistance * desiredDistance));
