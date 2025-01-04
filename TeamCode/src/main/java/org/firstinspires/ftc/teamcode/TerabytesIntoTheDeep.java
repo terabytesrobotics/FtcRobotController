@@ -80,12 +80,14 @@ public class TerabytesIntoTheDeep {
     public static final double TILT_TICKS_PER_DEGREE = 1.0 / 270.0;
     public static final double TILT_STRAIGHT = TILT_ORIGIN + (90 * TILT_TICKS_PER_DEGREE);
     public static final double TILT_RANGE_DEGREES = 30.0;
+    public static final double TILT_DOWN_RANGE = 40;
     public static final double TILT_RANGE = TILT_TICKS_PER_DEGREE * TILT_RANGE_DEGREES;
     public static final double TILT_TUCKED = 0.925;
+    public static final double TILE_DUNK = 0.675;
     public static final double TILT_LOW_PROFILE = TILT_STRAIGHT;
     public static final double TILT_PREGRAB = TILT_STRAIGHT / 2;
 
-    public static final double WRIST_ORIGIN = 0.95;
+    public static final double WRIST_ORIGIN = 0.9;
     public static final double WRIST_RANGE = 0.25;
     public static final double WRIST_TUCKED = WRIST_ORIGIN;
 
@@ -244,15 +246,15 @@ public class TerabytesIntoTheDeep {
     }
 
     public int getArmLTickPosition() {
-        return armLeft.getCurrentPosition() - armLTicksAtInit;
+        return armLeft.getCurrentPosition() + armLTicksAtInit;
     }
 
     public int getArmRTickPosition() {
-        return armRight.getCurrentPosition() - armRTicksAtInit;
+        return armRight.getCurrentPosition() + armRTicksAtInit;
     }
 
     public int getExtenderTickPosition() {
-        return extender.getCurrentPosition() - extenderTicksAtInit;
+        return extender.getCurrentPosition() + extenderTicksAtInit;
     }
 
     private Pose2d driveInput = new Pose2d();
@@ -390,6 +392,8 @@ public class TerabytesIntoTheDeep {
                 getArmRTickPosition(),
                 getExtenderTickPosition());
         if (state != IntoTheDeepOpModeState.STOPPED_UNTIL_END) {
+            // Only subtract ticksAtInit for the purpose of control
+            // For the purpose of knowing where we currently are, add currentPosition to ticksAtInit
             controlArmMotor(controlTarget.armTickTarget - armLTicksAtInit, leftArmControl, armLeft);
             controlArmMotor(controlTarget.armTickTarget - armRTicksAtInit, rightArmControl, armRight);
             extender.setTargetPosition(((int) controlTarget.extenderTickTarget) - extenderTicksAtInit);

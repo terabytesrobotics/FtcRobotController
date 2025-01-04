@@ -104,12 +104,14 @@ class AppendageControl {
         double armDegreesFromHorizontal = currentArmDegreesAboveHorizontal();
         double tiltLevel = TerabytesIntoTheDeep.TILT_ORIGIN + (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * (90 - armDegreesFromHorizontal));
         double tiltUp = TerabytesIntoTheDeep.TILT_ORIGIN + (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * (180 - armDegreesFromHorizontal));
-        double tiltDown = TerabytesIntoTheDeep.TILT_ORIGIN - (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * armDegreesFromHorizontal);
+        double tiltDown = tiltLevel - (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * TerabytesIntoTheDeep.TILT_DOWN_RANGE);
         boolean isCollecting = currentState == AppendageControlState.COLLECTING;
+        boolean isScoring = currentState == AppendageControlState.HIGH_BASKET || currentState == AppendageControlState.LOW_BASKET;
         double tiltDefaultSetpoint = isCollecting ? tiltLevel : tiltUp;
         double tiltSetpoint = isCollecting && collect && armDegreesFromHorizontal < 0 ? tiltDown : tiltDefaultSetpoint;
+        double tiltTuckSetpoint = isScoring ? TerabytesIntoTheDeep.TILE_DUNK : TerabytesIntoTheDeep.TILT_TUCKED;
         target.wristTarget = TerabytesIntoTheDeep.WRIST_ORIGIN;
-        target.tiltTarget = tiltTuck ? TerabytesIntoTheDeep.TILT_TUCKED : tiltSetpoint;
+        target.tiltTarget = tiltTuck ? tiltTuckSetpoint : tiltSetpoint;
         target.pincerTarget = openPincer ? TerabytesIntoTheDeep.PINCER_OPEN : TerabytesIntoTheDeep.PINCER_CLOSED;
     }
 
