@@ -223,12 +223,12 @@ public class TerabytesIntoTheDeep {
         }
 
         private AppendageControlTarget evaluateDefensive() {
-            double angle = 90, extInches = 0;
+            double angle = 45, extInches = 0;
             target.armTickTarget = ARM_LEVEL_TICKS + angle * ARM_TICKS_PER_DEGREE;
             target.extenderTickTarget = EXTENDER_TICS_PER_INCH * extInches;
-            target.tiltTarget = TILT_ORIGIN;
+            target.tiltTarget = TILT_STRAIGHT;
             target.wristTarget = WRIST_ORIGIN;
-            target.pincerTarget = PINCER_CENTER;
+            target.pincerTarget = PINCER_CLOSED;
             return target;
         }
 
@@ -339,6 +339,11 @@ public class TerabytesIntoTheDeep {
     private ElapsedTime timeInState;
     private Pose2d latestPoseEstimate = null;
 
+    // Actuation starting state
+    private int armLTicksAtInit = 0;
+    private int armRTicksAtInit = 0;
+    private int extenderTicksAtInit = 0;
+
     // Basic gameplay state
     private final AllianceColor allianceColor;
 
@@ -441,7 +446,20 @@ public class TerabytesIntoTheDeep {
     }
 
     public Pose2d getLatestPoseEstimate() {
-        return latestPoseEstimate;
+        Pose2d latest = latestPoseEstimate;
+        return latest == null ? new Pose2d() : latest;
+    }
+
+    public int getArmLTickPosition() {
+        return armLeft.getCurrentPosition() + armLTicksAtInit;
+    }
+
+    public int getArmRTickPosition() {
+        return armRight.getCurrentPosition() + armRTicksAtInit;
+    }
+
+    public int getExtenderTickPosition() {
+        return extender.getCurrentPosition() + extenderTicksAtInit;
     }
 
     private Pose2d driveInput = new Pose2d();
@@ -530,6 +548,17 @@ public class TerabytesIntoTheDeep {
         activateFrontCameraProcessing();
     }
 
+    public void teleopInit(Pose2d startPose, int armLTickPosition, int armRTickPosition, int extenderTickPosition) {
+        teleopInit(startPose);
+        initExtenderMotor();
+        initArmMotors();
+        armLTicksAtInit = armLTickPosition;
+        armRTicksAtInit = armRTickPosition;
+        extenderTicksAtInit = extenderTickPosition;
+        appendageControl = new AppendageControl();
+        appendageControl.setControlState(AppendageControlState.DEFENSIVE);
+    }
+
     public void initializeMechanicalBlocking() {
         // !!Do not touch controllers during mech init!!
         state = IntoTheDeepOpModeState.MANUAL_CONTROL;
@@ -570,22 +599,25 @@ public class TerabytesIntoTheDeep {
             boolean zeroExtender = extenderMin.isPressed();
             if (zeroExtender) {
                 extender.setPower(0.0);
-                zeroExtender();
             } else {
                 extender.setPower(-0.4);
             }
 
             boolean zeroArm = armMin.isPressed();
-            if (zeroArm) {
-                zeroArmMotors();
-                armLeft.setPower(0);
-                armRight.setPower(0);
-            } else if (zeroExtender) {
+            if (zeroExtender && !zeroArm) {
                 armLeft.setPower(-0.30);
                 armRight.setPower(-0.30);
+            } else {
+                armLeft.setPower(0);
+                armRight.setPower(0);
             }
 
             if (isStageFinished && zeroExtender && zeroArm && appendageControl == null) {
+                initArmMotors();
+                initExtenderMotor();
+                armLTicksAtInit = 0;
+                armRTicksAtInit = 0;
+                extenderTicksAtInit = 0;
                 appendageControl = new AppendageControl();
             }
         }
@@ -593,8 +625,9 @@ public class TerabytesIntoTheDeep {
 
     private void evaluateAppendageControl() {
         AppendageControlTarget controlTarget = appendageControl.evaluate();
-        controlArmMotors(controlTarget.armTickTarget);
-        extender.setTargetPosition((int) controlTarget.extenderTickTarget);
+        controlArmMotor(controlTarget.armTickTarget - armLTicksAtInit, leftArmControl, armLeft);
+        controlArmMotor(controlTarget.armTickTarget - armRTicksAtInit, rightArmControl, armRight);
+        extender.setTargetPosition(((int) controlTarget.extenderTickTarget) - extenderTicksAtInit);
         tilt.setPosition(controlTarget.tiltTarget);
         wrist.setPosition(controlTarget.wristTarget);
         pincer.setPosition(controlTarget.pincerTarget);
@@ -673,7 +706,7 @@ public class TerabytesIntoTheDeep {
         return Math.hypot(a.getX() - b.getX(), a.getY() - b.getY());
     }
 
-    private void zeroExtender() {
+    private void initExtenderMotor() {
         extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         extender.setTargetPosition(0);
         extender.setTargetPositionTolerance(20);
@@ -682,7 +715,7 @@ public class TerabytesIntoTheDeep {
         extender.setPower(0.8);
     }
 
-    private void zeroArmMotors() {
+    private void initArmMotors() {
         leftArmControl.reset();
         armLeft.setPower(0);
         armLeft.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
@@ -707,11 +740,6 @@ public class TerabytesIntoTheDeep {
         if(Math.abs(armPower) < 0.02) armPower = 0;
         if(armPower < 0 && armMin.isPressed()) armPower = 0;
         armMotor.setPower(armPower);
-    }
-
-    private void controlArmMotors(double armTickTarget) {
-        controlArmMotor(armTickTarget, leftArmControl, armLeft);
-        controlArmMotor(armTickTarget, rightArmControl, armRight);
     }
 
     private IntoTheDeepOpModeState evaluateManualControl(double dtMillis) {
@@ -987,7 +1015,25 @@ public class TerabytesIntoTheDeep {
         return lastAprilTagFieldPosition != null && latestPoseEstimate != null;
     }
 
+    // Brake and de-energize
     public void shutDown() {
+        extender.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        extender.setPower(0);
+
+        armLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        armLeft.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        armLeft.setPower(0);
+
+        armRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        armRight.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        armRight.setPower(0);
+
+        extender.setMotorDisable();
+        armLeft.setMotorDisable();
+        armRight.setMotorDisable();
+
+        drive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         setDrivePower(new Pose2d());
         visionPortal.close();
     }
