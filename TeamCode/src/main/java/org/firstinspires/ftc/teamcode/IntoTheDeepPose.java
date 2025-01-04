@@ -5,14 +5,22 @@ import com.acmerobotics.roadrunner.geometry.Pose2d;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
 
 public enum IntoTheDeepPose {
-    AUTON_START_MID(IntoTheDeepFieldPosition.AUTON_START_MID, Math.PI / 2.0),
-    AUTON_PRE_NEUTRAL_PUSH_STAGING(IntoTheDeepFieldPosition.AUTON_PRE_NEUTRAL_PUSH_STAGING, Math.PI / 2.0),
-    AUTON_PRE_NEUTRAL_PUSH_1(IntoTheDeepFieldPosition.AUTON_PRE_NEUTRAL_PUSH_1, Math.PI / 2.0),
-    AUTON_PRE_NEUTRAL_PUSH_2(IntoTheDeepFieldPosition.AUTON_PRE_NEUTRAL_PUSH_2, Math.PI / 2.0),
-    AUTON_NEUTRAL_PUSH_TARGET_1(IntoTheDeepFieldPosition.AUTON_NEUTRAL_PUSH_TARGET, Math.toRadians(90 - 18.43)),
-    AUTON_NEUTRAL_PUSH_TARGET_2(IntoTheDeepFieldPosition.AUTON_NEUTRAL_PUSH_TARGET, Math.toRadians(90)),
-    AUTON_PARK_TARGET(IntoTheDeepFieldPosition.AUTON_PARK_TARGET, Math.PI / 2.0),
 
+    // Starting poses
+    START_OBSERVATION_ZONE(IntoTheDeepFieldPosition.START_OBSERVATION_ZONE, Math.PI / 2.0),
+    START_MID(IntoTheDeepFieldPosition.START_MID, Math.PI / 2.0),
+    START_NET_ZONE(IntoTheDeepFieldPosition.START_NET_ZONE, Math.PI / 2.0),
+
+    // Waypoints
+    NET_PUSH_STAGING(IntoTheDeepFieldPosition.NET_PUSH_STAGING, Math.PI / 2.0),
+    NET_PUSH_START_1(IntoTheDeepFieldPosition.NET_PUSH_START_1, Math.PI / 2.0),
+    NET_PUSH_START_2(IntoTheDeepFieldPosition.NET_PUSH_START_2, Math.PI / 2.0),
+    NET_PUSH_TARGET_1(IntoTheDeepFieldPosition.NET, Math.toRadians(90 - 18.43)),
+    NET_PUSH_TARGET_2(IntoTheDeepFieldPosition.NET, Math.toRadians(90)),
+    PARK_TARGET_FIRST(IntoTheDeepFieldPosition.PARK_TARGET_FIRST, Math.PI / 2.0),
+    PARK_TARGET_SECOND(IntoTheDeepFieldPosition.PARK_TARGET_SECOND, Math.PI / 2.0),
+
+    // Teleop poses
     SUBMERSIBLE_APPROACH_ALLIANCE_SIDE(IntoTheDeepFieldPosition.SUBMERSIBLE_APPROACH_ALLIANCE_SIDE, Math.toRadians(90)),
     SUBMERSIBLE_APPROACH_OPPONENT_SIDE(IntoTheDeepFieldPosition.SUBMERSIBLE_APPROACH_OPPONENT_SIDE, Math.toRadians(270)),
     SUBMERSIBLE_APPROACH_REAR_SIDE(IntoTheDeepFieldPosition.SUBMERSIBLE_APPROACH_REAR_SIDE, Math.toRadians(0)),

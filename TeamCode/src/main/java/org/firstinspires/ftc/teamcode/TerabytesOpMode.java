@@ -34,7 +34,7 @@ public abstract class TerabytesOpMode extends LinearOpMode {
         this.allianceColor = allianceColor;
         this.startupState = startupState;
         this.autonomousPlan = autonomousPlan;
-        this.startPose = allianceColor.getStartingPose(autonomousPlan);
+        this.startPose = autonomousPlan.getStartingPose(allianceColor);
         this.debugMode = false;
     }
 
@@ -43,7 +43,7 @@ public abstract class TerabytesOpMode extends LinearOpMode {
         this.allianceColor = allianceColor;
         this.startupState = startupState;
         this.autonomousPlan = autonomousPlan;
-        this.startPose = allianceColor.getStartingPose(autonomousPlan);
+        this.startPose = autonomousPlan.getStartingPose(allianceColor);
         this.debugMode = debugMode;
     }
 
