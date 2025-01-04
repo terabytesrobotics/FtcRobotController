@@ -58,6 +58,8 @@ public class TerabytesIntoTheDeep {
     public static final double ARM_TICKS_PER_DEGREE = WORM_RATIO * 28.0d * GEAR_RATIO / 360.0d;
     public static final double ARM_LEVEL_DEGREES_ABOVE_ZERO = 45; // TODO: Tune this to actual level up from min.
     public static final double ARM_LEVEL_TICKS = ARM_LEVEL_DEGREES_ABOVE_ZERO * ARM_TICKS_PER_DEGREE;
+    public static final double ARM_LEVEL_TICKS_EMPIRICAL = 0;
+    public static final double ARM_LEVEL_DEGREES_ABOVE_ZERO_EMPIRICAL = 45; // TODO: Tune this to actual level up from min.
     public static final double ARM_COLLECT_MINIMUM_DEGREES = -22.5;
     public static final double ARM_LEVEL_HEIGHT_INCHES = 15.5d;
     public static final double ARM_COLLECT_HEIGHT_INCHES = 10d; // TODO: Tune this to actual desired
@@ -239,15 +241,15 @@ public class TerabytesIntoTheDeep {
     }
 
     public int getArmLTickPosition() {
-        return armLeft.getCurrentPosition() + armLTicksAtInit;
+        return armLeft.getCurrentPosition() - armLTicksAtInit;
     }
 
     public int getArmRTickPosition() {
-        return armRight.getCurrentPosition() + armRTicksAtInit;
+        return armRight.getCurrentPosition() - armRTicksAtInit;
     }
 
     public int getExtenderTickPosition() {
-        return extender.getCurrentPosition() + extenderTicksAtInit;
+        return extender.getCurrentPosition() - extenderTicksAtInit;
     }
 
     private Pose2d driveInput = new Pose2d();
@@ -280,6 +282,10 @@ public class TerabytesIntoTheDeep {
             packet.put("armTickTarget", appendageControl.target.armTickTarget);
             packet.put("extenderTickTarget", appendageControl.target.extenderTickTarget);
         }
+
+        packet.put("armLTicksAtInit", armLTicksAtInit);
+        packet.put("armRTicksAtInit", armRTicksAtInit);
+        packet.put("extenderTicksAtInit", extenderTicksAtInit);
 
         packet.put("DriveInputX", driveInput.getX());
         packet.put("DriveInputY", driveInput.getY());
@@ -420,7 +426,7 @@ public class TerabytesIntoTheDeep {
         // Run the state specific control logic
         IntoTheDeepOpModeState currentState = debugKill ? IntoTheDeepOpModeState.STOPPED_UNTIL_END : state;
         IntoTheDeepOpModeState nextState = currentState;
-        switch (state) {
+        switch (currentState) {
             case MANUAL_CONTROL:
                 nextState = evaluateManualControl(dt);
                 break;
@@ -540,7 +546,7 @@ public class TerabytesIntoTheDeep {
         }
 
         boolean slowMode = gamepad1.left_bumper || gamepad1.right_bumper;
-        driveInput = new Pose2d(-gamepad1.left_stick_y, -gamepad1.left_stick_x, -gamepad1.right_stick_x);
+        driveInput = new Pose2d(gamepad1.left_stick_y, gamepad1.left_stick_x, -gamepad1.right_stick_x);
         if (slowMode) {
             driveInput = driveInput.div(3);
         }

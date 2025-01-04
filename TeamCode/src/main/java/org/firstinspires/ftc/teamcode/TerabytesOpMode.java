@@ -66,7 +66,7 @@ public abstract class TerabytesOpMode extends LinearOpMode {
             File poseFile = AppUtil.getInstance().getSettingsFile(PERSISTED_DATA_FILE_NAME);
             if (poseFile.exists()) {
                 String[] lines = ReadWriteFile.readFile(poseFile).split("\n");
-                if (lines.length >= 4) {
+                if (lines.length >= 7) {
                     long timestamp = Long.parseLong(lines[0]);
                     double x = Double.parseDouble(lines[1]);
                     double y = Double.parseDouble(lines[2]);
@@ -137,13 +137,6 @@ public abstract class TerabytesOpMode extends LinearOpMode {
             }
             dashboard.sendTelemetryPacket(terabytes.getTelemetryPacket());
         }
-
-        // One last time before shutdown.
-        savePersistedData(
-                terabytes.getLatestPoseEstimate(),
-                terabytes.getArmLTickPosition(),
-                terabytes.getArmRTickPosition(),
-                terabytes.getExtenderTickPosition());
 
         terabytes.shutDown();
     }
