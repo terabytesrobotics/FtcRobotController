@@ -6,10 +6,10 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
 
 @Config
-@TeleOp(name="RED")
-public class TerabytesTeleOpRed extends TerabytesOpMode {
+@TeleOp(name="DEBUG: *RUN SAFELY*")
+public class TerabytesTeleOpDebug extends TerabytesOpMode {
 
-    public TerabytesTeleOpRed() {
-        super(AllianceColor.RED, IntoTheDeepOpModeState.MANUAL_CONTROL);
+    public TerabytesTeleOpDebug() {
+        super(AllianceColor.RED, IntoTheDeepOpModeState.MANUAL_CONTROL, true);
     }
 }

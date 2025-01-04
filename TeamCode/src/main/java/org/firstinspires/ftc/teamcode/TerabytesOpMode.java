@@ -16,17 +16,15 @@ public abstract class TerabytesOpMode extends LinearOpMode {
     private long lastSaveTime = 0;
     private static final String POSE_FILE_NAME = "last_pose.txt";
 
-    protected final boolean debugMode;
+    private boolean debugMode = false;
     private final AllianceColor allianceColor;
     private final IntoTheDeepOpModeState startupState;
-    private Pose2d startPose = null;
     private TerabytesAutonomousPlan autonomousPlan = null;
 
     public TerabytesOpMode(AllianceColor allianceColor, IntoTheDeepOpModeState startupState) {
         super();
         this.allianceColor = allianceColor;
         this.startupState = startupState;
-        this.debugMode = false;
     }
 
     public TerabytesOpMode(AllianceColor allianceColor, IntoTheDeepOpModeState startupState, TerabytesAutonomousPlan autonomousPlan) {
@@ -34,16 +32,12 @@ public abstract class TerabytesOpMode extends LinearOpMode {
         this.allianceColor = allianceColor;
         this.startupState = startupState;
         this.autonomousPlan = autonomousPlan;
-        this.startPose = autonomousPlan.getStartingPose(allianceColor);
-        this.debugMode = false;
     }
 
-    public TerabytesOpMode(AllianceColor allianceColor, IntoTheDeepOpModeState startupState, TerabytesAutonomousPlan autonomousPlan, boolean debugMode) {
+    public TerabytesOpMode(AllianceColor allianceColor, IntoTheDeepOpModeState startupState, boolean debugMode) {
         super();
         this.allianceColor = allianceColor;
         this.startupState = startupState;
-        this.autonomousPlan = autonomousPlan;
-        this.startPose = autonomousPlan.getStartingPose(allianceColor);
         this.debugMode = debugMode;
     }
 
@@ -96,20 +90,11 @@ public abstract class TerabytesOpMode extends LinearOpMode {
                 hardwareMap,
                 debugMode);
 
-        boolean isAutonomous = startPose != null;
-
-        // Attempt to read the last saved pose if no startPose is provided
-        if (startPose == null) {
-            SavedPose savedPose = readLastPose();
-            if (savedPose != null) {
-                startPose = savedPose.pose;
-            }
-        }
-
-        if (isAutonomous) {
-            terabytes.autonomousInit(startPose, autonomousPlan);
+        if (autonomousPlan != null) {
+            terabytes.autonomousInit(autonomousPlan);
         } else {
-            terabytes.teleopInit(startPose);
+            SavedPose savedPose = readLastPose();
+            terabytes.teleopInit(!debugMode && savedPose != null ? savedPose.pose : null);
         }
 
         terabytes.initializeMechanicalBlocking();

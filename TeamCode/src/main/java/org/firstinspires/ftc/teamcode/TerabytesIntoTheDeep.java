@@ -114,9 +114,9 @@ public class TerabytesIntoTheDeep {
     private static final long GRAB_MOVE_DURATION_MS = 750;
     private static final long GRAB_HOLD_DURATION_MS = 150;
 
-    private final double WRIST_CENTER = 0.95;
+    private final double WRIST_ORIGIN = 0.95;
     private final double WRIST_RANGE = 0.25;
-    private final double WRIST_TUCKED = WRIST_CENTER;
+    private final double WRIST_TUCKED = WRIST_ORIGIN;
 
     private final double PINCER_CENTER = 0.575;
     private final double PINCER_OPEN = 0.5;
@@ -134,7 +134,7 @@ public class TerabytesIntoTheDeep {
     private class AppendageControl {
 
         private AppendageControlState currentState;
-        public final AppendageControlTarget target = new AppendageControlTarget(0, 0, TILT_ORIGIN, WRIST_CENTER, PINCER_CENTER);
+        public final AppendageControlTarget target = new AppendageControlTarget(0, 0, TILT_ORIGIN, WRIST_ORIGIN, PINCER_CENTER);
 
         private double collectDistance = 0d;
         private boolean lowProfile = false;
@@ -207,13 +207,13 @@ public class TerabytesIntoTheDeep {
             } else if (t < 2750) { // Wrist from tucked to center over 750ms
                 double frac = (t - 2000) / 750.0;
                 target.armTickTarget = ARM_LEVEL_TICKS;
-                target.wristTarget = WRIST_TUCKED + frac * (WRIST_CENTER - WRIST_TUCKED);
+                target.wristTarget = WRIST_TUCKED + frac * (WRIST_ORIGIN - WRIST_TUCKED);
                 target.tiltTarget = TILT_TUCKED;
                 target.pincerTarget = PINCER_CLOSED;
             } else if (t < 3500) { // Tilt from tucked to center over next 750ms
                 double frac = (t - 2750) / 750.0;
                 target.armTickTarget = ARM_LEVEL_TICKS;
-                target.wristTarget = WRIST_CENTER;
+                target.wristTarget = WRIST_ORIGIN;
                 target.tiltTarget = TILT_TUCKED + frac * (TILT_ORIGIN - TILT_TUCKED);
                 target.pincerTarget = PINCER_CLOSED;
             } else {
@@ -227,7 +227,7 @@ public class TerabytesIntoTheDeep {
             target.armTickTarget = ARM_LEVEL_TICKS + angle * ARM_TICKS_PER_DEGREE;
             target.extenderTickTarget = EXTENDER_TICS_PER_INCH * extInches;
             target.tiltTarget = TILT_ORIGIN;
-            target.wristTarget = WRIST_CENTER;
+            target.wristTarget = WRIST_ORIGIN;
             target.pincerTarget = PINCER_CENTER;
             return target;
         }
@@ -282,7 +282,7 @@ public class TerabytesIntoTheDeep {
             }
 
             // Keep wrist neutral in collecting
-            target.wristTarget = WRIST_CENTER;
+            target.wristTarget = WRIST_ORIGIN;
             return target;
         }
 
@@ -291,7 +291,7 @@ public class TerabytesIntoTheDeep {
             target.armTickTarget = ARM_LEVEL_TICKS + angle * ARM_TICKS_PER_DEGREE;
             target.extenderTickTarget = EXTENDER_TICS_PER_INCH * extInches;
             target.tiltTarget = TILT_ORIGIN;
-            target.wristTarget = WRIST_CENTER;
+            target.wristTarget = WRIST_ORIGIN;
             target.pincerTarget = PINCER_CENTER;
             return target;
         }
@@ -301,13 +301,21 @@ public class TerabytesIntoTheDeep {
             target.armTickTarget = ARM_LEVEL_TICKS + angle * ARM_TICKS_PER_DEGREE;
             target.extenderTickTarget = EXTENDER_TICS_PER_INCH * extInches;
             target.tiltTarget = TILT_ORIGIN;
-            target.wristTarget = WRIST_CENTER;
+            target.wristTarget = WRIST_ORIGIN;
             target.pincerTarget = PINCER_CENTER;
             return target;
         }
     }
 
-    // Doubles as a maintenance mode where centered command can be easily found
+    // !! Must be run with arm up to be safe.  Helps calibrate servo positions for 10 seconds upon init. !!
+    public final ServoInitStage[] SERVO_INIT_STAGES_DEBUG = {
+            new ServoInitStage(TILT_ORIGIN, WRIST_ORIGIN, PINCER_CLOSED, 10000),
+            new ServoInitStage(TILT_TUCKED, WRIST_TUCKED, PINCER_OPEN, 3750),
+            new ServoInitStage(TILT_TUCKED, WRIST_TUCKED, PINCER_CLOSED, 1000),
+            new ServoInitStage(TILT_TUCKED, WRIST_TUCKED, PINCER_OPEN,3750),
+            new ServoInitStage(TILT_TUCKED, WRIST_TUCKED, PINCER_CLOSED, 1000)
+    };
+
     public final ServoInitStage[] SERVO_INIT_STAGES_AUTON = {
             new ServoInitStage(TILT_TUCKED, WRIST_TUCKED, PINCER_OPEN, 3750),
             new ServoInitStage(TILT_TUCKED, WRIST_TUCKED, PINCER_CLOSED, 1000),
@@ -508,10 +516,10 @@ public class TerabytesIntoTheDeep {
         return packet;
     }
 
-    public void autonomousInit(Pose2d startPose, TerabytesAutonomousPlan autonomousPlan) {
+    public void autonomousInit(TerabytesAutonomousPlan autonomousPlan) {
         timeSinceInit = new ElapsedTime();
         isAutonomous = true;
-        drive.setPoseEstimate(startPose);
+        drive.setPoseEstimate(autonomousPlan.getStartingPose(allianceColor));
         activateFrontCameraProcessing();
         setCommandSequence(autonomousPlan.getCommandSequence(allianceColor));
     }
@@ -544,7 +552,7 @@ public class TerabytesIntoTheDeep {
     }
 
     private void evaluateAppendageInit() {
-        ServoInitStage[] servoInitStages = isAutonomous ? SERVO_INIT_STAGES_AUTON : SERVO_INIT_STAGES_TELEOP;
+        ServoInitStage[] servoInitStages = debugMode ? SERVO_INIT_STAGES_DEBUG : isAutonomous ? SERVO_INIT_STAGES_AUTON : SERVO_INIT_STAGES_TELEOP;
         ServoInitStage stage = servoInitStages[servoInitStageIndex];
         boolean isFullyTuckedStage = servoInitStageIndex == servoInitStages.length - 1;
         boolean isStageFinished = initStageTimer.milliseconds() > stage.durationMs;

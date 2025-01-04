@@ -6,7 +6,7 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
 
 @Config
-@TeleOp(name="Terabytes TeleOp: BLUE")
+@TeleOp(name="BLUE")
 public class TerabytesTeleOpBlue extends TerabytesOpMode {
 
     public TerabytesTeleOpBlue() {
