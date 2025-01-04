@@ -257,43 +257,9 @@ public class TerabytesIntoTheDeep {
         packet.put("y", latestPoseEstimate.getY());
         packet.put("heading", latestPoseEstimate.getHeading());
 
-        Double[] motorCurrents = drive.getMotorCurrents();
-        Double leftFrontCurrent = motorCurrents[0];
-        Double leftRearCurrent = motorCurrents[1];
-        Double rightFrontCurrent = motorCurrents[2];
-        Double rightRearCurrent = motorCurrents[3];
-
-        Double[] motorPowers = drive.getMotorPowers();
-        Double leftFrontPower = motorPowers[0];
-        Double leftRearPower = motorPowers[1];
-        Double rightFrontPower = motorPowers[2];
-        Double rightRearPower = motorPowers[3];
-
-        Double[] motorVelocities = drive.getMotorVelocities();
-        Double leftFrontVelocity = motorVelocities[0];
-        Double leftRearVelocity = motorVelocities[1];
-        Double rightFrontVelocity = motorVelocities[2];
-        Double rightRearVelocity = motorVelocities[3];
-
-        Pose2d poseVelocity = drive.getPoseVelocity();
-
-//        packet.put("lfc", leftFrontCurrent);
-//        packet.put("lrc", leftRearCurrent);
-//        packet.put("rfc", rightFrontCurrent);
-//        packet.put("rrc", rightRearCurrent);
-//
-//        packet.put("lfp", leftFrontPower);
-//        packet.put("lrp", leftRearPower);
-//        packet.put("rfp", rightFrontPower);
-//        packet.put("rrp", rightRearPower);
-//
-//        packet.put("lfv", leftFrontVelocity);
-//        packet.put("lrv", leftRearVelocity);
-//        packet.put("rfv", rightFrontVelocity);
-//        packet.put("rrv", rightRearVelocity);
-
         // TODO: Get this reported into telemetry
         packet.put("currentState", state.toString());
+        packet.put("appendageState", appendageControl == null ? "UNINITIALIZED" : appendageControl.currentState);
         if (lastAprilTagFieldPosition != null) {
             packet.put("estimate-x", lastAprilTagFieldPosition.getX());
             packet.put("estimate-y", lastAprilTagFieldPosition.getY());
@@ -303,22 +269,20 @@ public class TerabytesIntoTheDeep {
         packet.put("tilt", tilt.getPosition());
         packet.put("wrist", wrist.getPosition());
         packet.put("pincer", pincer.getPosition());
-        packet.put("extenderPos", extender.getCurrentPosition());
-        packet.put("extenderTarget", extender.getTargetPosition());
-        packet.put("extenderMin", extenderMin.isPressed());
+
         packet.put("armMin", armMin.isPressed());
+        packet.put("armLCurrentPosition", getArmLTickPosition());
+        packet.put("armRCurrentPosition", getArmRTickPosition());
+        packet.put("extenderMin", extenderMin.isPressed());
+        packet.put("extenderCurrentPosition", getExtenderTickPosition());
 
         if (appendageControl != null) {
             packet.put("armTickTarget", appendageControl.target.armTickTarget);
+            packet.put("extenderTickTarget", appendageControl.target.extenderTickTarget);
         }
-        packet.put("ArmLeft-Power", armLeft.getPower());
-        packet.put("ArmRight-Power", armRight.getPower());
-        packet.put("ArmLeft-Position" + armLeft.getDeviceName(), armLeft.getCurrentPosition());
-        packet.put("ArmRight-Position" + armRight.getDeviceName(), armRight.getCurrentPosition());
+
         packet.put("DriveInputX", driveInput.getX());
         packet.put("DriveInputY", driveInput.getY());
-        packet.put("GamePad1X", gamepad1.left_stick_x);
-        packet.put("GamePad1Y", gamepad1.left_stick_y);
         return packet;
     }
 
@@ -542,11 +506,14 @@ public class TerabytesIntoTheDeep {
 
     private IntoTheDeepOpModeState evaluateManualControl(double dtMillis) {
         // Example usage on gamepad2
-        if (gamepad2.a) forceArmInit();
+        if (gamepad2.left_bumper && gamepad2.right_bumper && gamepad2.a) {
+            forceArmInit();
+        }
 
         if (appendageControl != null) {
             if (a1ActivatedEvaluator.evaluate()) {
-                if (appendageControl.currentState == AppendageControlState.DEFENSIVE) {
+                if (appendageControl.currentState == AppendageControlState.DEFENSIVE || appendageControl.currentState == AppendageControlState.TUCKED) {
+                    appendageControl.clearCollectDistance();
                     appendageControl.setControlState(AppendageControlState.COLLECTING);
                 } else if (appendageControl.currentState == AppendageControlState.HIGH_BASKET) {
                     appendageControl.setControlState(AppendageControlState.DEFENSIVE);

@@ -62,6 +62,10 @@ class AppendageControl {
         currentState = state;
     }
 
+    public void clearCollectDistance() {
+        collectDistance = 0;
+    }
+
     public void accumulateCollectDistance(double collectDistance) {
         this.collectDistance += collectDistance;
         this.collectDistance = Math.max(0, Math.min(1, this.collectDistance));
@@ -146,6 +150,6 @@ class AppendageControl {
     public double currentArmDegreesAboveHorizontal() {
         int averageArmTicks = (currentArmLTicks + currentArmRTicks) / 2;
         double armDegreesFromZero = averageArmTicks / TerabytesIntoTheDeep.ARM_TICKS_PER_DEGREE;
-        return armDegreesFromZero + TerabytesIntoTheDeep.ARM_LEVEL_DEGREES_ABOVE_ZERO;
+        return armDegreesFromZero - TerabytesIntoTheDeep.ARM_LEVEL_DEGREES_ABOVE_ZERO;
     }
 }
