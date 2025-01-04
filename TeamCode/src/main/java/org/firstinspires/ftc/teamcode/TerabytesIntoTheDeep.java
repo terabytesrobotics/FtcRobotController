@@ -68,7 +68,7 @@ public class TerabytesIntoTheDeep {
     public static final double EXTENDER_MIN_LENGTH_INCHES = 15.75d;
     public static final double EXTENDER_GEAR_RATIO = 5.2d;
     public static final double EXTENDER_TICS_PER_INCH = (EXTENDER_GEAR_RATIO * 28 / 0.8 / 2) * 2.54;
-    public static final double EXTENDER_MAX_EXTENSION_INCHES = 14.5d;
+    public static final double EXTENDER_MAX_EXTENSION_INCHES = 10.0d;
     public static final double EXTENDER_MAX_TOTAL_LENGTH = EXTENDER_MIN_LENGTH_INCHES + EXTENDER_MAX_EXTENSION_INCHES;
     public static final double EXTENDER_MAX_LENGTH_TICKS = EXTENDER_MAX_EXTENSION_INCHES * EXTENDER_TICS_PER_INCH;
     public static final double EXTENDER_SETPOINT_SPEED_TICKS_PER_MILLIS = (EXTENDER_TICS_PER_INCH * 1.5 / 1000.0);
@@ -380,9 +380,11 @@ public class TerabytesIntoTheDeep {
                 getArmLTickPosition(),
                 getArmRTickPosition(),
                 getExtenderTickPosition());
-        controlArmMotor(controlTarget.armTickTarget - armLTicksAtInit, leftArmControl, armLeft);
-        controlArmMotor(controlTarget.armTickTarget - armRTicksAtInit, rightArmControl, armRight);
-        extender.setTargetPosition(((int) controlTarget.extenderTickTarget) - extenderTicksAtInit);
+        if (state != IntoTheDeepOpModeState.STOPPED_UNTIL_END) {
+            controlArmMotor(controlTarget.armTickTarget - armLTicksAtInit, leftArmControl, armLeft);
+            controlArmMotor(controlTarget.armTickTarget - armRTicksAtInit, rightArmControl, armRight);
+            extender.setTargetPosition(((int) controlTarget.extenderTickTarget) - extenderTicksAtInit);
+        }
         tilt.setPosition(controlTarget.tiltTarget);
         wrist.setPosition(controlTarget.wristTarget);
         pincer.setPosition(controlTarget.pincerTarget);

@@ -126,7 +126,8 @@ class AppendageControl {
         if (currentArmAngle < 0) {
             double currentImpliedDistance = TerabytesIntoTheDeep.ARM_COLLECT_DEPTH_INCHES / Math.tan(Math.toRadians(-currentArmAngle));
             double currentImpliedTotalLength = Math.sqrt((TerabytesIntoTheDeep.ARM_COLLECT_DEPTH_INCHES * TerabytesIntoTheDeep.ARM_COLLECT_DEPTH_INCHES) + (currentImpliedDistance * currentImpliedDistance));
-            extensionLengthToApply = Math.max(0, TerabytesIntoTheDeep.EXTENDER_MAX_TOTAL_LENGTH - currentImpliedTotalLength);
+            double limitedCurrentImpliedTotalLength = Math.min(TerabytesIntoTheDeep.EXTENDER_MAX_TOTAL_LENGTH, currentImpliedTotalLength);
+            extensionLengthToApply = Math.max(0, limitedCurrentImpliedTotalLength - TerabytesIntoTheDeep.EXTENDER_MIN_LENGTH_INCHES);
         }
 
         setArmAndExtenderSetpoints(desiredArmAngle, extensionLengthToApply);
