@@ -120,7 +120,7 @@ class AppendageControl {
         double extensionLengthToApply = 0;
         double currentArmAngle = currentArmDegreesAboveHorizontal();
         if (currentArmAngle < 0) {
-            double currentImpliedDistance = TerabytesIntoTheDeep.ARM_COLLECT_DEPTH_INCHES / Math.sin(-currentArmAngle);
+            double currentImpliedDistance = TerabytesIntoTheDeep.ARM_COLLECT_DEPTH_INCHES / Math.sin(Math.toRadians(-currentArmAngle));
             double currentImpliedTotalLength = Math.sqrt((TerabytesIntoTheDeep.ARM_COLLECT_DEPTH_INCHES * TerabytesIntoTheDeep.ARM_COLLECT_DEPTH_INCHES) + (currentImpliedDistance * currentImpliedDistance));
             extensionLengthToApply = Math.max(0, TerabytesIntoTheDeep.EXTENDER_MAX_TOTAL_LENGTH - currentImpliedTotalLength);
         }
@@ -147,9 +147,5 @@ class AppendageControl {
         int averageArmTicks = (currentArmLTicks + currentArmRTicks) / 2;
         double armDegreesFromZero = averageArmTicks / TerabytesIntoTheDeep.ARM_TICKS_PER_DEGREE;
         return armDegreesFromZero + TerabytesIntoTheDeep.ARM_LEVEL_DEGREES_ABOVE_ZERO;
-    }
-
-    public double currentExtensionInches() {
-        return currentExtenderTicks / TerabytesIntoTheDeep.EXTENDER_TICS_PER_INCH;
     }
 }
