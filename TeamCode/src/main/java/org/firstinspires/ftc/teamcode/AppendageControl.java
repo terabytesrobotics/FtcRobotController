@@ -75,10 +75,6 @@ class AppendageControl {
             target.wristTarget = TerabytesIntoTheDeep.WRIST_TUCKED;
             target.pincerTarget = TerabytesIntoTheDeep.PINCER_CLOSED;
         } else {
-            target.armTickTarget = TerabytesIntoTheDeep.ARM_LEVEL_TICKS;
-            target.tiltTarget = TerabytesIntoTheDeep.TILT_ORIGIN;
-            target.wristTarget = TerabytesIntoTheDeep.WRIST_TUCKED;
-            target.pincerTarget = TerabytesIntoTheDeep.PINCER_CLOSED;
             untuckTimer = null;
         }
         return target;
