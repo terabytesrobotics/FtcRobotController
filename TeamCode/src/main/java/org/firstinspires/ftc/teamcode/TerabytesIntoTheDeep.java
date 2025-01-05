@@ -66,6 +66,7 @@ public class TerabytesIntoTheDeep {
     public static final double ARM_AXLE_OFFSET_FROM_ROBOT_CENTER_INCHES = 5.5; // TODO: Tune this to reality
     public static final double ARM_MIN_COLLECT_HEIGHT_INCHES = 8d;
     public static final double ARM_MAX_COLLECT_HEIGHT_INCHES = 12d;
+    public static final double ARM_DEFENSIVE_ANGLE = 55.6;
     public static final double ARM_BASKET_ANGLE = 90;
 
     // TODO: tune extender parameters to get accurate ratio of tick per inch and no-extension length
@@ -83,7 +84,7 @@ public class TerabytesIntoTheDeep {
     public static final double TILT_DOWN_RANGE = 40;
     public static final double TILT_RANGE = TILT_TICKS_PER_DEGREE * TILT_RANGE_DEGREES;
     public static final double TILT_TUCKED = 0.925;
-    public static final double TILE_DUNK = 0.675;
+    public static final double TILT_DUNK_RANGE = -0.3;
     public static final double TILT_LOW_PROFILE = TILT_STRAIGHT;
     public static final double TILT_PREGRAB = TILT_STRAIGHT / 2;
 
@@ -173,6 +174,7 @@ public class TerabytesIntoTheDeep {
     private final OnActivatedEvaluator x1ActivatedEvaluator;
     private final OnActivatedEvaluator a2ActivatedEvaluator;
     private final OnActivatedEvaluator rb2ActivatedEvaluator;
+    private final OnActivatedEvaluator b2ActivatedEvaluator;
 
     // Sensing
     private final TouchSensor armMin;
@@ -222,9 +224,7 @@ public class TerabytesIntoTheDeep {
         y1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.y);
         x1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.x);
         rb2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_bumper);
-
-        // TODO: Setup the blinkin LEDs
-        //blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.DARK_GREEN);
+        b2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.b);
 
         leftArmControl.setTolerance(20);
         rightArmControl.setTolerance(20);
@@ -545,23 +545,29 @@ public class TerabytesIntoTheDeep {
                 appendageControl.togglePincer();
             }
 
-            appendageControl.applyCollect(gamepad2.a);
-            appendageControl.applyTuck(gamepad2.b || gamepad1.right_bumper);
+            appendageControl.setDunkSignal(gamepad2.right_trigger);
 
-            double collectHeightSignal = -gamepad2.right_stick_y;
+            boolean safeCollector = appendageControl.currentState == AppendageControlState.COLLECTING && (gamepad1.b || gamepad2.b);
+
+            // Up is negative on stick y axis
+            double collectHeightSignal = safeCollector ? 1 : -gamepad2.right_stick_y;
             if (Math.abs(collectHeightSignal) > 0.025) {
                 appendageControl.accumulateCollectHeightSignal(collectHeightSignal * COLLECT_HEIGHT_ACCUMULATOR_SPEED_PER_MILLI * dtMillis);
             }
 
-            double collectDistanceSignal = -gamepad2.left_stick_x;
+            double collectDistanceSignal = safeCollector ? -1 : -gamepad2.left_stick_x;
             if (Math.abs(collectDistanceSignal) > 0.025) {
                 appendageControl.accumulateCollectDistanceSignal(collectDistanceSignal * COLLECT_DISTANCE_ACCUMULATOR_SPEED_PER_MILLI * dtMillis);
             }
         }
 
-        boolean slowMode = gamepad1.left_bumper || gamepad1.right_bumper;
-        driveInput = new Pose2d(gamepad1.left_stick_y, gamepad1.left_stick_x, -gamepad1.right_stick_x);
-        if (slowMode) {
+        boolean fastMode = gamepad1.left_bumper || gamepad1.right_bumper;
+        double collectSideIsFront = appendageControl != null && appendageControl.isScoring() ? -1d : 1d;
+        driveInput = new Pose2d(
+                collectSideIsFront * gamepad1.left_stick_y,
+                collectSideIsFront * gamepad1.left_stick_x,
+                -gamepad1.right_stick_x);
+        if (!fastMode) {
             driveInput = driveInput.div(3);
         }
         setDrivePower(driveInput);

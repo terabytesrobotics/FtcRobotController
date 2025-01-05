@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.teamcode;
 
-import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 class AppendageControl {
@@ -14,9 +13,8 @@ class AppendageControl {
 
     private double collectHeightSignal = 0.5d;
     private double collectDistanceSignal = 0d;
-    private boolean collect = false;
+    private double dunkSignal = 0;
     private boolean openPincer = false;
-    private boolean tiltTuck = false;
     private ElapsedTime untuckTimer = null;
 
     public AppendageControl() {
@@ -46,10 +44,6 @@ class AppendageControl {
         }
     }
 
-    public void applyTuck(boolean shouldTiltTuck) {
-        tiltTuck = shouldTiltTuck;
-    }
-
     public void setPincerOpen(boolean open) {
         openPincer = open;
     }
@@ -58,8 +52,8 @@ class AppendageControl {
         openPincer = !openPincer;
     }
 
-    public void applyCollect(boolean shouldCollect) {
-        collect = shouldCollect;
+    public void setDunkSignal(double signal) {
+        dunkSignal = signal;
     }
 
     public void setControlState(AppendageControlState state) {
@@ -102,16 +96,17 @@ class AppendageControl {
 
     private void evaluateEndEffector() {
         double armDegreesFromHorizontal = currentArmDegreesAboveHorizontal();
-        double tiltLevel = TerabytesIntoTheDeep.TILT_ORIGIN + (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * (90 - armDegreesFromHorizontal));
+        //double tiltLevel = TerabytesIntoTheDeep.TILT_ORIGIN + (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * (90 - armDegreesFromHorizontal));
         double tiltUp = TerabytesIntoTheDeep.TILT_ORIGIN + (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * (180 - armDegreesFromHorizontal));
-        double tiltDown = tiltLevel - (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * TerabytesIntoTheDeep.TILT_DOWN_RANGE);
+        double tiltDown = TerabytesIntoTheDeep.TILT_ORIGIN - (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * armDegreesFromHorizontal);
         boolean isCollecting = currentState == AppendageControlState.COLLECTING;
-        boolean isScoring = currentState == AppendageControlState.HIGH_BASKET || currentState == AppendageControlState.LOW_BASKET;
-        double tiltDefaultSetpoint = isCollecting ? tiltLevel : tiltUp;
-        double tiltSetpoint = isCollecting && collect && armDegreesFromHorizontal < 0 ? tiltDown : tiltDefaultSetpoint;
-        double tiltTuckSetpoint = isScoring ? TerabytesIntoTheDeep.TILE_DUNK : TerabytesIntoTheDeep.TILT_TUCKED;
+        double tiltActualSetpoint = isCollecting ? tiltDown : tiltUp;
+        if (isScoring()) {
+            tiltActualSetpoint = tiltActualSetpoint + (dunkSignal * TerabytesIntoTheDeep.TILT_DUNK_RANGE);
+        }
+        tiltActualSetpoint = Math.max(0, Math.min(1, tiltActualSetpoint));
         target.wristTarget = TerabytesIntoTheDeep.WRIST_ORIGIN;
-        target.tiltTarget = tiltTuck ? tiltTuckSetpoint : tiltSetpoint;
+        target.tiltTarget = tiltActualSetpoint;
         target.pincerTarget = openPincer ? TerabytesIntoTheDeep.PINCER_OPEN : TerabytesIntoTheDeep.PINCER_CLOSED;
     }
 
@@ -128,7 +123,7 @@ class AppendageControl {
     }
 
     private AppendageControlTarget evaluateDefensive() {
-        setArmAndExtenderSetpoints(90, 0);
+        setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_DEFENSIVE_ANGLE, 0);
         evaluateEndEffector();
         return target;
     }
@@ -183,5 +178,9 @@ class AppendageControl {
         double totalExtension = TerabytesIntoTheDeep.EXTENDER_MIN_LENGTH_INCHES + extensionInches;
         double horizontalOffset = totalExtension * Math.cos(Math.toRadians(currentArmDegreesAboveHorizontal()));
         return horizontalOffset - TerabytesIntoTheDeep.ARM_AXLE_OFFSET_FROM_ROBOT_CENTER_INCHES;
+    }
+
+    public boolean isScoring() {
+        return currentState == AppendageControlState.HIGH_BASKET || currentState == AppendageControlState.LOW_BASKET;
     }
 }
