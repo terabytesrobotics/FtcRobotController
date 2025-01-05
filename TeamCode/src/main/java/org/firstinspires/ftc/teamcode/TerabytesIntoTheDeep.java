@@ -555,7 +555,7 @@ public class TerabytesIntoTheDeep {
                 appendageControl.accumulateCollectHeightSignal(collectHeightSignal * COLLECT_HEIGHT_ACCUMULATOR_SPEED_PER_MILLI * dtMillis);
             }
 
-            double collectDistanceSignal = safeCollector ? -1 : -gamepad2.left_stick_x;
+            double collectDistanceSignal = safeCollector ? -0.5 : -gamepad2.left_stick_x;
             if (Math.abs(collectDistanceSignal) > 0.025) {
                 appendageControl.accumulateCollectDistanceSignal(collectDistanceSignal * COLLECT_DISTANCE_ACCUMULATOR_SPEED_PER_MILLI * dtMillis);
             }
