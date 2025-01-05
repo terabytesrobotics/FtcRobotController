@@ -15,18 +15,15 @@ class AppendageControl {
     private double collectDistanceSignal = 0d;
     private double dunkSignal = 0;
     private boolean openPincer = false;
-    private ElapsedTime untuckTimer = null;
 
-    public AppendageControl() {
-        currentState = AppendageControlState.TUCKED;
+    public AppendageControl(AppendageControlState initialState) {
+        currentState = initialState;
     }
 
     public AppendageControlTarget evaluate(int armLTicks, int armRTicks, int extenderTicks) {
         currentArmLTicks = armLTicks;
         currentArmRTicks = armRTicks;
         currentExtenderTicks = extenderTicks;
-
-        if (untuckTimer != null) return evaluateUntucking();
 
         switch (currentState) {
             case TUCKED:
@@ -57,9 +54,6 @@ class AppendageControl {
     }
 
     public void setControlState(AppendageControlState state) {
-        if (currentState == AppendageControlState.TUCKED) {
-            untuckTimer = new ElapsedTime();
-        }
         currentState = state;
     }
 
@@ -79,19 +73,6 @@ class AppendageControl {
     public void accumulateCollectHeightSignal(double collectHeight) {
         this.collectHeightSignal += collectHeight;
         this.collectHeightSignal = Math.max(0, Math.min(1, this.collectHeightSignal));
-    }
-
-    private AppendageControlTarget evaluateUntucking() {
-        double t = untuckTimer.milliseconds();
-        if (t < 2000) {
-            target.armTickTarget = TerabytesIntoTheDeep.ARM_LEVEL_TICKS;
-            target.tiltTarget = TerabytesIntoTheDeep.TILT_TUCKED;
-            target.wristTarget = TerabytesIntoTheDeep.WRIST_TUCKED;
-            target.pincerTarget = TerabytesIntoTheDeep.PINCER_CLOSED;
-        } else {
-            untuckTimer = null;
-        }
-        return target;
     }
 
     private void evaluateEndEffector() {

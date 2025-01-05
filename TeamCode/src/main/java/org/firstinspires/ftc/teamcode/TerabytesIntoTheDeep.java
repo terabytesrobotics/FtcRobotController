@@ -192,9 +192,6 @@ public class TerabytesIntoTheDeep {
     private ElapsedTime initStageTimer = new ElapsedTime();
     private AppendageControl appendageControl = null;
 
-    private Pose2d submersibleNudge = new Pose2d();
-    private Pose2d basketNudge = new Pose2d();
-
     public TerabytesIntoTheDeep(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, boolean debugMode) {
         this.allianceColor = allianceColor;
         this.gamepad1 = gamepad1;
@@ -243,6 +240,10 @@ public class TerabytesIntoTheDeep {
     public Pose2d getLatestPoseEstimate() {
         Pose2d latest = latestPoseEstimate;
         return latest == null ? new Pose2d() : latest;
+    }
+
+    public int getAppendageControlStateInteger() {
+        return appendageControl == null ? -1 : appendageControl.currentState.ordinal();
     }
 
     public int getArmLTickPosition() {
@@ -311,15 +312,14 @@ public class TerabytesIntoTheDeep {
         activateFrontCameraProcessing();
     }
 
-    public void teleopInit(Pose2d startPose, int armLTickPosition, int armRTickPosition, int extenderTickPosition) {
+    public void teleopInit(Pose2d startPose, AppendageControlState appendageControlState, int armLTickPosition, int armRTickPosition, int extenderTickPosition) {
         teleopInit(startPose);
         initExtenderMotor();
         initArmMotors();
         armLTicksAtInit = armLTickPosition;
         armRTicksAtInit = armRTickPosition;
         extenderTicksAtInit = extenderTickPosition;
-        appendageControl = new AppendageControl();
-        appendageControl.setControlState(AppendageControlState.DEFENSIVE);
+        appendageControl = new AppendageControl(appendageControlState);
     }
 
     public void initializeMechanicalBlocking() {
@@ -336,11 +336,6 @@ public class TerabytesIntoTheDeep {
 
     private void activateFrontCameraProcessing() {
         visionPortal.setProcessorEnabled(aprilTagProcessor, true);
-    }
-
-    public void clearNudge() {
-        submersibleNudge = new Pose2d();
-        basketNudge = new Pose2d();
     }
 
     private void evaluateAppendageInit() {
@@ -381,7 +376,7 @@ public class TerabytesIntoTheDeep {
                 armLTicksAtInit = 0;
                 armRTicksAtInit = 0;
                 extenderTicksAtInit = 0;
-                appendageControl = new AppendageControl();
+                appendageControl = new AppendageControl(AppendageControlState.TUCKED);
             }
         }
     }
@@ -529,6 +524,7 @@ public class TerabytesIntoTheDeep {
             if (a1ActivatedEvaluator.evaluate()) {
                 if (appendageControl.currentState == AppendageControlState.DEFENSIVE || appendageControl.currentState == AppendageControlState.TUCKED) {
                     appendageControl.resetCollectDistance();
+                    appendageControl.resetCollectHeight();
                     appendageControl.setControlState(AppendageControlState.COLLECTING);
                 } else if (appendageControl.currentState == AppendageControlState.HIGH_BASKET) {
                     appendageControl.setControlState(AppendageControlState.DEFENSIVE);
@@ -545,19 +541,24 @@ public class TerabytesIntoTheDeep {
                 appendageControl.togglePincer();
             }
 
+            // Only does anything in scoring positions
             appendageControl.setDunkSignal(gamepad2.right_trigger);
 
-            boolean safeCollector = appendageControl.currentState == AppendageControlState.COLLECTING && (gamepad1.b || gamepad2.b);
+            boolean isCollecting = appendageControl.currentState == AppendageControlState.COLLECTING;
+            if (isCollecting) {
+                boolean safeCollector = gamepad1.b || gamepad2.b;
 
-            // Up is negative on stick y axis
-            double collectHeightSignal = safeCollector ? 1 : -gamepad2.right_stick_y;
-            if (Math.abs(collectHeightSignal) > 0.025) {
-                appendageControl.accumulateCollectHeightSignal(collectHeightSignal * COLLECT_HEIGHT_ACCUMULATOR_SPEED_PER_MILLI * dtMillis);
-            }
+                // Up is negative on stick y axis
+                double collectHeightSignal = safeCollector ? 1 : -gamepad2.right_stick_y;
+                double collectDistanceSignal = safeCollector ? -0.5 : -gamepad2.left_stick_x;
 
-            double collectDistanceSignal = safeCollector ? -0.5 : -gamepad2.left_stick_x;
-            if (Math.abs(collectDistanceSignal) > 0.025) {
-                appendageControl.accumulateCollectDistanceSignal(collectDistanceSignal * COLLECT_DISTANCE_ACCUMULATOR_SPEED_PER_MILLI * dtMillis);
+                if (Math.abs(collectHeightSignal) > 0.025) {
+                    appendageControl.accumulateCollectHeightSignal(collectHeightSignal * COLLECT_HEIGHT_ACCUMULATOR_SPEED_PER_MILLI * dtMillis);
+                }
+
+                if (Math.abs(collectDistanceSignal) > 0.025) {
+                    appendageControl.accumulateCollectDistanceSignal(collectDistanceSignal * COLLECT_DISTANCE_ACCUMULATOR_SPEED_PER_MILLI * dtMillis);
+                }
             }
         }
 
