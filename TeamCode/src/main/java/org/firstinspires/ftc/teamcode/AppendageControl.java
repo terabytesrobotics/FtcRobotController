@@ -47,8 +47,12 @@ class AppendageControl {
         tiltTuck = shouldTiltTuck;
     }
 
-    public void applyOpenPincer(boolean shouldOpenPincer) {
-        openPincer = shouldOpenPincer;
+    public void setPincerOpen(boolean open) {
+        openPincer = open;
+    }
+
+    public void togglePincer() {
+        openPincer = !openPincer;
     }
 
     public void applyCollect(boolean shouldCollect) {

@@ -52,6 +52,7 @@ import java.util.Queue;
 public class TerabytesIntoTheDeep {
 
     public static final double COLLECT_DISTANCE_ACCUMULATOR_SPEED_PER_MILLI = 1 / 1350.0;
+    public static final double COLLECT_HEIGHT_ACCUMULATOR_SPEED_PER_MILLI = 1 / 750.0;
 
     public static final double GEAR_RATIO = 13.7d;
     public static final double WORM_RATIO = 28.0d;
@@ -169,6 +170,7 @@ public class TerabytesIntoTheDeep {
     private final OnActivatedEvaluator y1ActivatedEvaluator;
     private final OnActivatedEvaluator x1ActivatedEvaluator;
     private final OnActivatedEvaluator a2ActivatedEvaluator;
+    private final OnActivatedEvaluator rb2ActivatedEvaluator;
 
     // Sensing
     private final TouchSensor armMin;
@@ -217,6 +219,7 @@ public class TerabytesIntoTheDeep {
         b1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.b);
         y1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.y);
         x1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.x);
+        rb2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_bumper);
 
         // TODO: Setup the blinkin LEDs
         //blinkinLedDriver.setPattern(RevBlinkinLedDriver.BlinkinPattern.DARK_GREEN);
@@ -534,14 +537,21 @@ public class TerabytesIntoTheDeep {
                 }
             }
 
-            appendageControl.applyOpenPincer(gamepad2.x || gamepad2.y);
+            if (rb2ActivatedEvaluator.evaluate()) {
+                appendageControl.togglePincer();
+            }
+
             appendageControl.applyCollect(gamepad2.a);
             appendageControl.applyTuck(gamepad2.b);
 
-            double collectAccumulatorSignal = gamepad2.right_trigger - gamepad2.left_trigger;
-            boolean collectAccumulatorPastThreshold = Math.abs(collectAccumulatorSignal) > 0.025;
-            if (collectAccumulatorPastThreshold) {
-                appendageControl.accumulateCollectDistance(collectAccumulatorSignal * COLLECT_DISTANCE_ACCUMULATOR_SPEED_PER_MILLI * dtMillis);
+            double collectDistanceSignal = -gamepad2.right_stick_y;
+            if (Math.abs(collectDistanceSignal) > 0.025) {
+                appendageControl.accumulateCollectDistance(collectDistanceSignal * COLLECT_DISTANCE_ACCUMULATOR_SPEED_PER_MILLI * dtMillis);
+            }
+
+            double collectHeightSignal = -gamepad2.left_stick_y;
+            if (Math.abs(collectHeightSignal) > 0.025) {
+                //appendageControl.accumulateCollectHeight(collectHeightSignal * COLLECT_HEIGHT_ACCUMULATOR_SPEED_PER_MILLI * dtMillis);
             }
         }
 
