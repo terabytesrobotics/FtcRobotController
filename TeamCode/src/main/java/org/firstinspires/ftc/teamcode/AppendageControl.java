@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode;
 
+import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 class AppendageControl {
@@ -7,10 +8,12 @@ class AppendageControl {
     private int currentArmLTicks;
     private int currentArmRTicks;
     private int currentExtenderTicks;
+
     public AppendageControlState currentState;
     public final AppendageControlTarget target = new AppendageControlTarget(0, 0, TerabytesIntoTheDeep.TILT_ORIGIN, TerabytesIntoTheDeep.WRIST_ORIGIN, TerabytesIntoTheDeep.PINCER_CENTER);
 
-    private double collectDistance = 0d;
+    private double collectHeightSignal = 0.5d;
+    private double collectDistanceSignal = 0d;
     private boolean collect = false;
     private boolean openPincer = false;
     private boolean tiltTuck = false;
@@ -66,13 +69,22 @@ class AppendageControl {
         currentState = state;
     }
 
-    public void clearCollectDistance() {
-        collectDistance = 0;
+    public void resetCollectDistance() {
+        collectDistanceSignal = 0;
     }
 
-    public void accumulateCollectDistance(double collectDistance) {
-        this.collectDistance += collectDistance;
-        this.collectDistance = Math.max(0, Math.min(1, this.collectDistance));
+    public void resetCollectHeight() {
+        collectHeightSignal = 0.5;
+    }
+
+    public void accumulateCollectDistanceSignal(double collectDistance) {
+        this.collectDistanceSignal += collectDistance;
+        this.collectDistanceSignal = Math.max(0, Math.min(1, this.collectDistanceSignal));
+    }
+
+    public void accumulateCollectHeightSignal(double collectHeight) {
+        this.collectHeightSignal += collectHeight;
+        this.collectHeightSignal = Math.max(0, Math.min(1, this.collectHeightSignal));
     }
 
     private AppendageControlTarget evaluateUntucking() {
@@ -103,7 +115,7 @@ class AppendageControl {
 
     private void setArmAndExtenderSetpoints(double angleAboveHorizontal, double inchesExtension) {
         target.armTickTarget = TerabytesIntoTheDeep.ARM_LEVEL_TICKS + (angleAboveHorizontal * TerabytesIntoTheDeep.ARM_TICKS_PER_DEGREE);
-        target.extenderTickTarget = inchesExtension * TerabytesIntoTheDeep.EXTENDER_TICS_PER_INCH;
+        target.extenderTickTarget = inchesExtension * TerabytesIntoTheDeep.EXTENDER_TICKS_PER_INCH;
     }
 
     private AppendageControlTarget evaluateTucked() {
@@ -120,16 +132,21 @@ class AppendageControl {
     }
 
     private AppendageControlTarget evaluateCollecting() {
-        double clampedCollectDistance = Math.max(0, Math.min(1, collectDistance));
-        double minimumAchievableDistance = Math.sqrt((TerabytesIntoTheDeep.EXTENDER_MIN_LENGTH_INCHES * TerabytesIntoTheDeep.EXTENDER_MIN_LENGTH_INCHES) - (TerabytesIntoTheDeep.ARM_COLLECT_DEPTH_INCHES * TerabytesIntoTheDeep.ARM_COLLECT_DEPTH_INCHES));
-        double maximumAchievableDistance = Math.sqrt((TerabytesIntoTheDeep.EXTENDER_MAX_TOTAL_LENGTH * TerabytesIntoTheDeep.EXTENDER_MAX_TOTAL_LENGTH) - (TerabytesIntoTheDeep.ARM_COLLECT_DEPTH_INCHES * TerabytesIntoTheDeep.ARM_COLLECT_DEPTH_INCHES));
-        double desiredDistance = minimumAchievableDistance + (clampedCollectDistance * (maximumAchievableDistance - minimumAchievableDistance));
-        double desiredArmAngle = -Math.toDegrees(Math.atan2(TerabytesIntoTheDeep.ARM_COLLECT_DEPTH_INCHES, desiredDistance));
+        double clampedCollectHeightSignal = Math.max(0, Math.min(1, collectHeightSignal));
+        double desiredCollectHeight =
+                TerabytesIntoTheDeep.ARM_MIN_COLLECT_HEIGHT_INCHES +
+                        (clampedCollectHeightSignal * (TerabytesIntoTheDeep.ARM_MAX_COLLECT_HEIGHT_INCHES - TerabytesIntoTheDeep.ARM_MIN_COLLECT_HEIGHT_INCHES));
+        double desiredCollectDepth = TerabytesIntoTheDeep.ARM_AXLE_HEIGHT_INCHES - desiredCollectHeight;
+        double clampedCollectDistanceSignal = Math.max(0, Math.min(1, collectDistanceSignal));
+        double minimumAchievableDistanceInches = Math.sqrt((TerabytesIntoTheDeep.EXTENDER_MIN_LENGTH_INCHES * TerabytesIntoTheDeep.EXTENDER_MIN_LENGTH_INCHES) - (desiredCollectDepth * desiredCollectDepth));
+        double maximumAchievableDistanceInches = Math.sqrt((TerabytesIntoTheDeep.EXTENDER_MAX_TOTAL_LENGTH * TerabytesIntoTheDeep.EXTENDER_MAX_TOTAL_LENGTH) - (desiredCollectDepth * desiredCollectDepth));
+        double desiredDistance = minimumAchievableDistanceInches + (clampedCollectDistanceSignal * (maximumAchievableDistanceInches - minimumAchievableDistanceInches));
+        double desiredArmAngle = -Math.toDegrees(Math.atan2(desiredCollectDepth, desiredDistance));
         double extensionLengthToApply = 0;
         double currentArmAngle = currentArmDegreesAboveHorizontal();
         if (currentArmAngle < 0) {
-            double currentImpliedDistance = TerabytesIntoTheDeep.ARM_COLLECT_DEPTH_INCHES / Math.tan(Math.toRadians(-currentArmAngle));
-            double currentImpliedTotalLength = Math.sqrt((TerabytesIntoTheDeep.ARM_COLLECT_DEPTH_INCHES * TerabytesIntoTheDeep.ARM_COLLECT_DEPTH_INCHES) + (currentImpliedDistance * currentImpliedDistance));
+            double currentImpliedDistance = desiredCollectDepth / Math.tan(Math.toRadians(-currentArmAngle));
+            double currentImpliedTotalLength = Math.sqrt((desiredCollectDepth * desiredCollectDepth) + (currentImpliedDistance * currentImpliedDistance));
             double limitedCurrentImpliedTotalLength = Math.min(TerabytesIntoTheDeep.EXTENDER_MAX_TOTAL_LENGTH, currentImpliedTotalLength);
             extensionLengthToApply = Math.max(0, limitedCurrentImpliedTotalLength - TerabytesIntoTheDeep.EXTENDER_MIN_LENGTH_INCHES);
         }
@@ -140,13 +157,13 @@ class AppendageControl {
     }
 
     private AppendageControlTarget evaluateLowBasket() {
-        setArmAndExtenderSetpoints(105, 6);
+        setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_BASKET_ANGLE, TerabytesIntoTheDeep.EXTENDER_MAX_EXTENSION_INCHES / 2);
         evaluateEndEffector();
         return target;
     }
 
     private AppendageControlTarget evaluateHighBasket() {
-        setArmAndExtenderSetpoints(90, 14);
+        setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_BASKET_ANGLE, TerabytesIntoTheDeep.EXTENDER_MAX_EXTENSION_INCHES);
         evaluateEndEffector();
         return target;
     }
@@ -156,5 +173,13 @@ class AppendageControl {
         int averageArmTicks = (currentArmLTicks + currentArmRTicks) / 2;
         double armDegreesFromZero = averageArmTicks / TerabytesIntoTheDeep.ARM_TICKS_PER_DEGREE;
         return armDegreesFromZero - TerabytesIntoTheDeep.ARM_LEVEL_DEGREES_ABOVE_ZERO;
+    }
+
+    public double currentEndEffectorOffsetFromRobotCenter() {
+        if (currentState != AppendageControlState.COLLECTING) return 0;
+        double extensionInches = currentExtenderTicks / TerabytesIntoTheDeep.EXTENDER_TICKS_PER_INCH;
+        double totalExtension = TerabytesIntoTheDeep.EXTENDER_MIN_LENGTH_INCHES + extensionInches;
+        double horizontalOffset = totalExtension * Math.cos(Math.toRadians(currentArmDegreesAboveHorizontal()));
+        return horizontalOffset - TerabytesIntoTheDeep.ARM_AXLE_OFFSET_FROM_ROBOT_CENTER_INCHES;
     }
 }

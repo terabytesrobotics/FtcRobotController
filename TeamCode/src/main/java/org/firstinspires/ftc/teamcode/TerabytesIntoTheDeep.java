@@ -62,19 +62,19 @@ public class TerabytesIntoTheDeep {
     public static final double ARM_LEVEL_TICKS_EMPIRICAL = 0;
     public static final double ARM_LEVEL_DEGREES_ABOVE_ZERO_EMPIRICAL = 45; // TODO: Tune this to actual level up from min.
     public static final double ARM_COLLECT_MINIMUM_DEGREES = -22.5;
-    public static final double ARM_LEVEL_HEIGHT_INCHES = 15.5d;
-    public static final double ARM_COLLECT_HEIGHT_INCHES = 10d; // TODO: Tune this to actual desired
-    public static final double ARM_COLLECT_DEPTH_INCHES = ARM_LEVEL_HEIGHT_INCHES - ARM_COLLECT_HEIGHT_INCHES;
-    public static final double ARM_MAX_SETPOINT_SPEED_TICKS_PER_MILLI = (ARM_TICKS_PER_DEGREE * 30.0 / 1000.0);
+    public static final double ARM_AXLE_HEIGHT_INCHES = 15.5d;
+    public static final double ARM_AXLE_OFFSET_FROM_ROBOT_CENTER_INCHES = 5.5; // TODO: Tune this to reality
+    public static final double ARM_MIN_COLLECT_HEIGHT_INCHES = 8d;
+    public static final double ARM_MAX_COLLECT_HEIGHT_INCHES = 12d;
+    public static final double ARM_BASKET_ANGLE = 90;
 
     // TODO: tune extender parameters to get accurate ratio of tick per inch and no-extension length
     public static final double EXTENDER_MIN_LENGTH_INCHES = 15.75d;
     public static final double EXTENDER_GEAR_RATIO = 5.2d;
-    public static final double EXTENDER_TICS_PER_INCH = (EXTENDER_GEAR_RATIO * 28 / 0.8 / 2) * 2.54;
-    public static final double EXTENDER_MAX_EXTENSION_INCHES = 10.0d;
+    public static final double EXTENDER_TICKS_PER_INCH = (EXTENDER_GEAR_RATIO * 28 / 0.8 / 2) * 2.54; // TODO: Inaccurate, rederive
+    public static final double EXTENDER_MAX_EXTENSION_INCHES = 12.0d; // TODO: This seems inaccurate to make up for inaccurate tic per inch
     public static final double EXTENDER_MAX_TOTAL_LENGTH = EXTENDER_MIN_LENGTH_INCHES + EXTENDER_MAX_EXTENSION_INCHES;
-    public static final double EXTENDER_MAX_LENGTH_TICKS = EXTENDER_MAX_EXTENSION_INCHES * EXTENDER_TICS_PER_INCH;
-    public static final double EXTENDER_SETPOINT_SPEED_TICKS_PER_MILLIS = (EXTENDER_TICS_PER_INCH * 1.5 / 1000.0);
+    public static final double EXTENDER_MAX_LENGTH_TICKS = EXTENDER_MAX_EXTENSION_INCHES * EXTENDER_TICKS_PER_INCH; //
 
     public static final double TILT_ORIGIN = 0.0;
     public static final double TILT_TICKS_PER_DEGREE = 1.0 / 270.0;
@@ -524,7 +524,7 @@ public class TerabytesIntoTheDeep {
         if (appendageControl != null) {
             if (a1ActivatedEvaluator.evaluate()) {
                 if (appendageControl.currentState == AppendageControlState.DEFENSIVE || appendageControl.currentState == AppendageControlState.TUCKED) {
-                    appendageControl.clearCollectDistance();
+                    appendageControl.resetCollectDistance();
                     appendageControl.setControlState(AppendageControlState.COLLECTING);
                 } else if (appendageControl.currentState == AppendageControlState.HIGH_BASKET) {
                     appendageControl.setControlState(AppendageControlState.DEFENSIVE);
@@ -542,16 +542,16 @@ public class TerabytesIntoTheDeep {
             }
 
             appendageControl.applyCollect(gamepad2.a);
-            appendageControl.applyTuck(gamepad2.b);
+            appendageControl.applyTuck(gamepad2.b || gamepad1.right_bumper);
 
-            double collectDistanceSignal = -gamepad2.right_stick_y;
-            if (Math.abs(collectDistanceSignal) > 0.025) {
-                appendageControl.accumulateCollectDistance(collectDistanceSignal * COLLECT_DISTANCE_ACCUMULATOR_SPEED_PER_MILLI * dtMillis);
+            double collectHeightSignal = -gamepad2.right_stick_y;
+            if (Math.abs(collectHeightSignal) > 0.025) {
+                appendageControl.accumulateCollectHeightSignal(collectHeightSignal * COLLECT_HEIGHT_ACCUMULATOR_SPEED_PER_MILLI * dtMillis);
             }
 
-            double collectHeightSignal = -gamepad2.left_stick_y;
-            if (Math.abs(collectHeightSignal) > 0.025) {
-                //appendageControl.accumulateCollectHeight(collectHeightSignal * COLLECT_HEIGHT_ACCUMULATOR_SPEED_PER_MILLI * dtMillis);
+            double collectDistanceSignal = -gamepad2.left_stick_x;
+            if (Math.abs(collectDistanceSignal) > 0.025) {
+                appendageControl.accumulateCollectDistanceSignal(collectDistanceSignal * COLLECT_DISTANCE_ACCUMULATOR_SPEED_PER_MILLI * dtMillis);
             }
         }
 
