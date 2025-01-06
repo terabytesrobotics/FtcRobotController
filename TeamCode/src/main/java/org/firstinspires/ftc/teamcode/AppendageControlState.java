@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode;
 
-enum AppendageControlState {
+public enum AppendageControlState {
     TUCKED,
     DEFENSIVE,
     COLLECTING,

@@ -1,8 +1,9 @@
 package org.firstinspires.ftc.teamcode;
 
-import com.qualcomm.robotcore.util.ElapsedTime;
-
 class AppendageControl {
+
+    private static int ARM_SETTLED_TICK_THRESHOLD = 32;
+    private static int EXTENDER_SETTLED_TICK_THRESHOLD = 24;
 
     private int currentArmLTicks;
     private int currentArmRTicks;
@@ -27,18 +28,25 @@ class AppendageControl {
 
         switch (currentState) {
             case TUCKED:
-                return evaluateTucked();
+                evaluateTucked();
+                break;
             case DEFENSIVE:
-                return evaluateDefensive();
+                evaluateDefensive();
+                break;
             case COLLECTING:
-                return evaluateCollecting();
+                evaluateCollecting();
+                break;
             case LOW_BASKET:
-                return evaluateLowBasket();
+                evaluateLowBasket();
+                break;
             case HIGH_BASKET:
-                return evaluateHighBasket();
+                evaluateHighBasket();
+                break;
             default:
                 throw new IllegalArgumentException("Unexpected state: " + currentState);
         }
+
+        return target;
     }
 
     public void setPincerOpen(boolean open) {
@@ -96,20 +104,18 @@ class AppendageControl {
         target.extenderTickTarget = inchesExtension * TerabytesIntoTheDeep.EXTENDER_TICKS_PER_INCH;
     }
 
-    private AppendageControlTarget evaluateTucked() {
+    private void evaluateTucked() {
         target.armTickTarget = 0;
         target.extenderTickTarget = 0;
         evaluateEndEffector();
-        return target;
     }
 
-    private AppendageControlTarget evaluateDefensive() {
+    private void evaluateDefensive() {
         setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_DEFENSIVE_ANGLE, 0);
         evaluateEndEffector();
-        return target;
     }
 
-    private AppendageControlTarget evaluateCollecting() {
+    private void evaluateCollecting() {
         double clampedCollectHeightSignal = Math.max(0, Math.min(1, collectHeightSignal));
         double desiredCollectHeight =
                 TerabytesIntoTheDeep.ARM_MIN_COLLECT_HEIGHT_INCHES +
@@ -131,19 +137,16 @@ class AppendageControl {
 
         setArmAndExtenderSetpoints(desiredArmAngle, extensionLengthToApply);
         evaluateEndEffector();
-        return target;
     }
 
-    private AppendageControlTarget evaluateLowBasket() {
+    private void evaluateLowBasket() {
         setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_BASKET_ANGLE, TerabytesIntoTheDeep.EXTENDER_MAX_EXTENSION_INCHES / 2);
         evaluateEndEffector();
-        return target;
     }
 
-    private AppendageControlTarget evaluateHighBasket() {
+    private void evaluateHighBasket() {
         setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_BASKET_ANGLE, TerabytesIntoTheDeep.EXTENDER_MAX_EXTENSION_INCHES);
         evaluateEndEffector();
-        return target;
     }
 
     // Negative when collecting
@@ -163,5 +166,13 @@ class AppendageControl {
 
     public boolean isScoring() {
         return currentState == AppendageControlState.HIGH_BASKET || currentState == AppendageControlState.LOW_BASKET;
+    }
+
+    public boolean isSettled() {
+        boolean armLSettled = Math.abs(target.armTickTarget - currentArmLTicks) < ARM_SETTLED_TICK_THRESHOLD;
+        boolean armRSettled = Math.abs(target.armTickTarget - currentArmRTicks) < ARM_SETTLED_TICK_THRESHOLD;
+        boolean armSettled = armLSettled && armRSettled;
+        boolean extenderSettled = Math.abs(target.extenderTickTarget - currentExtenderTicks) < EXTENDER_SETTLED_TICK_THRESHOLD;
+        return armSettled && extenderSettled;
     }
 }

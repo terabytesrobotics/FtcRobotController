@@ -147,8 +147,8 @@ public class TerabytesIntoTheDeep {
     private final Queue<Pose2d> poseQueue = new LinkedList<>();
 
     // Command sequence state
-    private final ArrayList<TerabytesCommand> commandSequence = new ArrayList<>();
-    private TerabytesCommand currentCommand = null;
+    private final ArrayList<IntoTheDeepCommand> commandSequence = new ArrayList<>();
+    private IntoTheDeepCommand currentCommand = null;
     private final ElapsedTime currentCommandTime = new ElapsedTime();
     private final ElapsedTime currentCommandSettledTime = new ElapsedTime();
     private IntoTheDeepOpModeState continuationState = null;
@@ -205,6 +205,7 @@ public class TerabytesIntoTheDeep {
                 .setCamera(frontCamera)
                 .addProcessor(aprilTagProcessor)
                 .build();
+        visionPortal.setProcessorEnabled(aprilTagProcessor, true);
 
         drive = new SampleMecanumDrive(hardwareMap);
         drive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
@@ -302,14 +303,12 @@ public class TerabytesIntoTheDeep {
         timeSinceInit = new ElapsedTime();
         isAutonomous = true;
         drive.setPoseEstimate(autonomousPlan.getStartingPose(allianceColor));
-        activateFrontCameraProcessing();
         setCommandSequence(autonomousPlan.getCommandSequence(allianceColor));
     }
 
     public void teleopInit(Pose2d startPose) {
         timeSinceInit = new ElapsedTime();
         drive.setPoseEstimate(startPose == null ? new Pose2d() : startPose);
-        activateFrontCameraProcessing();
     }
 
     public void teleopInit(Pose2d startPose, AppendageControlState appendageControlState, int armLTickPosition, int armRTickPosition, int extenderTickPosition) {
@@ -332,10 +331,6 @@ public class TerabytesIntoTheDeep {
     public void startup(IntoTheDeepOpModeState startupState) {
         timeInState = new ElapsedTime();
         state = startupState;
-    }
-
-    private void activateFrontCameraProcessing() {
-        visionPortal.setProcessorEnabled(aprilTagProcessor, true);
     }
 
     private void evaluateAppendageInit() {
@@ -595,19 +590,25 @@ public class TerabytesIntoTheDeep {
             currentCommand = commandSequence.get(0);
             currentCommandTime.reset();
             currentCommandSettledTime.reset();
-
-            if (currentCommand.FrontCameraOn != null && currentCommand.FrontCameraOn) {
-                activateFrontCameraProcessing();
-            }
         }
 
-        if (currentCommand.DriveDirectToPose != null) {
+        if (currentCommand.DriveToPose != null) {
             setDrivePower(
-                    getPoseTargetAutoDriveControl(currentCommand.DriveDirectToPose));
+                    getPoseTargetAutoDriveControl(currentCommand.DriveToPose));
         }
 
-        boolean driveCompleted = currentCommand.DriveDirectToPose == null || isAtPoseTarget(currentCommand.DriveDirectToPose, currentCommand.SettleThresholdRatio);
-        boolean settledRightNow = driveCompleted;
+        if (currentCommand.AppendageCommand != null && appendageControl != null) {
+            appendageControl.setControlState(currentCommand.AppendageCommand.AppendageState);
+            double dunkSignal = currentCommand.AppendageCommand.Dunk ? 0 : 1;
+            appendageControl.setDunkSignal(dunkSignal);
+            appendageControl.setPincerOpen(currentCommand.AppendageCommand.PincerOpen);
+
+            // TODO: Collection substates
+        }
+
+        boolean driveCompleted = currentCommand.DriveToPose == null || isAtPoseTarget(currentCommand.DriveToPose, currentCommand.DriveSettleThresholdRatio);
+        boolean appendageSettled = currentCommand.AppendageCommand == null || (appendageControl != null && appendageControl.isSettled());
+        boolean settledRightNow = driveCompleted && appendageSettled;
 
         boolean minTimeElapsed = currentCommandTime.milliseconds() > currentCommand.MinTimeMillis;
         boolean commandCompleted = settledRightNow && minTimeElapsed && currentCommandSettledTime.milliseconds() > currentCommand.SettleTimeMillis;
@@ -785,11 +786,11 @@ public class TerabytesIntoTheDeep {
         }
     }
 
-    private void setCommandSequence(List<TerabytesCommand> commands) {
+    private void setCommandSequence(List<IntoTheDeepCommand> commands) {
         setCommandSequence(IntoTheDeepOpModeState.STOPPED_UNTIL_END, commands);
     }
 
-    private void setCommandSequence(IntoTheDeepOpModeState _continuationState, List<TerabytesCommand> commands) {
+    private void setCommandSequence(IntoTheDeepOpModeState _continuationState, List<IntoTheDeepCommand> commands) {
         commandSequence.clear();
         commandSequence.addAll(commands);
         continuationState = _continuationState;
