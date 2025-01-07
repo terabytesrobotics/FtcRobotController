@@ -563,14 +563,12 @@ public class TerabytesIntoTheDeep {
 
         boolean fastMode = gamepad1.left_bumper;
         // -1 means collect is front
-        double collectSideIsFront =
-                appendageControl != null &&
-                        appendageControl.isScoring() ? -1d : 1d;
+        boolean isScoring = appendageControl != null && appendageControl.isScoring();
+        double collectSideIsFront = isScoring ? -1d : 1d;
         double adjustedFrontBackStickInput = collectSideIsFront * gamepad1.left_stick_y;
         double adjustedLeftRightStickInput = collectSideIsFront * gamepad1.left_stick_x;
 
-        // Dpad control ability
-        double leftRightInput = gamepad1.dpad_right ? collectSideIsFront : gamepad1.dpad_left ? -collectSideIsFront : adjustedLeftRightStickInput;
+        Pose2d driverHeadlessInput = getScaledHeadlessDriverInput(gamepad1);
 
         if (gamepad1.dpad_right) {
             driveInput = new Pose2d(
@@ -582,9 +580,16 @@ public class TerabytesIntoTheDeep {
                     0,
                     -collectSideIsFront,
                     -gamepad1.right_stick_x);
-        } else {
-            driveInput = getScaledHeadlessDriverInput(gamepad1);
+        } else if (gamepad1.left_stick_button) {
+            if (isScoring) {
+                driveInput = getPoseTargetAutoDriveControl(IntoTheDeepPose.HIGH_BASKET_SCORING_APPROACH.getPose(allianceColor));
+            } else {
+                // Could add more drive targets for other states
+                driveInput = new Pose2d();
+            }
         }
+
+        driveInput = driveInput.plus(driverHeadlessInput);
 
         if (!fastMode) {
             driveInput = driveInput.div(2);

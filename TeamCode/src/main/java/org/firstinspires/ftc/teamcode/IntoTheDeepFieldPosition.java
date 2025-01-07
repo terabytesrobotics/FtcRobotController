@@ -24,7 +24,8 @@ public enum IntoTheDeepFieldPosition {
     SUBMERSIBLE_APPROACH_REAR_SIDE(48, 0),
     SUBMERSIBLE_APPROACH_AUDIENCE_SIDE(-48, 0),
 
-    BASKET_APPROACH(48, 48);
+    BASKET_APPROACH(48, 48),
+    HIGH_BASKET_SCORING_APPROACH(48, 48);
 
     public final Vector2d BluePosition;
     public final Vector2d RedPosition;
