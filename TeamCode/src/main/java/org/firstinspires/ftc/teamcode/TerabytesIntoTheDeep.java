@@ -51,8 +51,8 @@ import java.util.Queue;
 
 public class TerabytesIntoTheDeep {
 
-    public static final double COLLECT_DISTANCE_ACCUMULATOR_SPEED_PER_MILLI = 1 / 1350.0;
-    public static final double COLLECT_HEIGHT_ACCUMULATOR_SPEED_PER_MILLI = 1 / 750.0;
+    public static final double COLLECT_DISTANCE_ACCUMULATOR_SPEED_PER_MILLI = 1 / 3000.0;
+    public static final double COLLECT_HEIGHT_ACCUMULATOR_SPEED_PER_MILLI = 1 / 2000.0;
 
     public static final double GEAR_RATIO = 13.7d;
     public static final double WORM_RATIO = 28.0d;
@@ -61,21 +61,21 @@ public class TerabytesIntoTheDeep {
     public static final double ARM_LEVEL_TICKS = ARM_LEVEL_DEGREES_ABOVE_ZERO * ARM_TICKS_PER_DEGREE;
     public static final double ARM_LEVEL_TICKS_EMPIRICAL = 0;
     public static final double ARM_LEVEL_DEGREES_ABOVE_ZERO_EMPIRICAL = 45; // TODO: Tune this to actual level up from min.
-    public static final double ARM_COLLECT_MINIMUM_DEGREES = -22.5;
     public static final double ARM_AXLE_HEIGHT_INCHES = 15.5d;
     public static final double ARM_AXLE_OFFSET_FROM_ROBOT_CENTER_INCHES = 5.5; // TODO: Tune this to reality
-    public static final double ARM_MIN_COLLECT_HEIGHT_INCHES = 8d;
-    public static final double ARM_MAX_COLLECT_HEIGHT_INCHES = 12d;
+    public static final double ARM_MIN_COLLECT_HEIGHT_INCHES = 7d;
+    public static final double ARM_MAX_COLLECT_HEIGHT_INCHES = 13d;
     public static final double ARM_DEFENSIVE_ANGLE = 55.6;
     public static final double ARM_BASKET_ANGLE = 90;
 
     // TODO: tune extender parameters to get accurate ratio of tick per inch and no-extension length
-    public static final double EXTENDER_MIN_LENGTH_INCHES = 15.75d;
+    public static final double EXTENDER_MIN_LENGTH_INCHES = 16d;
     public static final double EXTENDER_GEAR_RATIO = 5.2d;
-    public static final double EXTENDER_TICKS_PER_INCH = (EXTENDER_GEAR_RATIO * 28 / 0.8 / 2) * 2.54; // TODO: Inaccurate, rederive
-    public static final double EXTENDER_MAX_EXTENSION_INCHES = 12.0d; // TODO: This seems inaccurate to make up for inaccurate tic per inch
+    public static final double EXTENDER_TICKS_PER_INCH = (EXTENDER_GEAR_RATIO * 28 / 0.8 / 2) * 2.54;
+    public static final double EXTENDER_MAX_EXTENSION_INCHES = 11.75d;
     public static final double EXTENDER_MAX_TOTAL_LENGTH = EXTENDER_MIN_LENGTH_INCHES + EXTENDER_MAX_EXTENSION_INCHES;
     public static final double EXTENDER_MAX_LENGTH_TICKS = EXTENDER_MAX_EXTENSION_INCHES * EXTENDER_TICKS_PER_INCH; //
+    public static final double EXTENDER_DEFLECTION_RATIO = 1d / 12; // One inch per foot of extension
 
     public static final double TILT_ORIGIN = 0.0;
     public static final double TILT_TICKS_PER_DEGREE = 1.0 / 270.0;
@@ -88,8 +88,8 @@ public class TerabytesIntoTheDeep {
     public static final double TILT_LOW_PROFILE = TILT_STRAIGHT;
     public static final double TILT_PREGRAB = TILT_STRAIGHT / 2;
 
-    public static final double WRIST_ORIGIN = 0.9;
-    public static final double WRIST_RANGE = 0.25;
+    public static final double WRIST_ORIGIN = 0.5;
+    public static final double WRIST_RANGE = 0.35;
     public static final double WRIST_TUCKED = WRIST_ORIGIN;
 
     public static final double PINCER_CENTER = 0.575;
@@ -262,6 +262,7 @@ public class TerabytesIntoTheDeep {
     private Pose2d driveInput = new Pose2d();
     public TelemetryPacket getTelemetryPacket() {
         TelemetryPacket packet = new TelemetryPacket();
+        packet.put("loopTime", loopTime.milliseconds());
         packet.put("x", latestPoseEstimate.getX());
         packet.put("y", latestPoseEstimate.getY());
         packet.put("heading", latestPoseEstimate.getHeading());
@@ -536,16 +537,17 @@ public class TerabytesIntoTheDeep {
                 appendageControl.togglePincer();
             }
 
-            // Only does anything in scoring positions
             appendageControl.setDunkSignal(gamepad2.right_trigger);
+            appendageControl.setWristSignal(gamepad2.right_stick_x);
+            appendageControl.applyTiltLevel(gamepad2.b || gamepad1.b);
 
             boolean isCollecting = appendageControl.currentState == AppendageControlState.COLLECTING;
             if (isCollecting) {
-                boolean safeCollector = gamepad1.b || gamepad2.b;
 
                 // Up is negative on stick y axis
-                double collectHeightSignal = safeCollector ? 1 : -gamepad2.right_stick_y;
-                double collectDistanceSignal = safeCollector ? -0.5 : -gamepad2.left_stick_x;
+                double collectHeightSignal = -gamepad2.left_stick_y;
+                double collectDistanceSignalNoOverride = gamepad2.dpad_up ? 1 : gamepad2.dpad_down ? -1 : 0;
+                double collectDistanceSignal = collectDistanceSignalNoOverride;
 
                 if (Math.abs(collectHeightSignal) > 0.025) {
                     appendageControl.accumulateCollectHeightSignal(collectHeightSignal * COLLECT_HEIGHT_ACCUMULATOR_SPEED_PER_MILLI * dtMillis);
@@ -558,10 +560,20 @@ public class TerabytesIntoTheDeep {
         }
 
         boolean fastMode = gamepad1.left_bumper || gamepad1.right_bumper;
-        double collectSideIsFront = appendageControl != null && appendageControl.isScoring() ? -1d : 1d;
+        // -1 means collect is front
+        double collectSideIsFront =
+                appendageControl != null &&
+                        appendageControl.isScoring() ? -1d : 1d;
+        double adjustedFrontBackStickInput = collectSideIsFront * gamepad1.left_stick_y;
+        double adjustedLeftRightStickInput = collectSideIsFront * gamepad1.left_stick_x;
+
+        // Dpad control ability
+        double frontBackInput = gamepad1.dpad_up ? -collectSideIsFront : gamepad1.dpad_down ? collectSideIsFront : adjustedFrontBackStickInput;
+        double leftRightInput = gamepad1.dpad_right ? collectSideIsFront : gamepad1.dpad_left ? -collectSideIsFront : adjustedLeftRightStickInput;
+
         driveInput = new Pose2d(
-                collectSideIsFront * gamepad1.left_stick_y,
-                collectSideIsFront * gamepad1.left_stick_x,
+                frontBackInput,
+                leftRightInput,
                 -gamepad1.right_stick_x);
         if (!fastMode) {
             driveInput = driveInput.div(3);

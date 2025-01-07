@@ -9,13 +9,16 @@ class AppendageControl {
     private int currentArmRTicks;
     private int currentExtenderTicks;
 
+    public AppendageControlState previousState;
     public AppendageControlState currentState;
     public final AppendageControlTarget target = new AppendageControlTarget(0, 0, TerabytesIntoTheDeep.TILT_ORIGIN, TerabytesIntoTheDeep.WRIST_ORIGIN, TerabytesIntoTheDeep.PINCER_CENTER);
 
     private double collectHeightSignal = 0.5d;
     private double collectDistanceSignal = 0d;
     private double dunkSignal = 0;
+    private double wristSignal = 0;
     private boolean openPincer = false;
+    private boolean levelTilt = false;
 
     public AppendageControl(AppendageControlState initialState) {
         currentState = initialState;
@@ -49,6 +52,8 @@ class AppendageControl {
         return target;
     }
 
+    public void setWristSignal(double signal) { wristSignal = signal; }
+
     public void setPincerOpen(boolean open) {
         openPincer = open;
     }
@@ -61,7 +66,12 @@ class AppendageControl {
         dunkSignal = signal;
     }
 
+    public void applyTiltLevel(boolean level) {
+        levelTilt = level;
+    }
+
     public void setControlState(AppendageControlState state) {
+        previousState = currentState;
         currentState = state;
     }
 
@@ -85,17 +95,18 @@ class AppendageControl {
 
     private void evaluateEndEffector() {
         double armDegreesFromHorizontal = currentArmDegreesAboveHorizontal();
-        //double tiltLevel = TerabytesIntoTheDeep.TILT_ORIGIN + (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * (90 - armDegreesFromHorizontal));
+        double tiltLevel = TerabytesIntoTheDeep.TILT_ORIGIN + (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * (90 - armDegreesFromHorizontal));
         double tiltUp = TerabytesIntoTheDeep.TILT_ORIGIN + (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * (180 - armDegreesFromHorizontal));
-        double tiltDown = TerabytesIntoTheDeep.TILT_ORIGIN - (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * armDegreesFromHorizontal);
+        double tiltDown = TerabytesIntoTheDeep.TILT_ORIGIN - (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * (armDegreesFromHorizontal - 15));
         boolean isCollecting = currentState == AppendageControlState.COLLECTING;
         double tiltActualSetpoint = isCollecting ? tiltDown : tiltUp;
         if (isScoring()) {
-            tiltActualSetpoint = tiltActualSetpoint + (dunkSignal * TerabytesIntoTheDeep.TILT_DUNK_RANGE);
+            tiltActualSetpoint = tiltActualSetpoint - (dunkSignal * TerabytesIntoTheDeep.TILT_DUNK_RANGE);
         }
         tiltActualSetpoint = Math.max(0, Math.min(1, tiltActualSetpoint));
-        target.wristTarget = TerabytesIntoTheDeep.WRIST_ORIGIN;
-        target.tiltTarget = tiltActualSetpoint;
+        double wristActualSetpoint = Math.max(-1, Math.min(1, wristSignal));
+        target.wristTarget = TerabytesIntoTheDeep.WRIST_ORIGIN + (TerabytesIntoTheDeep.WRIST_RANGE * wristActualSetpoint);
+        target.tiltTarget = levelTilt ? tiltLevel :  tiltActualSetpoint;
         target.pincerTarget = openPincer ? TerabytesIntoTheDeep.PINCER_OPEN : TerabytesIntoTheDeep.PINCER_CLOSED;
     }
 
@@ -120,7 +131,8 @@ class AppendageControl {
         double desiredCollectHeight =
                 TerabytesIntoTheDeep.ARM_MIN_COLLECT_HEIGHT_INCHES +
                         (clampedCollectHeightSignal * (TerabytesIntoTheDeep.ARM_MAX_COLLECT_HEIGHT_INCHES - TerabytesIntoTheDeep.ARM_MIN_COLLECT_HEIGHT_INCHES));
-        double desiredCollectDepth = TerabytesIntoTheDeep.ARM_AXLE_HEIGHT_INCHES - desiredCollectHeight;
+        double extensionDroop = currentExtensionDroop();
+        double desiredCollectDepth = TerabytesIntoTheDeep.ARM_AXLE_HEIGHT_INCHES - desiredCollectHeight - extensionDroop;
         double clampedCollectDistanceSignal = Math.max(0, Math.min(1, collectDistanceSignal));
         double minimumAchievableDistanceInches = Math.sqrt((TerabytesIntoTheDeep.EXTENDER_MIN_LENGTH_INCHES * TerabytesIntoTheDeep.EXTENDER_MIN_LENGTH_INCHES) - (desiredCollectDepth * desiredCollectDepth));
         double maximumAchievableDistanceInches = Math.sqrt((TerabytesIntoTheDeep.EXTENDER_MAX_TOTAL_LENGTH * TerabytesIntoTheDeep.EXTENDER_MAX_TOTAL_LENGTH) - (desiredCollectDepth * desiredCollectDepth));
@@ -156,12 +168,9 @@ class AppendageControl {
         return armDegreesFromZero - TerabytesIntoTheDeep.ARM_LEVEL_DEGREES_ABOVE_ZERO;
     }
 
-    public double currentEndEffectorOffsetFromRobotCenter() {
-        if (currentState != AppendageControlState.COLLECTING) return 0;
+    public double currentExtensionDroop() {
         double extensionInches = currentExtenderTicks / TerabytesIntoTheDeep.EXTENDER_TICKS_PER_INCH;
-        double totalExtension = TerabytesIntoTheDeep.EXTENDER_MIN_LENGTH_INCHES + extensionInches;
-        double horizontalOffset = totalExtension * Math.cos(Math.toRadians(currentArmDegreesAboveHorizontal()));
-        return horizontalOffset - TerabytesIntoTheDeep.ARM_AXLE_OFFSET_FROM_ROBOT_CENTER_INCHES;
+        return extensionInches * TerabytesIntoTheDeep.EXTENDER_DEFLECTION_RATIO;
     }
 
     public boolean isScoring() {
