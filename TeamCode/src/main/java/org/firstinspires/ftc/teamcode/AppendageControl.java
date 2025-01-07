@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode;
 
 class AppendageControl {
 
+    private static double DUNK_AUTO_RETRACT_WHEN_SCORE_THRESHOLD = TerabytesIntoTheDeep.TILT_DUNK_RANGE / 3;
     private static double DISTANCE_SIGNAL_INCREMENT_AMOUNT = 0.085;
     private static int ARM_SETTLED_TICK_THRESHOLD = 32;
     private static int EXTENDER_SETTLED_TICK_THRESHOLD = 24;
@@ -64,6 +65,9 @@ class AppendageControl {
 
     public void togglePincer() {
         openPincer = !openPincer;
+        if (isScoring() && dunkSignal > DUNK_AUTO_RETRACT_WHEN_SCORE_THRESHOLD) {
+            setControlState(AppendageControlState.DEFENSIVE);
+        }
     }
 
     public void setDunkSignal(double signal) {
