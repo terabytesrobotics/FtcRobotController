@@ -52,7 +52,10 @@ class AppendageControl {
         return target;
     }
 
-    public void setWristSignal(double signal) { wristSignal = signal; }
+    public void accumulateWristSignal(double signal) {
+        wristSignal += signal;
+        wristSignal = Math.max(-1, Math.min(1, this.wristSignal));
+    }
 
     public void setPincerOpen(boolean open) {
         openPincer = open;

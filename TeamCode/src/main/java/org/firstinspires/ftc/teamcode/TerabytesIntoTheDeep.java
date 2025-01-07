@@ -53,6 +53,7 @@ public class TerabytesIntoTheDeep {
 
     public static final double COLLECT_DISTANCE_ACCUMULATOR_SPEED_PER_MILLI = 1 / 3000.0;
     public static final double COLLECT_HEIGHT_ACCUMULATOR_SPEED_PER_MILLI = 1 / 2000.0;
+    public static final double WRIST_ACCUMULATOR_SPEED_PER_MILLI = 1 / 750.0;
 
     public static final double GEAR_RATIO = 13.7d;
     public static final double WORM_RATIO = 28.0d;
@@ -533,12 +534,12 @@ public class TerabytesIntoTheDeep {
                 }
             }
 
-            if (rb2ActivatedEvaluator.evaluate()) {
+            if ((rb1ActivatedEvaluator.evaluate() && appendageControl.isScoring()) || rb2ActivatedEvaluator.evaluate()) {
                 appendageControl.togglePincer();
             }
 
-            appendageControl.setDunkSignal(gamepad2.right_trigger);
-            appendageControl.setWristSignal(gamepad2.right_stick_x);
+            appendageControl.setDunkSignal((gamepad1.right_trigger + gamepad2.right_trigger) / 2);
+            appendageControl.accumulateWristSignal(gamepad2.right_stick_x * WRIST_ACCUMULATOR_SPEED_PER_MILLI * dtMillis);
             appendageControl.applyTiltLevel(gamepad2.b || gamepad1.b);
 
             boolean isCollecting = appendageControl.currentState == AppendageControlState.COLLECTING;
@@ -559,7 +560,7 @@ public class TerabytesIntoTheDeep {
             }
         }
 
-        boolean fastMode = gamepad1.left_bumper || gamepad1.right_bumper;
+        boolean fastMode = gamepad1.left_bumper;
         // -1 means collect is front
         double collectSideIsFront =
                 appendageControl != null &&
