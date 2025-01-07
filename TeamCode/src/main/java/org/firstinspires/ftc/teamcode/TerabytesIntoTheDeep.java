@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
+import static org.firstinspires.ftc.teamcode.NibusConstants.FAST_MODE_SCALE;
+import static org.firstinspires.ftc.teamcode.NibusConstants.SLOW_MODE_SCALE;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.APRIL_TAG_QUEUE_CAPACITY;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.APRIL_TAG_RECOGNITION_BEARING_THRESHOLD;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.APRIL_TAG_RECOGNITION_MAX_RANGE;
@@ -20,6 +22,7 @@ import android.util.Log;
 
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.acmerobotics.roadrunner.geometry.Pose2d;
+import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.acmerobotics.roadrunner.util.Angle;
 import com.arcrobotics.ftclib.controller.PIDController;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -51,9 +54,9 @@ import java.util.Queue;
 
 public class TerabytesIntoTheDeep {
 
-    public static final double COLLECT_DISTANCE_ACCUMULATOR_SPEED_PER_MILLI = 1 / 3000.0;
-    public static final double COLLECT_HEIGHT_ACCUMULATOR_SPEED_PER_MILLI = 1 / 2000.0;
-    public static final double WRIST_ACCUMULATOR_SPEED_PER_MILLI = 1 / 750.0;
+    public static final double COLLECT_DISTANCE_ACCUMULATOR_SPEED_PER_MILLI = 1 / 1150.0;
+    public static final double COLLECT_HEIGHT_ACCUMULATOR_SPEED_PER_MILLI = 1 / 1250.0;
+    public static final double WRIST_ACCUMULATOR_SPEED_PER_MILLI = 1 / 500.0;
 
     public static final double GEAR_RATIO = 13.7d;
     public static final double WORM_RATIO = 28.0d;
@@ -84,7 +87,7 @@ public class TerabytesIntoTheDeep {
     public static final double TILT_RANGE_DEGREES = 30.0;
     public static final double TILT_DOWN_RANGE = 40;
     public static final double TILT_RANGE = TILT_TICKS_PER_DEGREE * TILT_RANGE_DEGREES;
-    public static final double TILT_TUCKED = 0.925;
+    public static final double TILT_TUCKED = 0.95;
     public static final double TILT_DUNK_RANGE = -0.3;
     public static final double TILT_LOW_PROFILE = TILT_STRAIGHT;
     public static final double TILT_PREGRAB = TILT_STRAIGHT / 2;
@@ -176,6 +179,7 @@ public class TerabytesIntoTheDeep {
     private final OnActivatedEvaluator a2ActivatedEvaluator;
     private final OnActivatedEvaluator rb2ActivatedEvaluator;
     private final OnActivatedEvaluator b2ActivatedEvaluator;
+    private final OnActivatedEvaluator y2ActivatedEvaluator;
 
     // Sensing
     private final TouchSensor armMin;
@@ -223,6 +227,8 @@ public class TerabytesIntoTheDeep {
         y1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.y);
         x1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.x);
         rb2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_bumper);
+        a2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.a);
+        y2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.y);
         b2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.b);
 
         leftArmControl.setTolerance(20);
@@ -235,8 +241,6 @@ public class TerabytesIntoTheDeep {
         tilt = hardwareMap.get(Servo.class, "tilt");
         pincer = hardwareMap.get(Servo.class, "pincer");
         wrist = hardwareMap.get(Servo.class, "wrist");
-
-        a2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.a);
     }
 
     public Pose2d getLatestPoseEstimate() {
@@ -308,9 +312,9 @@ public class TerabytesIntoTheDeep {
         setCommandSequence(autonomousPlan.getCommandSequence(allianceColor));
     }
 
-    public void teleopInit(Pose2d startPose) {
+    public void teleopInit(Pose2d startingPose) {
         timeSinceInit = new ElapsedTime();
-        drive.setPoseEstimate(startPose == null ? new Pose2d() : startPose);
+        drive.setPoseEstimate(startingPose);
     }
 
     public void teleopInit(Pose2d startPose, AppendageControlState appendageControlState, int armLTickPosition, int armRTickPosition, int extenderTickPosition) {
@@ -518,7 +522,7 @@ public class TerabytesIntoTheDeep {
         }
 
         if (appendageControl != null) {
-            if (a1ActivatedEvaluator.evaluate()) {
+            if (a2ActivatedEvaluator.evaluate()) {
                 if (appendageControl.currentState == AppendageControlState.DEFENSIVE || appendageControl.currentState == AppendageControlState.TUCKED) {
                     appendageControl.resetCollectDistance();
                     appendageControl.resetCollectHeight();
@@ -526,7 +530,7 @@ public class TerabytesIntoTheDeep {
                 } else if (appendageControl.currentState == AppendageControlState.HIGH_BASKET) {
                     appendageControl.setControlState(AppendageControlState.DEFENSIVE);
                 }
-            } else if (y1ActivatedEvaluator.evaluate()) {
+            } else if (y2ActivatedEvaluator.evaluate()) {
                 if (appendageControl.currentState == AppendageControlState.COLLECTING) {
                     appendageControl.setControlState(AppendageControlState.DEFENSIVE);
                 } else if (appendageControl.currentState == AppendageControlState.DEFENSIVE) {
@@ -538,7 +542,7 @@ public class TerabytesIntoTheDeep {
                 appendageControl.togglePincer();
             }
 
-            appendageControl.setDunkSignal((gamepad1.right_trigger + gamepad2.right_trigger) / 2);
+            appendageControl.setDunkSignal(gamepad1.right_trigger + gamepad2.right_trigger);
             appendageControl.accumulateWristSignal(gamepad2.right_stick_x * WRIST_ACCUMULATOR_SPEED_PER_MILLI * dtMillis);
             appendageControl.applyTiltLevel(gamepad2.b || gamepad1.b);
 
@@ -547,7 +551,7 @@ public class TerabytesIntoTheDeep {
 
                 // Up is negative on stick y axis
                 double collectHeightSignal = -gamepad2.left_stick_y;
-                double collectDistanceSignalNoOverride = gamepad2.dpad_up ? 1 : gamepad2.dpad_down ? -1 : 0;
+                double collectDistanceSignalNoOverride = gamepad1.dpad_up ? 1 : gamepad1.dpad_down ? -1 : 0;
                 double collectDistanceSignal = collectDistanceSignalNoOverride;
 
                 if (Math.abs(collectHeightSignal) > 0.025) {
@@ -569,25 +573,39 @@ public class TerabytesIntoTheDeep {
         double adjustedLeftRightStickInput = collectSideIsFront * gamepad1.left_stick_x;
 
         // Dpad control ability
-        double frontBackInput = gamepad1.dpad_up ? -collectSideIsFront : gamepad1.dpad_down ? collectSideIsFront : adjustedFrontBackStickInput;
         double leftRightInput = gamepad1.dpad_right ? collectSideIsFront : gamepad1.dpad_left ? -collectSideIsFront : adjustedLeftRightStickInput;
 
-        driveInput = new Pose2d(
-                frontBackInput,
-                leftRightInput,
-                -gamepad1.right_stick_x);
+        if (gamepad1.dpad_right) {
+            driveInput = new Pose2d(
+                    0,
+                    collectSideIsFront,
+                    -gamepad1.right_stick_x);
+        } else if (gamepad1.dpad_left) {
+            driveInput = new Pose2d(
+                    0,
+                    -collectSideIsFront,
+                    -gamepad1.right_stick_x);
+        } else {
+            driveInput = getScaledHeadlessDriverInput(gamepad1);
+        }
+
         if (!fastMode) {
-            driveInput = driveInput.div(3);
+            driveInput = driveInput.div(2);
         }
         setDrivePower(driveInput);
         return IntoTheDeepOpModeState.MANUAL_CONTROL;
     }
 
-    private Pose2d limitNudge(Pose2d p, double maxXY, double maxH) {
-        double x = Range.clip(p.getX(), -maxXY, maxXY);
-        double y = Range.clip(p.getY(), -maxXY, maxXY);
-        double h = Range.clip(p.getHeading(), -maxH, maxH);
-        return new Pose2d(x, y, h);
+    private Pose2d getScaledHeadlessDriverInput(Gamepad gamepad, double operatorHeadingOffset) {
+        Vector2d inputFieldDirection = TerabytesHelpers.headlessLeftStickFieldDirection(gamepad, operatorHeadingOffset, latestPoseEstimate.getHeading());
+        double scaledRobotX = inputFieldDirection.getX();
+        double scaledRobotY = inputFieldDirection.getY();
+        double scaledRotation = -gamepad.right_stick_x;
+        return new Pose2d(scaledRobotX, scaledRobotY, scaledRotation);
+    }
+
+    private Pose2d getScaledHeadlessDriverInput(Gamepad gamepad) {
+        return getScaledHeadlessDriverInput(gamepad, allianceColor.OperatorHeadingOffset);
     }
 
     private IntoTheDeepOpModeState evaluateCommandSequence() {

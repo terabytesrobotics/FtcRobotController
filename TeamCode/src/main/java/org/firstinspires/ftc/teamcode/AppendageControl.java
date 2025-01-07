@@ -108,7 +108,7 @@ class AppendageControl {
         }
         tiltActualSetpoint = Math.max(0, Math.min(1, tiltActualSetpoint));
         double wristActualSetpoint = Math.max(-1, Math.min(1, wristSignal));
-        target.wristTarget = TerabytesIntoTheDeep.WRIST_ORIGIN + (TerabytesIntoTheDeep.WRIST_RANGE * wristActualSetpoint);
+        target.wristTarget = isCollecting ? TerabytesIntoTheDeep.WRIST_ORIGIN + (TerabytesIntoTheDeep.WRIST_RANGE * wristActualSetpoint) : TerabytesIntoTheDeep.WRIST_ORIGIN;
         target.tiltTarget = levelTilt ? tiltLevel :  tiltActualSetpoint;
         target.pincerTarget = openPincer ? TerabytesIntoTheDeep.PINCER_OPEN : TerabytesIntoTheDeep.PINCER_CLOSED;
     }
@@ -134,21 +134,14 @@ class AppendageControl {
         double desiredCollectHeight =
                 TerabytesIntoTheDeep.ARM_MIN_COLLECT_HEIGHT_INCHES +
                         (clampedCollectHeightSignal * (TerabytesIntoTheDeep.ARM_MAX_COLLECT_HEIGHT_INCHES - TerabytesIntoTheDeep.ARM_MIN_COLLECT_HEIGHT_INCHES));
-        double extensionDroop = currentExtensionDroop();
-        double desiredCollectDepth = TerabytesIntoTheDeep.ARM_AXLE_HEIGHT_INCHES - desiredCollectHeight - extensionDroop;
+        double desiredCollectDepth = TerabytesIntoTheDeep.ARM_AXLE_HEIGHT_INCHES - desiredCollectHeight;
         double clampedCollectDistanceSignal = Math.max(0, Math.min(1, collectDistanceSignal));
         double minimumAchievableDistanceInches = Math.sqrt((TerabytesIntoTheDeep.EXTENDER_MIN_LENGTH_INCHES * TerabytesIntoTheDeep.EXTENDER_MIN_LENGTH_INCHES) - (desiredCollectDepth * desiredCollectDepth));
         double maximumAchievableDistanceInches = Math.sqrt((TerabytesIntoTheDeep.EXTENDER_MAX_TOTAL_LENGTH * TerabytesIntoTheDeep.EXTENDER_MAX_TOTAL_LENGTH) - (desiredCollectDepth * desiredCollectDepth));
         double desiredDistance = minimumAchievableDistanceInches + (clampedCollectDistanceSignal * (maximumAchievableDistanceInches - minimumAchievableDistanceInches));
         double desiredArmAngle = -Math.toDegrees(Math.atan2(desiredCollectDepth, desiredDistance));
-        double extensionLengthToApply = 0;
-        double currentArmAngle = currentArmDegreesAboveHorizontal();
-        if (currentArmAngle < 0) {
-            double currentImpliedDistance = desiredCollectDepth / Math.tan(Math.toRadians(-currentArmAngle));
-            double currentImpliedTotalLength = Math.sqrt((desiredCollectDepth * desiredCollectDepth) + (currentImpliedDistance * currentImpliedDistance));
-            double limitedCurrentImpliedTotalLength = Math.min(TerabytesIntoTheDeep.EXTENDER_MAX_TOTAL_LENGTH, currentImpliedTotalLength);
-            extensionLengthToApply = Math.max(0, limitedCurrentImpliedTotalLength - TerabytesIntoTheDeep.EXTENDER_MIN_LENGTH_INCHES);
-        }
+        double desiredTotalLength = Math.sqrt((desiredCollectDepth * desiredCollectDepth) + (desiredDistance * desiredDistance));
+        double extensionLengthToApply = Math.max(0, desiredTotalLength - TerabytesIntoTheDeep.EXTENDER_MIN_LENGTH_INCHES);
 
         setArmAndExtenderSetpoints(desiredArmAngle, extensionLengthToApply);
         evaluateEndEffector();
@@ -171,8 +164,7 @@ class AppendageControl {
         return armDegreesFromZero - TerabytesIntoTheDeep.ARM_LEVEL_DEGREES_ABOVE_ZERO;
     }
 
-    public double currentExtensionDroop() {
-        double extensionInches = currentExtenderTicks / TerabytesIntoTheDeep.EXTENDER_TICKS_PER_INCH;
+    public double currentExtensionDroop(double extensionInches) {
         return extensionInches * TerabytesIntoTheDeep.EXTENDER_DEFLECTION_RATIO;
     }
 
