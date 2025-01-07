@@ -55,7 +55,7 @@ import java.util.Queue;
 public class TerabytesIntoTheDeep {
 
     public static final double COLLECT_DISTANCE_ACCUMULATOR_SPEED_PER_MILLI = 1 / 1150.0;
-    public static final double COLLECT_HEIGHT_ACCUMULATOR_SPEED_PER_MILLI = 1 / 1250.0;
+    public static final double COLLECT_HEIGHT_ACCUMULATOR_SPEED_PER_MILLI = 1 / 2000.0;
     public static final double WRIST_ACCUMULATOR_SPEED_PER_MILLI = 1 / 500.0;
 
     public static final double GEAR_RATIO = 13.7d;
@@ -551,15 +551,14 @@ public class TerabytesIntoTheDeep {
 
                 // Up is negative on stick y axis
                 double collectHeightSignal = -gamepad2.left_stick_y;
-                double collectDistanceSignalNoOverride = gamepad1.dpad_up ? 1 : gamepad1.dpad_down ? -1 : 0;
-                double collectDistanceSignal = collectDistanceSignalNoOverride;
+                int collectDistanceIncrements = gamepad1.dpad_up ? 1 : gamepad1.dpad_down ? -1 : 0;
 
                 if (Math.abs(collectHeightSignal) > 0.025) {
                     appendageControl.accumulateCollectHeightSignal(collectHeightSignal * COLLECT_HEIGHT_ACCUMULATOR_SPEED_PER_MILLI * dtMillis);
                 }
 
-                if (Math.abs(collectDistanceSignal) > 0.025) {
-                    appendageControl.accumulateCollectDistanceSignal(collectDistanceSignal * COLLECT_DISTANCE_ACCUMULATOR_SPEED_PER_MILLI * dtMillis);
+                if (Math.abs(collectDistanceIncrements) > 0.025) {
+                    appendageControl.incrementCollectDistance(collectDistanceIncrements);
                 }
             }
         }

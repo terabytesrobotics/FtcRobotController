@@ -9,7 +9,8 @@ import java.util.List;
 
 public enum TerabytesAutonomousPlan {
     START_NET_PUSH_NET_PARK,
-    START_OBS_PUSH_NET_PARK; // TODO: This is a bad plan
+    START_OBS_PUSH_NET_PARK,
+    START_NET_SCORE_HIGH_PUSH_THEN_PARK; // TODO: This is a bad plan
 
     public List<IntoTheDeepCommand> getCommandSequence(AllianceColor color) {
         ArrayList<IntoTheDeepCommand> commands = new ArrayList<>();
