@@ -88,7 +88,18 @@ public class IntoTheDeepAppendageCommand {
     public static IntoTheDeepAppendageCommand collecting() {
         return new IntoTheDeepAppendageCommand(
                 AppendageControlState.COLLECTING,
+                false,
+                true,
                 null,
+                null,
+                null,
+                null);
+    }
+
+    public static IntoTheDeepAppendageCommand defensive() {
+        return new IntoTheDeepAppendageCommand(
+                AppendageControlState.DEFENSIVE,
+                false,
                 true,
                 null,
                 null,

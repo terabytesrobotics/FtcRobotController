@@ -27,7 +27,7 @@ public enum TerabytesAutonomousPlan {
                 break;
             case START_NET_SCORE_HIGH_PUSH_THEN_PARK:
                 commands.addAll(IntoTheDeepCommand.dunkSequence(color));
-                commands.add(IntoTheDeepCommand.driveDirectToPoseCommand(IntoTheDeepPose.NET_PUSH_STAGING.getPose(color)));
+                commands.add(IntoTheDeepCommand.driveDirectToPoseDefensive(IntoTheDeepPose.NET_PUSH_STAGING.getPose(color)));
                 commands.add(IntoTheDeepCommand.driveDirectToPoseFastCommand(IntoTheDeepPose.NET_PUSH_START_1.getPose(color)));
                 commands.add(IntoTheDeepCommand.driveDirectToPoseFastCommand(IntoTheDeepPose.NET_PUSH_TARGET_1.getPose(color)));
                 commands.add(IntoTheDeepCommand.driveDirectToPoseFastCommand(IntoTheDeepPose.NET_PUSH_START_1.getPose(color)));

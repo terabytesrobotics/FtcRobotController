@@ -665,7 +665,7 @@ public class TerabytesIntoTheDeep {
 
         if (currentCommand.AppendageCommand != null && appendageControl != null) {
             appendageControl.setControlState(currentCommand.AppendageCommand.AppendageState);
-            double dunkSignal = currentCommand.AppendageCommand.Dunk ? 0 : 1;
+            double dunkSignal = currentCommand.AppendageCommand.Dunk ? 1 : 0;
             appendageControl.setDunkSignal(dunkSignal);
             appendageControl.setPincerOpen(currentCommand.AppendageCommand.PincerOpen);
 

@@ -42,7 +42,7 @@ public class IntoTheDeepCommand {
     public static IntoTheDeepCommand driveToNet(AllianceColor allianceColor) {
         return new IntoTheDeepCommand(
                 IntoTheDeepAppendageCommand.highBasketPre(),
-                IntoTheDeepPose.BASKET_APPROACH.getPose(allianceColor),
+                IntoTheDeepPose.HIGH_BASKET_SCORING_APPROACH.getPose(allianceColor),
                 MIN_TIME_STANDARD,
                 SETTLE_TIME_STANDARD,
                 SETTLE_RATIO_STANDARD);
@@ -51,7 +51,7 @@ public class IntoTheDeepCommand {
     public static IntoTheDeepCommand dunkAtNetClosed(AllianceColor allianceColor) {
         return new IntoTheDeepCommand(
                 IntoTheDeepAppendageCommand.highBasketDunk(),
-                IntoTheDeepPose.BASKET_APPROACH.getPose(allianceColor),
+                IntoTheDeepPose.HIGH_BASKET_SCORING_APPROACH.getPose(allianceColor),
                 MIN_TIME_STANDARD,
                 SETTLE_TIME_STANDARD,
                 SETTLE_RATIO_STANDARD);
@@ -60,7 +60,7 @@ public class IntoTheDeepCommand {
     public static IntoTheDeepCommand dunkAtNetOpen(AllianceColor allianceColor) {
         return new IntoTheDeepCommand(
                 IntoTheDeepAppendageCommand.highBasketDunkRelease(),
-                IntoTheDeepPose.BASKET_APPROACH.getPose(allianceColor),
+                IntoTheDeepPose.HIGH_BASKET_SCORING_APPROACH.getPose(allianceColor),
                 MIN_TIME_STANDARD,
                 SETTLE_TIME_STANDARD,
                 SETTLE_RATIO_STANDARD);
@@ -69,6 +69,15 @@ public class IntoTheDeepCommand {
     public static IntoTheDeepCommand driveDirectToPoseCommand(Pose2d pose) {
         return new IntoTheDeepCommand(
                 null,
+                pose,
+                MIN_TIME_STANDARD,
+                SETTLE_TIME_STANDARD,
+                SETTLE_RATIO_STANDARD);
+    }
+
+    public static IntoTheDeepCommand driveDirectToPoseDefensive(Pose2d pose) {
+        return new IntoTheDeepCommand(
+                IntoTheDeepAppendageCommand.defensive(),
                 pose,
                 MIN_TIME_STANDARD,
                 SETTLE_TIME_STANDARD,
@@ -98,7 +107,6 @@ public class IntoTheDeepCommand {
         commands.add(IntoTheDeepCommand.driveToNet(allianceColor));
         commands.add(IntoTheDeepCommand.dunkAtNetClosed(allianceColor));
         commands.add(IntoTheDeepCommand.dunkAtNetOpen(allianceColor));
-        commands.add(IntoTheDeepCommand.driveToNet(allianceColor));
         return commands;
     }
 }
