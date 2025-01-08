@@ -66,9 +66,9 @@ public class TerabytesIntoTheDeep {
     public static final double ARM_AXLE_HEIGHT_INCHES = 15.5d;
     public static final double ARM_AXLE_OFFSET_FROM_ROBOT_CENTER_INCHES = 5.5; // TODO: Tune this to reality
     public static final double ARM_MIN_COLLECT_HEIGHT_INCHES = 7d;
-    public static final double ARM_MAX_COLLECT_HEIGHT_INCHES = 13d;
+    public static final double ARM_MAX_COLLECT_HEIGHT_INCHES = 14.75d;
     public static final double ARM_DEFENSIVE_ANGLE = 55.6;
-    public static final double ARM_BASKET_ANGLE = 90;
+    public static final double ARM_BASKET_ANGLE = 93.5;
 
     // TODO: tune extender parameters to get accurate ratio of tick per inch and no-extension length
     public static final double EXTENDER_MIN_LENGTH_INCHES = 16d;
@@ -178,6 +178,8 @@ public class TerabytesIntoTheDeep {
     private final OnActivatedEvaluator rb2ActivatedEvaluator;
     private final OnActivatedEvaluator b2ActivatedEvaluator;
     private final OnActivatedEvaluator y2ActivatedEvaluator;
+    private final OnActivatedEvaluator dpu1ActivatedEvaluator;
+    private final OnActivatedEvaluator dpd1ActivatedEvaluator;
 
     // Sensing
     private final TouchSensor armMin;
@@ -228,6 +230,8 @@ public class TerabytesIntoTheDeep {
         a2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.a);
         y2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.y);
         b2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.b);
+        dpu1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.dpad_up);
+        dpd1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.dpad_down);
 
         leftArmControl.setTolerance(20);
         rightArmControl.setTolerance(20);
@@ -549,7 +553,7 @@ public class TerabytesIntoTheDeep {
 
                 // Up is negative on stick y axis
                 double collectHeightSignal = -gamepad2.left_stick_y;
-                int collectDistanceIncrements = gamepad1.dpad_up ? 1 : gamepad1.dpad_down ? -1 : 0;
+                int collectDistanceIncrements = dpu1ActivatedEvaluator.evaluate() ? 1 : dpd1ActivatedEvaluator.evaluate() ? -1 : 0;
 
                 if (Math.abs(collectHeightSignal) > 0.025) {
                     appendageControl.accumulateCollectHeightSignal(collectHeightSignal * COLLECT_HEIGHT_ACCUMULATOR_SPEED_PER_MILLI * dtMillis);
@@ -563,11 +567,13 @@ public class TerabytesIntoTheDeep {
 
         boolean fastMode = gamepad1.left_bumper;
         // -1 means collect is front
-        boolean isScoring = appendageControl != null && appendageControl.isScoring();
-        double collectSideIsFront = isScoring ? -1d : 1d;
-        double adjustedFrontBackStickInput = collectSideIsFront * gamepad1.left_stick_y;
-        double adjustedLeftRightStickInput = collectSideIsFront * gamepad1.left_stick_x;
 
+        boolean hasPositionEstimate = hasPositionEstimate();
+        boolean isScoring = appendageControl != null && appendageControl.isScoring();
+        boolean wasScoring = appendageControl != null && (appendageControl.previousState == AppendageControlState.HIGH_BASKET || appendageControl.previousState == AppendageControlState.LOW_BASKET);
+        boolean isDefensive = appendageControl != null && appendageControl.currentState == AppendageControlState.DEFENSIVE;
+
+        double collectSideIsFront = isScoring ? -1d : 1d;
         Pose2d driverHeadlessInput = getScaledHeadlessDriverInput(gamepad1);
 
         if (gamepad1.dpad_right) {
@@ -580,9 +586,9 @@ public class TerabytesIntoTheDeep {
                     0,
                     -collectSideIsFront,
                     -gamepad1.right_stick_x);
-        } else if (gamepad1.left_stick_button) {
-            if (isScoring) {
-                driveInput = getPoseTargetAutoDriveControl(IntoTheDeepPose.HIGH_BASKET_SCORING_APPROACH.getPose(allianceColor));
+        } else if (hasPositionEstimate && gamepad1.left_stick_button) {
+            if (isScoring || (isDefensive && !wasScoring)) {
+                driveInput = getAutoDriveToNetInput();
             } else {
                 // Could add more drive targets for other states
                 driveInput = new Pose2d();
@@ -592,10 +598,34 @@ public class TerabytesIntoTheDeep {
         driveInput = driveInput.plus(driverHeadlessInput);
 
         if (!fastMode) {
-            driveInput = driveInput.div(2);
+            driveInput = driveInput.div(1.75);
         }
         setDrivePower(driveInput);
         return IntoTheDeepOpModeState.MANUAL_CONTROL;
+    }
+
+    private Pose2d getAutoDriveToNetInput() {
+        if (!hasPositionEstimate()) return new Pose2d();
+
+        Pose2d finalTarget = IntoTheDeepPose.HIGH_BASKET_SCORING_APPROACH.getPose(allianceColor);
+        double errorX = Math.abs(finalTarget.getX() - latestPoseEstimate.getX());
+        double errorY = Math.abs(finalTarget.getY() - latestPoseEstimate.getY());
+        Pose2d targetForNow = finalTarget;
+        if (errorX < 12.0 && errorY < 12.0) {
+            targetForNow = finalTarget;
+        } else if (errorX > errorY) {
+            targetForNow = new Pose2d(
+                    finalTarget.getX(),
+                    finalTarget.getY(),
+                    allianceColor.intoTheDeepNetApproachHeadingX());
+        } else if (errorY > errorX) {
+            targetForNow = new Pose2d(
+                    finalTarget.getX(),
+                    finalTarget.getY(),
+                    allianceColor.intoTheDeepNetApproachHeadingY());
+        }
+
+        return getPoseTargetAutoDriveControl(targetForNow);
     }
 
     private Pose2d getScaledHeadlessDriverInput(Gamepad gamepad, double operatorHeadingOffset) {

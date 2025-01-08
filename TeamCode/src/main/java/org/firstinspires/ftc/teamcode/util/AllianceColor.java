@@ -19,6 +19,14 @@ public enum AllianceColor {
         this.OperatorHeadingOffset = operatorHeadingOffset;
     }
 
+    public double intoTheDeepNetApproachHeadingX() {
+        return this == RED ? Math.toRadians(180) : Math.toRadians(0);
+    }
+
+    public double intoTheDeepNetApproachHeadingY() {
+        return this == RED ? Math.toRadians(270) : Math.toRadians(90);
+    }
+
     public Pose2d getAbsoluteFieldPose(UpstageBackstageStart alliancePose) {
         switch (this) {
             case RED:

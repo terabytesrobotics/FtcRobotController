@@ -1,8 +1,11 @@
 package org.firstinspires.ftc.teamcode;
 
+import com.qualcomm.robotcore.util.ElapsedTime;
+
 class AppendageControl {
 
     private static double DUNK_AUTO_RETRACT_WHEN_SCORE_THRESHOLD = TerabytesIntoTheDeep.TILT_DUNK_RANGE / 3;
+    private static double DUNK_AUTO_RETRACT_DELAY = 250;
     private static double DISTANCE_SIGNAL_INCREMENT_AMOUNT = 0.085;
     private static int ARM_SETTLED_TICK_THRESHOLD = 32;
     private static int EXTENDER_SETTLED_TICK_THRESHOLD = 24;
@@ -21,6 +24,7 @@ class AppendageControl {
     private double wristSignal = 0;
     private boolean openPincer = false;
     private boolean levelTilt = false;
+    private ElapsedTime justDunkedTimer;
 
     public AppendageControl(AppendageControlState initialState) {
         currentState = initialState;
@@ -30,6 +34,13 @@ class AppendageControl {
         currentArmLTicks = armLTicks;
         currentArmRTicks = armRTicks;
         currentExtenderTicks = extenderTicks;
+
+        if (justDunkedTimer != null && justDunkedTimer.milliseconds() > DUNK_AUTO_RETRACT_DELAY) {
+            if (isScoring()) {
+                setControlState(AppendageControlState.DEFENSIVE);
+            }
+            justDunkedTimer = null;
+        }
 
         switch (currentState) {
             case TUCKED:
@@ -66,7 +77,7 @@ class AppendageControl {
     public void togglePincer() {
         openPincer = !openPincer;
         if (isScoring() && dunkSignal > DUNK_AUTO_RETRACT_WHEN_SCORE_THRESHOLD) {
-            setControlState(AppendageControlState.DEFENSIVE);
+            justDunkedTimer = new ElapsedTime();
         }
     }
 
