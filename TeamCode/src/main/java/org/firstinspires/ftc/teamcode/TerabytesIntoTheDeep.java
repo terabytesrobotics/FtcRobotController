@@ -68,7 +68,7 @@ public class TerabytesIntoTheDeep {
     public static final double ARM_MIN_COLLECT_HEIGHT_INCHES = 7d;
     public static final double ARM_MAX_COLLECT_HEIGHT_INCHES = 14.75d;
     public static final double ARM_DEFENSIVE_ANGLE = 55.6;
-    public static final double ARM_BASKET_ANGLE = 93.5;
+    public static final double ARM_BASKET_ANGLE = 97.5;
 
     // TODO: tune extender parameters to get accurate ratio of tick per inch and no-extension length
     public static final double EXTENDER_MIN_LENGTH_INCHES = 16d;
@@ -326,7 +326,7 @@ public class TerabytesIntoTheDeep {
         armLTicksAtInit = armLTickPosition;
         armRTicksAtInit = armRTickPosition;
         extenderTicksAtInit = extenderTickPosition;
-        appendageControl = new AppendageControl(appendageControlState);
+        appendageControl = new AppendageControl(appendageControlState, isAutonomous);
     }
 
     public void initializeMechanicalBlocking() {
@@ -379,7 +379,7 @@ public class TerabytesIntoTheDeep {
                 armLTicksAtInit = 0;
                 armRTicksAtInit = 0;
                 extenderTicksAtInit = 0;
-                appendageControl = new AppendageControl(AppendageControlState.TUCKED);
+                appendageControl = new AppendageControl(AppendageControlState.TUCKED, isAutonomous);
             }
         }
     }
@@ -597,9 +597,12 @@ public class TerabytesIntoTheDeep {
 
         driveInput = driveInput.plus(driverHeadlessInput);
 
-        if (!fastMode) {
-            driveInput = driveInput.div(1.75);
+        if (fastMode) {
+            driveInput = driveInput.div(1.5);
+        } else {
+            driveInput = driveInput.div(2.25);
         }
+
         setDrivePower(driveInput);
         return IntoTheDeepOpModeState.MANUAL_CONTROL;
     }

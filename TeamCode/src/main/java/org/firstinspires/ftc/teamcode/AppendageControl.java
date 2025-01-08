@@ -24,10 +24,12 @@ class AppendageControl {
     private double wristSignal = 0;
     private boolean openPincer = false;
     private boolean levelTilt = false;
+    private boolean isAuton = false;
     private ElapsedTime justDunkedTimer;
 
-    public AppendageControl(AppendageControlState initialState) {
+    public AppendageControl(AppendageControlState initialState, boolean isAuton) {
         currentState = initialState;
+        this.isAuton = isAuton;
     }
 
     public AppendageControlTarget evaluate(int armLTicks, int armRTicks, int extenderTicks) {
@@ -178,10 +180,6 @@ class AppendageControl {
         int averageArmTicks = (currentArmLTicks + currentArmRTicks) / 2;
         double armDegreesFromZero = averageArmTicks / TerabytesIntoTheDeep.ARM_TICKS_PER_DEGREE;
         return armDegreesFromZero - TerabytesIntoTheDeep.ARM_LEVEL_DEGREES_ABOVE_ZERO;
-    }
-
-    public double currentExtensionDroop(double extensionInches) {
-        return extensionInches * TerabytesIntoTheDeep.EXTENDER_DEFLECTION_RATIO;
     }
 
     public boolean isScoring() {

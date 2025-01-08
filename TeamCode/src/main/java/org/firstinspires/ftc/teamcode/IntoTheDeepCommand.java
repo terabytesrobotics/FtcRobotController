@@ -48,6 +48,24 @@ public class IntoTheDeepCommand {
                 SETTLE_RATIO_STANDARD);
     }
 
+    public static IntoTheDeepCommand dunkAtNetClosed(AllianceColor allianceColor) {
+        return new IntoTheDeepCommand(
+                IntoTheDeepAppendageCommand.highBasketDunk(),
+                IntoTheDeepPose.BASKET_APPROACH.getPose(allianceColor),
+                MIN_TIME_STANDARD,
+                SETTLE_TIME_STANDARD,
+                SETTLE_RATIO_STANDARD);
+    }
+
+    public static IntoTheDeepCommand dunkAtNetOpen(AllianceColor allianceColor) {
+        return new IntoTheDeepCommand(
+                IntoTheDeepAppendageCommand.highBasketDunkRelease(),
+                IntoTheDeepPose.BASKET_APPROACH.getPose(allianceColor),
+                MIN_TIME_STANDARD,
+                SETTLE_TIME_STANDARD,
+                SETTLE_RATIO_STANDARD);
+    }
+
     public static IntoTheDeepCommand driveDirectToPoseCommand(Pose2d pose) {
         return new IntoTheDeepCommand(
                 null,
@@ -77,6 +95,9 @@ public class IntoTheDeepCommand {
 
     public static List<IntoTheDeepCommand> dunkSequence(AllianceColor allianceColor) {
         List<IntoTheDeepCommand> commands = new ArrayList<>();
+        commands.add(IntoTheDeepCommand.driveToNet(allianceColor));
+        commands.add(IntoTheDeepCommand.dunkAtNetClosed(allianceColor));
+        commands.add(IntoTheDeepCommand.dunkAtNetOpen(allianceColor));
         commands.add(IntoTheDeepCommand.driveToNet(allianceColor));
         return commands;
     }
