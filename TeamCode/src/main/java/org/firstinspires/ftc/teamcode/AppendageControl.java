@@ -54,6 +54,9 @@ class AppendageControl {
             case COLLECTING:
                 evaluateCollecting();
                 break;
+            case COLLECT_SAFE:
+                evaluateCollectSafe();
+                break;
             case LOW_BASKET:
                 evaluateLowBasket();
                 break;
@@ -109,11 +112,8 @@ class AppendageControl {
         currentState = state;
     }
 
-    public void resetCollectDistance() {
+    public void resetCollectParametersToDefault() {
         collectDistanceSignal = 0;
-    }
-
-    public void resetCollectHeight() {
         collectHeightSignal = 0.5;
     }
 
@@ -176,6 +176,13 @@ class AppendageControl {
 
         setArmAndExtenderSetpoints(desiredArmAngle, extensionLengthToApply);
         evaluateEndEffector();
+    }
+
+    private void evaluateCollectSafe() {
+        levelTilt = true;
+        collectDistanceSignal = 0;
+        collectHeightSignal = 1;
+        evaluateCollecting();
     }
 
     private void evaluateLowBasket() {

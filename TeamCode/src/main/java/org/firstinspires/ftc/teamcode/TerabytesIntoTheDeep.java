@@ -44,6 +44,7 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagGameDatabase;
 import org.firstinspires.ftc.vision.apriltag.AprilTagLibrary;
 import org.firstinspires.ftc.vision.apriltag.AprilTagMetadata;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
+import org.opencv.core.Mat;
 
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -529,15 +530,18 @@ public class TerabytesIntoTheDeep {
 
         if (appendageControl != null) {
             if (a2ActivatedEvaluator.evaluate()) {
-                if (appendageControl.currentState == AppendageControlState.DEFENSIVE || appendageControl.currentState == AppendageControlState.TUCKED) {
-                    appendageControl.resetCollectDistance();
-                    appendageControl.resetCollectHeight();
+                if (appendageControl.currentState == AppendageControlState.DEFENSIVE ||
+                        appendageControl.currentState == AppendageControlState.TUCKED ||
+                        appendageControl.currentState == AppendageControlState.COLLECT_SAFE) {
+                    appendageControl.resetCollectParametersToDefault();
                     appendageControl.setControlState(AppendageControlState.COLLECTING);
                 } else if (appendageControl.currentState == AppendageControlState.HIGH_BASKET) {
                     appendageControl.setControlState(AppendageControlState.DEFENSIVE);
                 }
             } else if (y2ActivatedEvaluator.evaluate()) {
                 if (appendageControl.currentState == AppendageControlState.COLLECTING) {
+                    appendageControl.setControlState(AppendageControlState.COLLECT_SAFE);
+                } else if (appendageControl.currentState == AppendageControlState.COLLECT_SAFE) {
                     appendageControl.setControlState(AppendageControlState.DEFENSIVE);
                 } else if (appendageControl.currentState == AppendageControlState.DEFENSIVE) {
                     appendageControl.setControlState(AppendageControlState.HIGH_BASKET);
@@ -557,7 +561,7 @@ public class TerabytesIntoTheDeep {
 
                 // Up is negative on stick y axis
                 double collectHeightSignal = -gamepad2.left_stick_y;
-                int collectDistanceIncrements = dpu1ActivatedEvaluator.evaluate() ? 1 : dpd1ActivatedEvaluator.evaluate() ? -1 : 0;
+                int collectDistanceIncrements = y1ActivatedEvaluator.evaluate() ? 1 : a2ActivatedEvaluator.evaluate() ? -1 : 0;
 
                 if (Math.abs(collectHeightSignal) > 0.025) {
                     appendageControl.accumulateCollectHeightSignal(collectHeightSignal * COLLECT_HEIGHT_ACCUMULATOR_SPEED_PER_MILLI * dtMillis);
@@ -592,7 +596,7 @@ public class TerabytesIntoTheDeep {
                     -gamepad1.right_stick_x);
         } else if (hasPositionEstimate && gamepad1.left_stick_button) {
             if (isScoring || (isDefensive && !wasScoring)) {
-                driveInput = getAutoDriveToNetInput();
+                driveInput = getAutoDriveToNetInput(isDefensive);
             } else {
                 // Could add more drive targets for other states
                 driveInput = new Pose2d();
@@ -611,13 +615,16 @@ public class TerabytesIntoTheDeep {
         return IntoTheDeepOpModeState.MANUAL_CONTROL;
     }
 
-    private Pose2d getAutoDriveToNetInput() {
+    private Pose2d getAutoDriveToNetInput(boolean reverseApproach) {
         if (!hasPositionEstimate()) return new Pose2d();
 
         Pose2d finalTarget = IntoTheDeepPose.HIGH_BASKET_SCORING_APPROACH.getPose(allianceColor);
         double errorX = Math.abs(finalTarget.getX() - latestPoseEstimate.getX());
         double errorY = Math.abs(finalTarget.getY() - latestPoseEstimate.getY());
-        Pose2d targetForNow = finalTarget;
+        Pose2d targetForNow = new Pose2d(
+                finalTarget.getX(),
+                finalTarget.getY(),
+                reverseApproach ? (finalTarget.getHeading() + Math.PI) : finalTarget.getHeading());
         if (errorX < 12.0 && errorY < 12.0) {
             targetForNow = finalTarget;
         } else if (errorX > errorY) {
