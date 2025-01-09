@@ -29,6 +29,7 @@ import com.qualcomm.robotcore.hardware.VoltageSensor;
 import com.qualcomm.robotcore.hardware.configuration.typecontainers.MotorConfigurationType;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.teamcode.trajectorysequence.TrajectorySequence;
 import org.firstinspires.ftc.teamcode.trajectorysequence.TrajectorySequenceBuilder;
 import org.firstinspires.ftc.teamcode.trajectorysequence.TrajectorySequenceRunner;
@@ -242,15 +243,14 @@ public class SampleMecanumDrive extends MecanumDrive {
 
         if (Math.abs(drivePower.getX()) + Math.abs(drivePower.getY())
                 + Math.abs(drivePower.getHeading()) > 1) {
-            // re-normalize the powers according to the weights
-            double denom = VX_WEIGHT * Math.abs(drivePower.getX())
-                    + VY_WEIGHT * Math.abs(drivePower.getY())
-                    + OMEGA_WEIGHT * Math.abs(drivePower.getHeading());
+            double denom = Math.abs(drivePower.getX())
+                    + Math.abs(drivePower.getY())
+                    + Math.abs(drivePower.getHeading());
 
             vel = new Pose2d(
-                    VX_WEIGHT * drivePower.getX(),
-                    VY_WEIGHT * drivePower.getY(),
-                    OMEGA_WEIGHT * drivePower.getHeading()
+                    drivePower.getX(),
+                    drivePower.getY(),
+                    drivePower.getHeading()
             ).div(denom);
         }
 
@@ -300,6 +300,33 @@ public class SampleMecanumDrive extends MecanumDrive {
     @Override
     public Double getExternalHeadingVelocity() {
         return 0.0;
+    }
+
+    public Double[] getMotorCurrents() {
+        return new Double[] {
+                leftFront.getCurrent(CurrentUnit.MILLIAMPS),
+                leftRear.getCurrent(CurrentUnit.MILLIAMPS),
+                rightRear.getCurrent(CurrentUnit.MILLIAMPS),
+                rightFront.getCurrent(CurrentUnit.MILLIAMPS)
+        };
+    }
+
+    public Double[] getMotorPowers() {
+        return new Double[] {
+                leftFront.getPower(),
+                leftRear.getPower(),
+                rightRear.getPower(),
+                rightFront.getPower()
+        };
+    }
+
+    public Double[] getMotorVelocities() {
+        return new Double[] {
+                leftFront.getVelocity(),
+                leftRear.getVelocity(),
+                rightRear.getVelocity(),
+                rightFront.getVelocity()
+        };
     }
 
     public static TrajectoryVelocityConstraint getVelocityConstraint(double maxVel, double maxAngularVel, double trackWidth) {

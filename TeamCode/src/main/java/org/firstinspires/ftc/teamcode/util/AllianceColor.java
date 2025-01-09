@@ -19,8 +19,12 @@ public enum AllianceColor {
         this.OperatorHeadingOffset = operatorHeadingOffset;
     }
 
-    public Pose2d getStartingPose(TerabytesAutonomousPlan autonomousPlan) {
-        return new Pose2d();
+    public double intoTheDeepNetApproachHeadingX() {
+        return this == RED ? Math.toRadians(180) : Math.toRadians(0);
+    }
+
+    public double intoTheDeepNetApproachHeadingY() {
+        return this == RED ? Math.toRadians(270) : Math.toRadians(90);
     }
 
     public Pose2d getAbsoluteFieldPose(UpstageBackstageStart alliancePose) {
