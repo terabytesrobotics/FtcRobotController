@@ -15,6 +15,7 @@ public enum TerabytesAutonomousPlan {
 
     public List<IntoTheDeepCommand> getCommandSequence(AllianceColor color) {
         ArrayList<IntoTheDeepCommand> commands = new ArrayList<>();
+
         switch (this) {
             case START_OBS_PUSH_NET_PARK:
             case START_NET_PUSH_NET_PARK:
@@ -24,7 +25,6 @@ public enum TerabytesAutonomousPlan {
                 commands.add(IntoTheDeepCommand.driveDirectToPoseFastCommand(IntoTheDeepPose.NET_PUSH_START_1.getPose(color)));
                 commands.add(IntoTheDeepCommand.driveDirectToPoseFastCommand(IntoTheDeepPose.NET_PUSH_START_2.getPose(color)));
                 commands.add(IntoTheDeepCommand.driveDirectToPoseFastCommand(IntoTheDeepPose.NET_PUSH_TARGET_2.getPose(color)));
-                commands.add(IntoTheDeepCommand.driveDirectToPoseFastCommand(IntoTheDeepPose.PARK_TARGET_FIRST.getPose(color)));
                 break;
             case START_NET_SCORE_HIGH_PUSH_PARK:
                 commands.addAll(IntoTheDeepCommand.dunkSequence(color));
@@ -34,7 +34,6 @@ public enum TerabytesAutonomousPlan {
                 commands.add(IntoTheDeepCommand.driveDirectToPoseFastCommand(IntoTheDeepPose.NET_PUSH_START_1.getPose(color)));
                 commands.add(IntoTheDeepCommand.driveDirectToPoseFastCommand(IntoTheDeepPose.NET_PUSH_START_2.getPose(color)));
                 commands.add(IntoTheDeepCommand.driveDirectToPoseFastCommand(IntoTheDeepPose.NET_PUSH_TARGET_2.getPose(color)));
-                commands.add(IntoTheDeepCommand.driveDirectToPoseFastCommand(IntoTheDeepPose.PARK_TARGET_FIRST.getPose(color)));
                 break;
             case START_NET_SCORE_HIGH_COLLECT_SCORE_PARK:
                 commands.addAll(IntoTheDeepCommand.dunkSequence(color));
@@ -43,6 +42,22 @@ public enum TerabytesAutonomousPlan {
                 commands.addAll(IntoTheDeepCommand.collectAndDunkBlockSequence(color, IntoTheDeepFieldPosition.AUTON_BLOCK_NEUTRAL_3));
                 break;
         }
+
+        Pose2d parkTargetFirst = IntoTheDeepPose.PARK_TARGET_FIRST.getPose(color);
+        Pose2d parkTargetSecond = IntoTheDeepPose.PARK_TARGET_SECOND.getPose(color);
+        Pose2d parkPose = parkTargetSecond;
+        switch (this) {
+            case START_OBS_PUSH_NET_PARK:
+                parkPose = parkTargetFirst;
+                break;
+            default:
+            case START_NET_PUSH_NET_PARK:
+            case START_NET_SCORE_HIGH_PUSH_PARK:
+            case START_NET_SCORE_HIGH_COLLECT_SCORE_PARK:
+                break;
+        }
+
+        commands.add(IntoTheDeepCommand.driveDirectToPoseFastCommand(parkPose));
 
         return commands;
     }

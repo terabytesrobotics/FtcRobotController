@@ -22,8 +22,8 @@ public enum IntoTheDeepPose {
     NET_PUSH_START_2(IntoTheDeepFieldPosition.NET_PUSH_START_2, Math.PI / 2.0),
     NET_PUSH_TARGET_1(IntoTheDeepFieldPosition.NET, Math.toRadians(90 - 18.43)),
     NET_PUSH_TARGET_2(IntoTheDeepFieldPosition.NET, Math.toRadians(90)),
-    PARK_TARGET_FIRST(IntoTheDeepFieldPosition.PARK_TARGET_FIRST, Math.PI / 2.0),
-    PARK_TARGET_SECOND(IntoTheDeepFieldPosition.PARK_TARGET_SECOND, Math.PI / 2.0),
+    PARK_TARGET_FIRST(IntoTheDeepFieldPosition.PARK_TARGET_FIRST, 0),
+    PARK_TARGET_SECOND(IntoTheDeepFieldPosition.PARK_TARGET_SECOND, 0),
 
     // Teleop poses
     SUBMERSIBLE_APPROACH_ALLIANCE_SIDE(IntoTheDeepFieldPosition.SUBMERSIBLE_APPROACH_ALLIANCE_SIDE, Math.toRadians(90)),
