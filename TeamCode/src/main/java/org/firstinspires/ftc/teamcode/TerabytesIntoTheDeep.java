@@ -130,11 +130,12 @@ public class TerabytesIntoTheDeep {
 
     // Basic state
     private final boolean debugMode;
-    private final ElapsedTime loopTime = new ElapsedTime();
     private boolean isAutonomous = false;
     private IntoTheDeepOpModeState state;
-    private ElapsedTime timeSinceInit;
-    private ElapsedTime timeInState;
+    private final ElapsedTime loopTime = new ElapsedTime();
+    private ElapsedTime timeSinceInit = new ElapsedTime();
+    private ElapsedTime timeSinceStart = new ElapsedTime();
+    private ElapsedTime timeInState = new ElapsedTime();
     private Pose2d latestPoseEstimate = null;
 
     // Actuation starting state
@@ -310,14 +311,14 @@ public class TerabytesIntoTheDeep {
     }
 
     public void autonomousInit(TerabytesAutonomousPlan autonomousPlan) {
-        timeSinceInit = new ElapsedTime();
+        timeSinceInit.reset();
         isAutonomous = true;
         drive.setPoseEstimate(autonomousPlan.getStartingPose(allianceColor));
         setCommandSequence(autonomousPlan.getCommandSequence(allianceColor));
     }
 
     public void teleopInit(Pose2d startingPose) {
-        timeSinceInit = new ElapsedTime();
+        timeSinceInit.reset();
         drive.setPoseEstimate(startingPose);
     }
 
@@ -339,7 +340,8 @@ public class TerabytesIntoTheDeep {
     }
 
     public void startup(IntoTheDeepOpModeState startupState) {
-        timeInState = new ElapsedTime();
+        timeSinceStart.reset();
+        timeInState.reset();
         state = startupState;
     }
 
@@ -658,6 +660,12 @@ public class TerabytesIntoTheDeep {
             currentCommand = commandSequence.get(0);
             currentCommandTime.reset();
             currentCommandSettledTime.reset();
+        }
+
+        // No-op if we are waiting to run this command.
+        if (timeSinceStart.milliseconds() < currentCommand.WaitUntilElapsedMillis) {
+            setDrivePower(new Pose2d());
+            return IntoTheDeepOpModeState.COMMAND_SEQUENCE;
         }
 
         if (currentCommand.DriveToPose != null) {

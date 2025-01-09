@@ -5,6 +5,7 @@ import androidx.annotation.Nullable;
 
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 
+import org.apache.commons.math3.analysis.function.Min;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
 
 import java.util.ArrayList;
@@ -20,6 +21,7 @@ public class IntoTheDeepCommand {
     private static final double SETTLE_RATIO_STANDARD = 1d;
     private static final double SETTLE_RATIO_COARSE = 5d;
 
+    public final Integer WaitUntilElapsedMillis;
     public final IntoTheDeepAppendageCommand AppendageCommand;
     public final Pose2d DriveToPose;
     public final Double MinTimeMillis;
@@ -27,16 +29,31 @@ public class IntoTheDeepCommand {
     public final Double DriveSettleThresholdRatio;
 
     public IntoTheDeepCommand(
+            @NonNull Integer waitUntilElapsedMillis,
             @Nullable IntoTheDeepAppendageCommand appendageCommand,
             @Nullable Pose2d driveDirectToPose,
             @NonNull Double minTimeMillis,
             @NonNull Double settleTimeMillis,
             @NonNull Double settleThresholdRatio) {
+        WaitUntilElapsedMillis = waitUntilElapsedMillis;
         AppendageCommand = appendageCommand;
         DriveToPose = driveDirectToPose;
         MinTimeMillis = minTimeMillis;
         SettleTimeMillis = settleTimeMillis;
         DriveSettleThresholdRatio = settleThresholdRatio;
+    }
+
+    public IntoTheDeepCommand(
+            @Nullable IntoTheDeepAppendageCommand appendageCommand,
+            @Nullable Pose2d driveDirectToPose,
+            @NonNull Double minTimeMillis,
+            @NonNull Double settleTimeMillis,
+            @NonNull Double settleThresholdRatio) {
+        this(0, appendageCommand, driveDirectToPose, minTimeMillis, settleTimeMillis, settleThresholdRatio);
+    }
+
+    public IntoTheDeepCommand withWaitUntil(int elapsedMillis) {
+        return new IntoTheDeepCommand(elapsedMillis, AppendageCommand, DriveToPose, MinTimeMillis, SettleTimeMillis, SettleTimeMillis);
     }
 
     public static IntoTheDeepCommand driveToCollect(AllianceColor allianceColor, IntoTheDeepFieldPosition block, boolean pincerOpen) {
