@@ -98,10 +98,12 @@ public class TerabytesIntoTheDeep {
     public static final double PINCER_OPEN = 0.5;
     public static final double PINCER_CLOSED = 0.65;
 
-    public static final double NUDGE_MAX_INCHES_PER_MILLISECOND = 0.005;
-    public static final double NUDGE_MAX_RADIANS_PER_MILLISECOND = (Math.PI / 6) / 1000;
-    public static final double MAX_NUDGE_INCHES = 6;
-    public static final double MAX_NUDGE_RADIANS = Math.toRadians(15);
+    // We don't yet support collecting at multiple distances in auton.
+    public static final double AUTON_COLLECT_HEIGHT_SIGNAL = 0.33;
+    public static final double AUTON_COLLECT_DISTANCE_SIGNAL = 0;
+    public static final double AUTON_COLLECT_OFFSET_DISTANCE = 12;
+    public static final double AUTON_COLLECT_WRIST_SIGNAL_ALIGNED = 0;
+    public static final double AUTON_COLLECT_WRIST_SIGNAL_ACROSS = 0.9;
 
     // !! Must be run with arm up to be safe.  Helps calibrate servo positions for 10 seconds upon init. !!
     public final EndEffectorInitStage[] SERVO_INIT_STAGES_DEBUG = {
@@ -666,10 +668,20 @@ public class TerabytesIntoTheDeep {
         if (currentCommand.AppendageCommand != null && appendageControl != null) {
             appendageControl.setControlState(currentCommand.AppendageCommand.AppendageState);
             double dunkSignal = currentCommand.AppendageCommand.Dunk ? 1 : 0;
+            double heightSignal = currentCommand.AppendageCommand.CollectHeightSignal != null ?
+                    currentCommand.AppendageCommand.CollectHeightSignal :
+                    0.5;
+            double distanceSignal = currentCommand.AppendageCommand.CollectDistanceSignal != null ?
+                    currentCommand.AppendageCommand.CollectDistanceSignal :
+                    0.0;
+            double wristSignal = currentCommand.AppendageCommand.WristSignal != null ?
+                    currentCommand.AppendageCommand.WristSignal :
+                    TerabytesIntoTheDeep.WRIST_ORIGIN;
+            appendageControl.setHeightSignal(heightSignal);
+            appendageControl.setDistanceSignal(distanceSignal);
+            appendageControl.setWristSignal(wristSignal);
             appendageControl.setDunkSignal(dunkSignal);
             appendageControl.setPincerOpen(currentCommand.AppendageCommand.PincerOpen);
-
-            // TODO: Collection substates
         }
 
         boolean driveCompleted = currentCommand.DriveToPose == null || isAtPoseTarget(currentCommand.DriveToPose, currentCommand.DriveSettleThresholdRatio);

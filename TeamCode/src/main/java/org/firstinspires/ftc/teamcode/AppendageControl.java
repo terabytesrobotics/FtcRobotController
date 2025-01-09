@@ -83,6 +83,19 @@ class AppendageControl {
         }
     }
 
+    // [-1, 1]
+    public void setWristSignal(double signal) {
+        wristSignal = signal;
+    }
+
+    public void setDistanceSignal(double signal) {
+        collectDistanceSignal = signal;
+    }
+
+    public void setHeightSignal(double signal) {
+        collectHeightSignal = signal;
+    }
+
     public void setDunkSignal(double signal) {
         dunkSignal = signal;
     }

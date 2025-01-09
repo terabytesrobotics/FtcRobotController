@@ -8,26 +8,23 @@ public class IntoTheDeepAppendageCommand {
     public final AppendageControlState AppendageState;
     public final Boolean Dunk;
     public final Boolean PincerOpen;
-    public final Double CollectDistanceInches;
-    public final Double CollectHeightInches;
     public final Double CollectDistanceSignal;
     public final Double CollectHeightSignal;
+    public final Double WristSignal;
 
     public IntoTheDeepAppendageCommand(
             @NonNull AppendageControlState appendageState,
             @NonNull Boolean dunk,
             @NonNull Boolean pincerOpen,
-            @Nullable Double collectDistanceInches,
-            @Nullable Double collectHeightInches,
             @Nullable Double collectDistanceSignal,
-            @Nullable Double collectHeightSignal) {
+            @Nullable Double collectHeightSignal,
+            @Nullable Double wristSignal) {
         AppendageState = appendageState;
         Dunk = dunk;
         PincerOpen = pincerOpen;
-        CollectDistanceInches = collectDistanceInches;
-        CollectHeightInches = collectHeightInches;
         CollectDistanceSignal = collectDistanceSignal;
         CollectHeightSignal = collectHeightSignal;
+        WristSignal = wristSignal;
     }
 
     public IntoTheDeepAppendageCommand withDunk(boolean dunk) {
@@ -35,10 +32,9 @@ public class IntoTheDeepAppendageCommand {
                 AppendageState,
                 dunk,
                 PincerOpen,
-                CollectDistanceInches,
-                CollectHeightInches,
                 CollectDistanceSignal,
-                CollectHeightSignal);
+                CollectHeightSignal,
+                WristSignal);
     }
 
     public IntoTheDeepAppendageCommand withPincerOpen(boolean pincerOpen) {
@@ -46,10 +42,9 @@ public class IntoTheDeepAppendageCommand {
                 AppendageState,
                 Dunk,
                 pincerOpen,
-                CollectDistanceInches,
-                CollectHeightInches,
                 CollectDistanceSignal,
-                CollectHeightSignal);
+                CollectHeightSignal,
+                WristSignal);
     }
 
     public static IntoTheDeepAppendageCommand highBasketPre() {
@@ -57,7 +52,6 @@ public class IntoTheDeepAppendageCommand {
                 AppendageControlState.HIGH_BASKET,
                 false,
                 false,
-                null,
                 null,
                 null,
                 null);
@@ -70,7 +64,6 @@ public class IntoTheDeepAppendageCommand {
                 false,
                 null,
                 null,
-                null,
                 null);
     }
 
@@ -81,19 +74,43 @@ public class IntoTheDeepAppendageCommand {
                 true,
                 null,
                 null,
-                null,
                 null);
     }
 
-    public static IntoTheDeepAppendageCommand collecting() {
+    public static IntoTheDeepAppendageCommand collectingOpenAligned(double collectDistanceSignal, double collectHeightSignal) {
+        return collectingOpen(collectDistanceSignal, collectHeightSignal, 0d);
+    }
+
+    public static IntoTheDeepAppendageCommand collectingClosedAligned(double collectDistanceSignal, double collectHeightSignal) {
+        return collectingClosed(collectDistanceSignal, collectHeightSignal, 0d);
+    }
+
+    public static IntoTheDeepAppendageCommand collectingOpenAcross(double collectDistanceSignal, double collectHeightSignal) {
+        return collectingOpen(collectDistanceSignal, collectHeightSignal, 0.9d);
+    }
+
+    public static IntoTheDeepAppendageCommand collectingClosedAcross(double collectDistanceSignal, double collectHeightSignal) {
+        return collectingClosed(collectDistanceSignal, collectHeightSignal, 0.9d);
+    }
+
+    public static IntoTheDeepAppendageCommand collectingOpen(double collectDistanceSignal, double collectHeightSignal, double wristSignal) {
         return new IntoTheDeepAppendageCommand(
                 AppendageControlState.COLLECTING,
                 false,
                 true,
-                null,
-                null,
-                null,
-                null);
+                collectDistanceSignal,
+                collectHeightSignal,
+                wristSignal);
+    }
+
+    public static IntoTheDeepAppendageCommand collectingClosed(double collectDistanceSignal, double collectHeightSignal, double wristSignal) {
+        return new IntoTheDeepAppendageCommand(
+                AppendageControlState.COLLECTING,
+                false,
+                false,
+                collectDistanceSignal,
+                collectHeightSignal,
+                wristSignal);
     }
 
     public static IntoTheDeepAppendageCommand defensive() {
@@ -101,7 +118,6 @@ public class IntoTheDeepAppendageCommand {
                 AppendageControlState.DEFENSIVE,
                 false,
                 true,
-                null,
                 null,
                 null,
                 null);

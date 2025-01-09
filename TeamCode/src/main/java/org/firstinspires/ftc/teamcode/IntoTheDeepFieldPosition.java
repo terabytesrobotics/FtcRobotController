@@ -2,6 +2,8 @@ package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.roadrunner.geometry.Vector2d;
 
+import org.firstinspires.ftc.teamcode.util.AllianceColor;
+
 public enum IntoTheDeepFieldPosition {
     // Start locations
     START_OBSERVATION_ZONE(-24, 62),
@@ -25,7 +27,11 @@ public enum IntoTheDeepFieldPosition {
     SUBMERSIBLE_APPROACH_AUDIENCE_SIDE(-48, 0),
 
     BASKET_APPROACH_FAST(48, 48),
-    HIGH_BASKET_SCORING_APPROACH(57.5, 57.5);
+    HIGH_BASKET_SCORING_APPROACH(57.5, 57.5),
+
+    AUTON_BLOCK_NEUTRAL_1(48, 25.5),
+    AUTON_BLOCK_NEUTRAL_2(59, 25.5),
+    AUTON_BLOCK_NEUTRAL_3(70, 25.5);
 
     public final Vector2d BluePosition;
     public final Vector2d RedPosition;
@@ -33,5 +39,9 @@ public enum IntoTheDeepFieldPosition {
     IntoTheDeepFieldPosition(double xBlue, double yBlue) {
         BluePosition = new Vector2d(xBlue, yBlue);
         RedPosition = new Vector2d(-xBlue, -yBlue);
+    }
+
+    public Vector2d getPosition(AllianceColor allianceColor) {
+        return allianceColor == AllianceColor.RED ? RedPosition : BluePosition;
     }
 }

@@ -1,6 +1,11 @@
 package org.firstinspires.ftc.teamcode;
 
+import static org.firstinspires.ftc.teamcode.IntoTheDeepFieldPosition.AUTON_BLOCK_NEUTRAL_1;
+import static org.firstinspires.ftc.teamcode.IntoTheDeepFieldPosition.AUTON_BLOCK_NEUTRAL_2;
+import static org.firstinspires.ftc.teamcode.IntoTheDeepFieldPosition.AUTON_BLOCK_NEUTRAL_3;
+
 import com.acmerobotics.roadrunner.geometry.Pose2d;
+import com.acmerobotics.roadrunner.geometry.Vector2d;
 
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
 
@@ -46,5 +51,36 @@ public enum IntoTheDeepPose {
             default:
                 return new Pose2d();
         }
+    }
+
+    public static IntoTheDeepCollectPosition getBlockCollectPose(AllianceColor allianceColor, IntoTheDeepFieldPosition block) {
+        // These are the cases that work for the blocks we collect
+        boolean isRed = allianceColor == AllianceColor.RED;
+        int ifRedSign = isRed ? -1 : 1;
+        double alignedHeading = Math.toRadians(90 * ifRedSign);
+        double acrossHeading = Math.toRadians(180 * ifRedSign);
+
+        Vector2d blockPosition = block.getPosition(allianceColor);
+        Pose2d collectPose = new Pose2d();
+        double wristSignal = TerabytesIntoTheDeep.AUTON_COLLECT_WRIST_SIGNAL_ALIGNED;
+        double collectOffset = TerabytesIntoTheDeep.AUTON_COLLECT_OFFSET_DISTANCE;
+        switch (block) {
+            case AUTON_BLOCK_NEUTRAL_1:
+            case AUTON_BLOCK_NEUTRAL_2:
+                collectPose = new Pose2d(blockPosition.getX(), blockPosition.getY() + (collectOffset * ifRedSign), alignedHeading);
+                break;
+            case AUTON_BLOCK_NEUTRAL_3:
+                collectPose = new Pose2d(blockPosition.getX() - (collectOffset * ifRedSign), blockPosition.getY(), acrossHeading);
+                wristSignal = TerabytesIntoTheDeep.AUTON_COLLECT_WRIST_SIGNAL_ACROSS;
+                break;
+            default:
+                break;
+        }
+
+        return new IntoTheDeepCollectPosition(
+                collectPose,
+                TerabytesIntoTheDeep.AUTON_COLLECT_HEIGHT_SIGNAL,
+                TerabytesIntoTheDeep.AUTON_COLLECT_DISTANCE_SIGNAL,
+                wristSignal);
     }
 }

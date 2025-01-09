@@ -39,6 +39,20 @@ public class IntoTheDeepCommand {
         DriveSettleThresholdRatio = settleThresholdRatio;
     }
 
+    public static IntoTheDeepCommand driveToCollect(AllianceColor allianceColor, IntoTheDeepFieldPosition block, boolean pincerOpen) {
+        IntoTheDeepCollectPosition collectPosition = IntoTheDeepPose.getBlockCollectPose(allianceColor, block);
+        IntoTheDeepAppendageCommand appendageCommand = pincerOpen ?
+                IntoTheDeepAppendageCommand.collectingOpen(collectPosition.DistanceSignal, collectPosition.HeightSignal, collectPosition.WristSignal) :
+                IntoTheDeepAppendageCommand.collectingClosed(collectPosition.DistanceSignal, collectPosition.HeightSignal, collectPosition.WristSignal);
+
+        return new IntoTheDeepCommand(
+                appendageCommand,
+                collectPosition.CollectPose,
+                MIN_TIME_STANDARD,
+                SETTLE_TIME_STANDARD,
+                SETTLE_RATIO_STANDARD);
+    }
+
     public static IntoTheDeepCommand driveToNet(AllianceColor allianceColor) {
         return new IntoTheDeepCommand(
                 IntoTheDeepAppendageCommand.highBasketPre(),
@@ -107,6 +121,20 @@ public class IntoTheDeepCommand {
         commands.add(IntoTheDeepCommand.driveToNet(allianceColor));
         commands.add(IntoTheDeepCommand.dunkAtNetClosed(allianceColor));
         commands.add(IntoTheDeepCommand.dunkAtNetOpen(allianceColor));
+        return commands;
+    }
+
+    public static List<IntoTheDeepCommand> collectBlockSequence(AllianceColor allianceColor, IntoTheDeepFieldPosition block) {
+        List<IntoTheDeepCommand> commands = new ArrayList<>();
+        commands.add(driveToCollect(allianceColor, block, true));
+        commands.add(driveToCollect(allianceColor, block, false));
+        return commands;
+    }
+
+    public static List<IntoTheDeepCommand> collectAndDunkBlockSequence(AllianceColor allianceColor, IntoTheDeepFieldPosition block) {
+        List<IntoTheDeepCommand> commands = new ArrayList<>();
+        commands.addAll(collectBlockSequence(allianceColor, block));
+        commands.addAll(dunkSequence(allianceColor));
         return commands;
     }
 }

@@ -10,6 +10,6 @@ import org.firstinspires.ftc.teamcode.util.AllianceColor;
 public class TerabytesAutonomousRedNetPreload extends TerabytesOpMode {
 
     public TerabytesAutonomousRedNetPreload() {
-        super(AllianceColor.RED, IntoTheDeepOpModeState.COMMAND_SEQUENCE, TerabytesAutonomousPlan.START_NET_SCORE_HIGH_PUSH_THEN_PARK);
+        super(AllianceColor.RED, IntoTheDeepOpModeState.COMMAND_SEQUENCE, TerabytesAutonomousPlan.START_NET_SCORE_HIGH_PUSH_PARK);
     }
 }
