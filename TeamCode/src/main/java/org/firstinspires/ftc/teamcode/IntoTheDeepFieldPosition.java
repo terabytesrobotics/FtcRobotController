@@ -6,7 +6,7 @@ import org.firstinspires.ftc.teamcode.util.AllianceColor;
 
 public enum IntoTheDeepFieldPosition {
     // Start locations
-    START_OBSERVATION_ZONE(-24, 62),
+    START_OBSERVATION_ZONE(-12, 62),
     START_MID(0, 62),
     START_NET_ZONE(36, 62),
 
@@ -20,7 +20,7 @@ public enum IntoTheDeepFieldPosition {
     PARK_TARGET_FIRST(-60, 50),
     PARK_TARGET_SECOND(-36, 54),
     PARK_TARGET_OUT_OF_WAY_OBS(-12, 35),
-    PARK_TARGET_OUT_OF_WAY_NET(35, 12),
+    PARK_TARGET_OUT_OF_WAY_NET(48, 12),
 
     OBS_WAYPOINT(-12, 38),
     MID_WAYPOINT(12, 38),
@@ -35,11 +35,11 @@ public enum IntoTheDeepFieldPosition {
     BASKET_APPROACH_FAST(48, 48),
     HIGH_BASKET_SCORING_APPROACH(57, 57),
 
-    AUTON_PREP_BLOCK_NEUTRAL_1(48.5, 58),
+    AUTON_PREP_BLOCK_NEUTRAL_1(48, 58),
     AUTON_PREP_BLOCK_NEUTRAL_2(58, 58),
     AUTON_PREP_BLOCK_NEUTRAL_3(45, 25.5),
 
-    AUTON_BLOCK_NEUTRAL_1(48.5, 25.5),
+    AUTON_BLOCK_NEUTRAL_1(48, 25.5),
     AUTON_BLOCK_NEUTRAL_2(58, 25.5),
     AUTON_BLOCK_NEUTRAL_3(68, 25.5);
 

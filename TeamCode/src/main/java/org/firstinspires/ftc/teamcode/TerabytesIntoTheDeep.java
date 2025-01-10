@@ -7,8 +7,6 @@ import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.APRIL
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.APRIL_TAG_RECOGNITION_YAW_THRESHOLD;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.DRIVE_TO_POSE_THRESHOLD;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.FRONT_CAMERA_OFFSET_INCHES;
-import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.POSITION_ACQUIRED_INDICATE_MILLIS;
-import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.POSITION_ACQUIRED_PULSE_MILLIS;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.SPEED_GAIN;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.TURN_ERROR_THRESHOLD;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.TURN_GAIN;
@@ -31,6 +29,7 @@ import com.qualcomm.robotcore.hardware.TouchSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
 
+import org.apache.commons.math3.analysis.function.Abs;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
@@ -189,10 +188,6 @@ public class TerabytesIntoTheDeep {
     private final VisionPortal visionPortal;
     private final AprilTagProcessor aprilTagProcessor;
 
-    // Indication
-    private final DigitalChannel indicator1Red;
-    private final DigitalChannel indicator1Green;
-
     // Appendage state
     private int servoInitStageIndex = 0;
     private ElapsedTime initStageTimer = new ElapsedTime();
@@ -216,11 +211,6 @@ public class TerabytesIntoTheDeep {
         drive = new SampleMecanumDrive(hardwareMap);
         drive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         drive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-
-        indicator1Red = hardwareMap.get(DigitalChannel.class, "indicator1red");
-        indicator1Green = hardwareMap.get(DigitalChannel.class, "indicator1green");
-        indicator1Red.setMode(DigitalChannel.Mode.OUTPUT);
-        indicator1Green.setMode(DigitalChannel.Mode.OUTPUT);
 
         rb1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.right_bumper);
         a1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.a);
@@ -421,7 +411,6 @@ public class TerabytesIntoTheDeep {
         drive.update();
         latestPoseEstimate = drive.getPoseEstimate();
         evaluateAppendageInitOrControl();
-        evaluateIndicatorLights();
         evaluatePositioningSystems();
 
         // Power down when given the gesture
@@ -715,28 +704,6 @@ public class TerabytesIntoTheDeep {
         return IntoTheDeepOpModeState.COMMAND_SEQUENCE;
     }
 
-    private void evaluateIndicatorLights() {
-
-        double timeSincePositionSet = (timeSinceInit.milliseconds() - lastAprilTagFieldPositionMillis);
-        if (lastAprilTagFieldPosition != null && timeSincePositionSet < POSITION_ACQUIRED_INDICATE_MILLIS) {
-            if (timeSincePositionSet % (2 * POSITION_ACQUIRED_PULSE_MILLIS) > POSITION_ACQUIRED_PULSE_MILLIS) {
-                indicator1Green.setState(true);
-                indicator1Red.setState(true);
-            } else {
-                indicator1Green.setState(false);
-                indicator1Red.setState(false);
-            }
-        }
-
-        if (hasPositionEstimate()) {
-            indicator1Green.setState(true);
-            indicator1Red.setState(false);
-        } else {
-            indicator1Green.setState(false);
-            indicator1Red.setState(false);
-        }
-    }
-
     private void evaluatePositioningSystems() {
         double cameraDistanceOffset = FRONT_CAMERA_OFFSET_INCHES;
         double cameraAngleOffset = 0;
@@ -830,15 +797,19 @@ public class TerabytesIntoTheDeep {
         boolean yErrEliminated = Math.abs(yErr) < 0.75;
         boolean thetaErrEliminated = Math.abs(error.getHeading()) < (Math.PI / 15);
 
-        double minPower = 0.25;
+        double minPower = 0.235;
         double minRotation = 0.5;
         double xMin = xErrEliminated ? 0 : Math.signum(xErr) * minPower;
         double yMin = yErrEliminated ? 0 : Math.signum(yErr) * minPower;
         double thetaMin = thetaErrEliminated ? 0 : Math.signum(error.getHeading()) * minRotation;
 
-        double xPower = Range.clip((xErr * SPEED_GAIN) + xMin, -1, 1);
-        double yPower = Range.clip((yErr * SPEED_GAIN) + yMin, -1, 1);
-        double hPower = Range.clip((error.getHeading() * TURN_GAIN) + thetaMin, -1, 1);
+        double x = Math.abs(minPower) > Math.abs(xErr * SPEED_GAIN) ? xMin : xErr * SPEED_GAIN;
+        double y = Math.abs(minPower) > Math.abs(yErr * SPEED_GAIN) ? yMin : yErr * SPEED_GAIN;
+        double theta = Math.abs(thetaMin) > Math.abs(error.getHeading() * TURN_GAIN) ? thetaMin : error.getHeading() * TURN_GAIN;
+
+        double xPower = Range.clip(x, -1, 1);
+        double yPower = Range.clip(y, -1, 1);
+        double hPower = Range.clip(theta, -1, 1);
 
         return new Pose2d(xPower, yPower, hPower);
     }

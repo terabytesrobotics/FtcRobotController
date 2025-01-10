@@ -24,6 +24,7 @@ public enum TerabytesAutonomousPlan {
             case START_OBS_WAIT_SCORE_WAIT:
                 commands.add(IntoTheDeepCommand.driveDirectToPoseCommand(parkOutOfWayObs));
                 commands.add(IntoTheDeepCommand.waitUntil((int)(OBS_WAIT_DURATION_SECONDS * 1000)));
+                commands.add(IntoTheDeepCommand.driveDirectToPoseFastCommand(IntoTheDeepPose.MID_WAYPOINT.getPose(color)));
                 commands.add(IntoTheDeepCommand.driveDirectToPoseCommand(IntoTheDeepPose.NET_WAYPOINT.getPose(color)));
                 commands.addAll(IntoTheDeepCommand.dunkSequence(color));
                 break;
@@ -40,7 +41,6 @@ public enum TerabytesAutonomousPlan {
         switch (this) {
             case START_NET_SCORE_COLLECT_SCORE_WAIT:
             case START_OBS_WAIT_SCORE_WAIT:
-                commands.add(IntoTheDeepCommand.defensive()); // TODO: Speed up time with defensive drive to pos
                 parkPose = IntoTheDeepPose.PARK_TARGET_OUT_OF_WAY_NET.getPose(color);
                 break;
             case START_NET_SCORE_COLLECT_SCORE_PARK:
@@ -48,6 +48,7 @@ public enum TerabytesAutonomousPlan {
                 break;
         }
 
+        commands.add(IntoTheDeepCommand.defensive()); // TODO: Speed up time with defensive drive to pose
         commands.add(IntoTheDeepCommand.driveDirectToPoseCommand(parkPose));
 
         return commands;
