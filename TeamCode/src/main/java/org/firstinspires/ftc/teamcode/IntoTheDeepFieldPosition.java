@@ -19,12 +19,12 @@ public enum IntoTheDeepFieldPosition {
     // Part targets for who's expectd to be first or second to the spot
     PARK_TARGET_FIRST(-60, 50),
     PARK_TARGET_SECOND(-36, 54),
-    PARK_TARGET_OUT_OF_WAY_OBS(-36, 36),
-    PARK_TARGET_OUT_OF_WAY_NET(36, 36),
+    PARK_TARGET_OUT_OF_WAY_OBS(-12, 35),
+    PARK_TARGET_OUT_OF_WAY_NET(35, 12),
 
-    OBS_WAYPOINT(-24, 40),
-    MID_WAYPOINT(-24, 40),
-    NET_WAYPOINT(-24, 40),
+    OBS_WAYPOINT(-12, 38),
+    MID_WAYPOINT(12, 38),
+    NET_WAYPOINT(36, 38),
 
     // Teleop strategic points
     SUBMERSIBLE_APPROACH_ALLIANCE_SIDE(0, 48),
