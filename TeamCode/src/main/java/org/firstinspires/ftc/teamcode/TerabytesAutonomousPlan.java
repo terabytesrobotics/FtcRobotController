@@ -12,7 +12,7 @@ public enum TerabytesAutonomousPlan {
     START_NET_SCORE_COLLECT_SCORE_PARK,
     START_NET_SCORE_COLLECT_SCORE_WAIT;
 
-    private static double OBS_WAIT_DURATION_SECONDS = 17.25;
+    private static double OBS_WAIT_DURATION_SECONDS = 15;
 
     public List<IntoTheDeepCommand> getCommandSequence(AllianceColor color) {
         ArrayList<IntoTheDeepCommand> commands = new ArrayList<>();

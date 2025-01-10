@@ -6,7 +6,7 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
 
 @Config
-@Autonomous(name="RED:OBS:WAIT-PRELOAD-CLEAR")
+@Autonomous(name="RED:OBS:WAIT-PRELOAD-WAIT")
 public class AutonRedObservationWait extends TerabytesOpMode {
 
     public AutonRedObservationWait() {
