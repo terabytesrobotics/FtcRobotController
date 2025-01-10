@@ -125,6 +125,16 @@ public class IntoTheDeepCommand {
                 SETTLE_RATIO_COARSE);
     }
 
+    public static IntoTheDeepCommand waitUntil(int millis) {
+        return new IntoTheDeepCommand(
+                millis,
+                null,
+                null,
+                MIN_TIME_NONE,
+                SETTLE_TIME_NONE,
+                SETTLE_RATIO_STANDARD);
+    }
+
     public static IntoTheDeepCommand waitCommand(Double waitMillis) {
         return new IntoTheDeepCommand(
                 null,

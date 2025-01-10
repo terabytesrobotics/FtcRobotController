@@ -1,9 +1,5 @@
 package org.firstinspires.ftc.teamcode;
 
-import static org.firstinspires.ftc.teamcode.IntoTheDeepFieldPosition.AUTON_BLOCK_NEUTRAL_1;
-import static org.firstinspires.ftc.teamcode.IntoTheDeepFieldPosition.AUTON_BLOCK_NEUTRAL_2;
-import static org.firstinspires.ftc.teamcode.IntoTheDeepFieldPosition.AUTON_BLOCK_NEUTRAL_3;
-
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
 
@@ -24,6 +20,11 @@ public enum IntoTheDeepPose {
     NET_PUSH_TARGET_2(IntoTheDeepFieldPosition.NET, Math.toRadians(90)),
     PARK_TARGET_FIRST(IntoTheDeepFieldPosition.PARK_TARGET_FIRST, 0),
     PARK_TARGET_SECOND(IntoTheDeepFieldPosition.PARK_TARGET_SECOND, 0),
+    PARK_TARGET_OUT_OF_WAY_OBS(IntoTheDeepFieldPosition.PARK_TARGET_OUT_OF_WAY_OBS, Math.toRadians(90)),
+    PARK_TARGET_OUT_OF_WAY_NET(IntoTheDeepFieldPosition.PARK_TARGET_OUT_OF_WAY_NET, Math.toRadians(90)),
+    OBS_WAYPOINT(IntoTheDeepFieldPosition.OBS_WAYPOINT, 0),
+    MID_WAYPOINT(IntoTheDeepFieldPosition.MID_WAYPOINT, 0),
+    NET_WAYPOINT(IntoTheDeepFieldPosition.NET_WAYPOINT, 0),
 
     // Teleop poses
     SUBMERSIBLE_APPROACH_ALLIANCE_SIDE(IntoTheDeepFieldPosition.SUBMERSIBLE_APPROACH_ALLIANCE_SIDE, Math.toRadians(90)),
