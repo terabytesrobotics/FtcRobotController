@@ -39,9 +39,6 @@ public enum TerabytesAutonomousPlan {
                 commands.addAll(IntoTheDeepCommand.dunkSequence(color));
                 commands.addAll(IntoTheDeepCommand.collectAndDunkBlockSequence(color, IntoTheDeepFieldPosition.AUTON_BLOCK_NEUTRAL_1));
                 commands.addAll(IntoTheDeepCommand.collectAndDunkBlockSequence(color, IntoTheDeepFieldPosition.AUTON_BLOCK_NEUTRAL_2));
-                commands.add(IntoTheDeepCommand.defensive());
-                commands.addAll(IntoTheDeepCommand.collectAndDunkBlockSequence(color, IntoTheDeepFieldPosition.AUTON_BLOCK_NEUTRAL_3));
-                commands.add(IntoTheDeepCommand.defensive());
                 break;
         }
 

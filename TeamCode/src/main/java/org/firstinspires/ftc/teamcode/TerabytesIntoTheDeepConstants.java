@@ -3,11 +3,8 @@ package org.firstinspires.ftc.teamcode;
 public class TerabytesIntoTheDeepConstants {
 
     static final double TURN_ERROR_THRESHOLD = Math.PI / 24;
-    static final double SPEED_GAIN  =  0.125;
-    static final double TURN_GAIN =  .0265 / (Math.PI / 180);
-    static final double MAX_AUTO_SPEED = 0.75;
-    static final double MAX_AUTO_STRAFE = 0.75;
-    static final double MAX_AUTO_TURN  = 1;
+    static final double SPEED_GAIN = 1d/48;
+    static final double TURN_GAIN =  1d / Math.PI;
     public static final int FRONT_CAMERA_OFFSET_INCHES = 7;
     public static final int BACK_CAMERA_OFFSET_INCHES = 0;
     public static final double DRIVE_TO_POSE_THRESHOLD = 1.5f;

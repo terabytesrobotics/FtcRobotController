@@ -18,7 +18,7 @@ public enum IntoTheDeepFieldPosition {
 
     // Part targets for who's expectd to be first or second to the spot
     PARK_TARGET_FIRST(-60, 50),
-    PARK_TARGET_SECOND(-48, 60),
+    PARK_TARGET_SECOND(-36, 54),
 
     // Teleop strategic points
     SUBMERSIBLE_APPROACH_ALLIANCE_SIDE(0, 48),
@@ -27,11 +27,16 @@ public enum IntoTheDeepFieldPosition {
     SUBMERSIBLE_APPROACH_AUDIENCE_SIDE(-48, 0),
 
     BASKET_APPROACH_FAST(48, 48),
-    HIGH_BASKET_SCORING_APPROACH(57.5, 57.5),
+    HIGH_BASKET_SCORING_APPROACH(57, 57),
 
-    AUTON_BLOCK_NEUTRAL_1(48, 25.5),
-    AUTON_BLOCK_NEUTRAL_2(59, 25.5),
-    AUTON_BLOCK_NEUTRAL_3(70, 25.5);
+    AUTON_PREP_BLOCK_NEUTRAL_1(48.5, 55),
+    AUTON_PREP_BLOCK_NEUTRAL_2(58, 55),
+    AUTON_PREP_BLOCK_NEUTRAL_3(50, 25.5),
+
+    AUTON_BLOCK_NEUTRAL_1(48.5, 25.5),
+    AUTON_BLOCK_NEUTRAL_2(58, 25.5),
+    AUTON_BLOCK_NEUTRAL_3(68, 25.5);
+
 
     public final Vector2d BluePosition;
     public final Vector2d RedPosition;

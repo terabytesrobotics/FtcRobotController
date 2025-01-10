@@ -7,9 +7,6 @@ import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.APRIL
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.APRIL_TAG_RECOGNITION_YAW_THRESHOLD;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.DRIVE_TO_POSE_THRESHOLD;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.FRONT_CAMERA_OFFSET_INCHES;
-import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.MAX_AUTO_SPEED;
-import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.MAX_AUTO_STRAFE;
-import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.MAX_AUTO_TURN;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.POSITION_ACQUIRED_INDICATE_MILLIS;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.POSITION_ACQUIRED_PULSE_MILLIS;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.SPEED_GAIN;
@@ -100,9 +97,9 @@ public class TerabytesIntoTheDeep {
     public static final double PINCER_CLOSED = 0.65;
 
     // We don't yet support collecting at multiple distances in auton.
-    public static final double AUTON_COLLECT_HEIGHT_SIGNAL = 0.175;
+    public static final double AUTON_COLLECT_HEIGHT_SIGNAL = 0.1;
     public static final double AUTON_COLLECT_DISTANCE_SIGNAL = 0;
-    public static final double AUTON_COLLECT_OFFSET_DISTANCE = 12;
+    public static final double AUTON_COLLECT_OFFSET_DISTANCE = 9.75;
     public static final double AUTON_COLLECT_WRIST_SIGNAL_ALIGNED = 0;
     public static final double AUTON_COLLECT_WRIST_SIGNAL_ACROSS = 0.9;
 
@@ -561,7 +558,7 @@ public class TerabytesIntoTheDeep {
 
                 // Up is negative on stick y axis
                 double collectHeightSignal = -gamepad2.left_stick_y;
-                int collectDistanceIncrements = y1ActivatedEvaluator.evaluate() ? 1 : a2ActivatedEvaluator.evaluate() ? -1 : 0;
+                int collectDistanceIncrements = y1ActivatedEvaluator.evaluate() ? 1 : a1ActivatedEvaluator.evaluate() ? -1 : 0;
 
                 if (Math.abs(collectHeightSignal) > 0.025) {
                     appendageControl.accumulateCollectHeightSignal(collectHeightSignal * COLLECT_HEIGHT_ACCUMULATOR_SPEED_PER_MILLI * dtMillis);
@@ -824,19 +821,26 @@ public class TerabytesIntoTheDeep {
         Pose2d error = getPoseTargetError(poseTarget);
         if (latestPoseEstimate == null || error == null) return new Pose2d();
 
+        double distance = Math.hypot(error.getX(), error.getY());
         double robotHeading = latestPoseEstimate.getHeading();
+        double headingToError = Math.atan2(error.getY(), error.getX()) - robotHeading;
+        double xErr = distance * Math.cos(headingToError);
+        double yErr = distance * Math.sin(headingToError);
+        boolean xErrEliminated = Math.abs(xErr) < 0.75;
+        boolean yErrEliminated = Math.abs(yErr) < 0.75;
+        boolean thetaErrEliminated = Math.abs(error.getHeading()) < (Math.PI / 20);
 
-        double translationErrorMagnitude = Math.hypot(error.getX(), error.getY());
-        double translationErrorFieldHeading = Math.atan2(error.getY(), error.getX());
+        double minPower = 0.2;
+        double minRotation = 0.55;
+        double xMin = xErrEliminated ? 0 : Math.signum(xErr) * minPower;
+        double yMin = yErrEliminated ? 0 : Math.signum(yErr) * minPower;
+        double thetaMin = thetaErrEliminated ? 0 : Math.signum(error.getHeading()) * minRotation;
 
-        double adjustedHeading = translationErrorFieldHeading - robotHeading;
-        double robotXErrorMagnitude = translationErrorMagnitude * Math.cos(adjustedHeading);
-        double robotYErrorMagnitude = translationErrorMagnitude * Math.sin(adjustedHeading);
+        double xPower = Range.clip((xErr * SPEED_GAIN) + xMin, -1, 1);
+        double yPower = Range.clip((yErr * SPEED_GAIN) + yMin, -1, 1);
+        double hPower = Range.clip((error.getHeading() * TURN_GAIN) + thetaMin, -1, 1);
 
-        return new Pose2d(
-                Range.clip(robotXErrorMagnitude * SPEED_GAIN, -MAX_AUTO_SPEED, MAX_AUTO_SPEED),
-                Range.clip(robotYErrorMagnitude * SPEED_GAIN, -MAX_AUTO_STRAFE, MAX_AUTO_STRAFE),
-                Range.clip(error.getHeading() * TURN_GAIN, -MAX_AUTO_TURN, MAX_AUTO_TURN));
+        return new Pose2d(xPower, yPower, hPower);
     }
 
     private Pose2d calculateRobotPose(AprilTagDetection detection, double cameraRobotOffset, double cameraRobotHeadingOffset) {
