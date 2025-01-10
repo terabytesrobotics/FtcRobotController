@@ -4,7 +4,7 @@ public class TerabytesIntoTheDeepConstants {
 
     static final double TURN_ERROR_THRESHOLD = Math.PI / 24;
     static final double SPEED_GAIN = 1d/48;
-    static final double TURN_GAIN =  1d / Math.PI;
+    static final double TURN_GAIN =  1d / (2 * Math.PI);
     public static final int FRONT_CAMERA_OFFSET_INCHES = 7;
     public static final int BACK_CAMERA_OFFSET_INCHES = 0;
     public static final double DRIVE_TO_POSE_THRESHOLD = 1.5f;
