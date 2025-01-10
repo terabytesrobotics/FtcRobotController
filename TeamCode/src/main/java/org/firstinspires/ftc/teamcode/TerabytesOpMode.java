@@ -12,7 +12,7 @@ import java.io.File;
 
 public abstract class TerabytesOpMode extends LinearOpMode {
 
-    private static final long EXPIRY_INTERVAL_MS = 15000; // 2.5 minutes
+    private static final long EXPIRY_INTERVAL_MS = 150000; // 2.5 minutes
     private static final long SAVE_INTERVAL_MS = 125;
     private long lastSaveTime = 0;
     private static final String PERSISTED_DATA_FILE_NAME = "last_pose.txt";

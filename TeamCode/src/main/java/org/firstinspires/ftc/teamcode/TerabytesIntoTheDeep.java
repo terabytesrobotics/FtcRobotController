@@ -100,7 +100,7 @@ public class TerabytesIntoTheDeep {
     public static final double PINCER_CLOSED = 0.65;
 
     // We don't yet support collecting at multiple distances in auton.
-    public static final double AUTON_COLLECT_HEIGHT_SIGNAL = 0.33;
+    public static final double AUTON_COLLECT_HEIGHT_SIGNAL = 0.175;
     public static final double AUTON_COLLECT_DISTANCE_SIGNAL = 0;
     public static final double AUTON_COLLECT_OFFSET_DISTANCE = 12;
     public static final double AUTON_COLLECT_WRIST_SIGNAL_ALIGNED = 0;

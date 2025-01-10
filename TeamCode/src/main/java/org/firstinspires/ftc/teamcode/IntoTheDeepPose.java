@@ -58,7 +58,7 @@ public enum IntoTheDeepPose {
         boolean isRed = allianceColor == AllianceColor.RED;
         int ifRedSign = isRed ? -1 : 1;
         double alignedHeading = Math.toRadians(90 * ifRedSign);
-        double acrossHeading = Math.toRadians(180 * ifRedSign);
+        double acrossHeading = Math.toRadians(90 + (90 * ifRedSign));
 
         Vector2d blockPosition = block.getPosition(allianceColor);
         Pose2d collectPose = new Pose2d();

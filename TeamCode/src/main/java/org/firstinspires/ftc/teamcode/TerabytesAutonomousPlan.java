@@ -39,13 +39,14 @@ public enum TerabytesAutonomousPlan {
                 commands.addAll(IntoTheDeepCommand.dunkSequence(color));
                 commands.addAll(IntoTheDeepCommand.collectAndDunkBlockSequence(color, IntoTheDeepFieldPosition.AUTON_BLOCK_NEUTRAL_1));
                 commands.addAll(IntoTheDeepCommand.collectAndDunkBlockSequence(color, IntoTheDeepFieldPosition.AUTON_BLOCK_NEUTRAL_2));
+                commands.add(IntoTheDeepCommand.defensive());
                 commands.addAll(IntoTheDeepCommand.collectAndDunkBlockSequence(color, IntoTheDeepFieldPosition.AUTON_BLOCK_NEUTRAL_3));
+                commands.add(IntoTheDeepCommand.defensive());
                 break;
         }
 
         Pose2d parkTargetFirst = IntoTheDeepPose.PARK_TARGET_FIRST.getPose(color);
-        Pose2d parkTargetSecond = IntoTheDeepPose.PARK_TARGET_SECOND.getPose(color);
-        Pose2d parkPose = parkTargetSecond;
+        Pose2d parkPose = IntoTheDeepPose.PARK_TARGET_SECOND.getPose(color);
         switch (this) {
             case START_OBS_PUSH_NET_PARK:
                 parkPose = parkTargetFirst;
@@ -57,7 +58,7 @@ public enum TerabytesAutonomousPlan {
                 break;
         }
 
-        commands.add(IntoTheDeepCommand.driveDirectToPoseFastCommand(parkPose));
+        commands.add(IntoTheDeepCommand.driveDirectToPoseCommand(parkPose));
 
         return commands;
     }

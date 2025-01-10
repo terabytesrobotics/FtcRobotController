@@ -154,4 +154,15 @@ public class IntoTheDeepCommand {
         commands.addAll(dunkSequence(allianceColor));
         return commands;
     }
+
+    public static IntoTheDeepCommand defensive() {
+        return new IntoTheDeepCommand(
+                0,
+                IntoTheDeepAppendageCommand.defensive(),
+                null,
+                MIN_TIME_STANDARD,
+                SETTLE_TIME_STANDARD,
+                SETTLE_RATIO_STANDARD
+        );
+    }
 }
