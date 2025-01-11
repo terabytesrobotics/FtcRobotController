@@ -54,7 +54,7 @@ public enum IntoTheDeepPose {
         }
     }
 
-    public static IntoTheDeepCollectPosition getBlockCollectPose(AllianceColor allianceColor, IntoTheDeepFieldPosition block) {
+    public static IntoTheDeepCollectPosition getBlockCollectPose(AllianceColor allianceColor, IntoTheDeepFieldPosition block, boolean armLowered) {
         // These are the cases that work for the blocks we collect
         boolean isRed = allianceColor == AllianceColor.RED;
         int ifRedSign = isRed ? -1 : 1;
@@ -80,7 +80,7 @@ public enum IntoTheDeepPose {
 
         return new IntoTheDeepCollectPosition(
                 collectPose,
-                TerabytesIntoTheDeep.AUTON_COLLECT_HEIGHT_SIGNAL,
+                armLowered ? TerabytesIntoTheDeep.AUTON_COLLECT_HEIGHT_SIGNAL : TerabytesIntoTheDeep.AUTON_PRE_COLLECT_HEIGHT_SIGNAL,
                 TerabytesIntoTheDeep.AUTON_COLLECT_DISTANCE_SIGNAL,
                 wristSignal);
     }

@@ -57,8 +57,8 @@ public class IntoTheDeepCommand {
         return new IntoTheDeepCommand(elapsedMillis, AppendageCommand, DriveToPose, MinTimeMillis, SettleTimeMillis, SettleTimeMillis);
     }
 
-    public static IntoTheDeepCommand driveToCollect(AllianceColor allianceColor, IntoTheDeepFieldPosition block, boolean pincerOpen) {
-        IntoTheDeepCollectPosition collectPosition = IntoTheDeepPose.getBlockCollectPose(allianceColor, block);
+    public static IntoTheDeepCommand driveToCollect(AllianceColor allianceColor, IntoTheDeepFieldPosition block, boolean pincerOpen, boolean armLowered) {
+        IntoTheDeepCollectPosition collectPosition = IntoTheDeepPose.getBlockCollectPose(allianceColor, block, armLowered);
         IntoTheDeepAppendageCommand appendageCommand = pincerOpen ?
                 IntoTheDeepAppendageCommand.collectingOpen(collectPosition.DistanceSignal, collectPosition.HeightSignal, collectPosition.WristSignal) :
                 IntoTheDeepAppendageCommand.collectingClosed(collectPosition.DistanceSignal, collectPosition.HeightSignal, collectPosition.WristSignal);
@@ -154,8 +154,10 @@ public class IntoTheDeepCommand {
 
     public static List<IntoTheDeepCommand> collectBlockSequence(AllianceColor allianceColor, IntoTheDeepFieldPosition block) {
         List<IntoTheDeepCommand> commands = new ArrayList<>();
-        commands.add(driveToCollect(allianceColor, block, true));
-        commands.add(driveToCollect(allianceColor, block, false));
+        commands.add(driveToCollect(allianceColor, block, true, false));
+        commands.add(driveToCollect(allianceColor, block, true, true));
+        commands.add(driveToCollect(allianceColor, block, false, true));
+        commands.add(driveToCollect(allianceColor, block, false, false));
         return commands;
     }
 
