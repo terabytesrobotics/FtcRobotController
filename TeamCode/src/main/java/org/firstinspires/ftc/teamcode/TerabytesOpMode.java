@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.dashboard.FtcDashboard;
+import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.util.ReadWriteFile;
@@ -8,7 +9,14 @@ import com.qualcomm.robotcore.util.ReadWriteFile;
 import org.firstinspires.ftc.robotcore.internal.system.AppUtil;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
 public abstract class TerabytesOpMode extends LinearOpMode {
 
@@ -16,6 +24,71 @@ public abstract class TerabytesOpMode extends LinearOpMode {
     private static final long SAVE_INTERVAL_MS = 125;
     private long lastSaveTime = 0;
     private static final String PERSISTED_DATA_FILE_NAME = "last_pose.txt";
+    private static final String TELEMETRY_LOG_FILE_NAME = "telemetry_log.csv";
+
+    // Holds the current header in memory so we don't re‐read the file every iteration.
+    private static List<String> cachedHeaderKeys = null;
+
+    private void appendTelemetryLine(Map<String, String> data) {
+        File file = AppUtil.getInstance().getSettingsFile(TELEMETRY_LOG_FILE_NAME);
+        boolean fileExists = file.exists();
+
+        // If we've never established our cachedHeaderKeys in this run, attempt to read from existing file
+        if (cachedHeaderKeys == null && fileExists) {
+            try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+                String headerLine = br.readLine(); // e.g. "timestamp,x,y,heading,..."
+                if (headerLine != null) {
+                    List<String> headerList = Arrays.asList(headerLine.split(","));
+                    // If first item is "timestamp", the rest are keys
+                    if (!headerList.isEmpty() && headerList.get(0).equals("timestamp")) {
+                        cachedHeaderKeys = headerList.subList(1, headerList.size());
+                    }
+                }
+            } catch (Exception e) {
+                telemetry.log().add("Failed to read existing header: " + e.getMessage());
+            }
+        }
+
+        // Convert current data's keys to a list (in insertion order, if LinkedHashMap)
+        List<String> currentKeys = new ArrayList<>(data.keySet());
+
+        // If we already have a cached header, compare with current keys
+        if (cachedHeaderKeys != null) {
+            if (!cachedHeaderKeys.equals(currentKeys)) {
+                // Key mismatch => reset (delete) file & drop the cached header
+                if (file.exists() && !file.delete()) {
+                    telemetry.log().add("Failed to delete old telemetry file.");
+                }
+                fileExists = false;
+                cachedHeaderKeys = null;
+            }
+        }
+
+        // If file doesn't exist (either didn't before or we just deleted it), write the new header
+        if (!fileExists) {
+            try (FileWriter fw = new FileWriter(file, true)) {
+                fw.write("timestamp");
+                for (String key : currentKeys) fw.write("," + key);
+                fw.write("\n");
+                cachedHeaderKeys = currentKeys;
+            } catch (Exception e) {
+                telemetry.log().add("Failed to write new header: " + e.getMessage());
+                return; // Quit without appending data row
+            }
+        }
+
+        // Append one row of CSV data
+        try (FileWriter fw = new FileWriter(file, true)) {
+            long now = System.currentTimeMillis();
+            fw.write(String.valueOf(now));
+            for (String key : currentKeys) {
+                fw.write("," + data.get(key));
+            }
+            fw.write("\n");
+        } catch (Exception e) {
+            telemetry.log().add("Failed to log telemetry: " + e.getMessage());
+        }
+    }
 
     private boolean debugMode = false;
     private final AllianceColor allianceColor;
@@ -147,6 +220,7 @@ public abstract class TerabytesOpMode extends LinearOpMode {
                         terabytes.getExtenderTickPosition());
                 lastSaveTime = currentTime;
             }
+            appendTelemetryLine(terabytes.getLogData());
             dashboard.sendTelemetryPacket(terabytes.getTelemetryPacket());
         }
 

@@ -11,6 +11,7 @@ import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.SPEED
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.TURN_ERROR_THRESHOLD;
 import static org.firstinspires.ftc.teamcode.TerabytesIntoTheDeepConstants.TURN_GAIN;
 
+import android.util.ArrayMap;
 import android.util.Log;
 
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
@@ -18,6 +19,8 @@ import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.acmerobotics.roadrunner.util.Angle;
 import com.arcrobotics.ftclib.controller.PIDController;
+import com.qualcomm.robotcore.hardware.ColorRangeSensor;
+import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
@@ -31,6 +34,7 @@ import com.qualcomm.robotcore.util.Range;
 
 import org.apache.commons.math3.analysis.function.Abs;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
 import org.firstinspires.ftc.teamcode.util.OnActivatedEvaluator;
@@ -43,8 +47,10 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 import org.opencv.core.Mat;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Queue;
 
 public class TerabytesIntoTheDeep {
@@ -188,6 +194,7 @@ public class TerabytesIntoTheDeep {
     private final WebcamName frontCamera;
     private final VisionPortal visionPortal;
     private final AprilTagProcessor aprilTagProcessor;
+    private final ColorRangeSensor colorSensor;
 
     // Appendage state
     private int servoInitStageIndex = 0;
@@ -235,6 +242,7 @@ public class TerabytesIntoTheDeep {
         tilt = hardwareMap.get(Servo.class, "tilt");
         pincer = hardwareMap.get(Servo.class, "pincer");
         wrist = hardwareMap.get(Servo.class, "wrist");
+        colorSensor = hardwareMap.get(ColorRangeSensor.class, "colorSensor");
     }
 
     public Pose2d getLatestPoseEstimate() {
@@ -256,6 +264,19 @@ public class TerabytesIntoTheDeep {
 
     public int getExtenderTickPosition() {
         return extender.getCurrentPosition() + extenderTicksAtInit;
+    }
+
+    private Map<String, String> logData = new ArrayMap<>();
+    public Map<String, String> getLogData() {
+        logData.clear();
+
+        // Put all the values we care about
+        logData.put("blue", Integer.toString(colorSensor.blue()));
+        logData.put("red", Integer.toString(colorSensor.red()));
+        logData.put("green", Integer.toString(colorSensor.green()));
+        logData.put("distance", Double.toString(colorSensor.getDistance(DistanceUnit.INCH)));
+
+        return logData;
     }
 
     private Pose2d driveInput = new Pose2d();
