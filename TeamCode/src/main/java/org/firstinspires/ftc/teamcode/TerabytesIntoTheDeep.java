@@ -88,7 +88,7 @@ public class TerabytesIntoTheDeep {
     public static final double TILT_RANGE_DEGREES = 30.0;
     public static final double TILT_DOWN_RANGE = 40;
     public static final double TILT_RANGE = TILT_TICKS_PER_DEGREE * TILT_RANGE_DEGREES;
-    public static final double TILT_TUCKED = 0.95;
+    public static final double TILT_TUCKED = 1.0;
     public static final double TILT_DUNK_RANGE = -0.3;
     public static final double TILT_LOW_PROFILE = TILT_STRAIGHT;
     public static final double TILT_PREGRAB = TILT_STRAIGHT / 2;
