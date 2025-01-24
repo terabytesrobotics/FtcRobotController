@@ -20,11 +20,9 @@ import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.acmerobotics.roadrunner.util.Angle;
 import com.arcrobotics.ftclib.controller.PIDController;
 import com.qualcomm.robotcore.hardware.ColorRangeSensor;
-import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
-import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
@@ -32,7 +30,6 @@ import com.qualcomm.robotcore.hardware.TouchSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
 
-import org.apache.commons.math3.analysis.function.Abs;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
@@ -44,10 +41,8 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagGameDatabase;
 import org.firstinspires.ftc.vision.apriltag.AprilTagLibrary;
 import org.firstinspires.ftc.vision.apriltag.AprilTagMetadata;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
-import org.opencv.core.Mat;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -62,7 +57,7 @@ public class TerabytesIntoTheDeep {
     public static final double GEAR_RATIO = 13.7d;
     public static final double WORM_RATIO = 28.0d;
     public static final double ARM_TICKS_PER_DEGREE = WORM_RATIO * 28.0d * GEAR_RATIO / 360.0d;
-    public static final double ARM_LEVEL_DEGREES_ABOVE_ZERO = 45; // TODO: Tune this to actual level up from min.
+    public static final double ARM_LEVEL_DEGREES_ABOVE_ZERO = 59; // TODO: Tune this to actual level up from min.
     public static final double ARM_LEVEL_TICKS = ARM_LEVEL_DEGREES_ABOVE_ZERO * ARM_TICKS_PER_DEGREE;
     public static final double ARM_LEVEL_TICKS_EMPIRICAL = 0;
     public static final double ARM_LEVEL_DEGREES_ABOVE_ZERO_EMPIRICAL = 45; // TODO: Tune this to actual level up from min.
@@ -72,7 +67,8 @@ public class TerabytesIntoTheDeep {
     public static final double ARM_MAX_COLLECT_HEIGHT_INCHES = 14.75d;
     public static final double ARM_DEFENSIVE_ANGLE = 55.6;
     public static final double ARM_BASKET_ANGLE = 97.5;
-
+    public static final double ARM_COLLECT_CLIP_ANGLE = 0;
+    public static final double ARM_SCORE_CLIP_ANGLE = 44;
     // TODO: tune extender parameters to get accurate ratio of tick per inch and no-extension length
     public static final double EXTENDER_MIN_LENGTH_INCHES = 16d;
     public static final double EXTENDER_GEAR_RATIO = 5.2d;
@@ -183,7 +179,7 @@ public class TerabytesIntoTheDeep {
     private final OnActivatedEvaluator x1ActivatedEvaluator;
     private final OnActivatedEvaluator a2ActivatedEvaluator;
     private final OnActivatedEvaluator rb2ActivatedEvaluator;
-    private final OnActivatedEvaluator b2ActivatedEvaluator;
+    private final OnActivatedEvaluator x2ActivatedEvaluator;
     private final OnActivatedEvaluator y2ActivatedEvaluator;
     private final OnActivatedEvaluator dpu1ActivatedEvaluator;
     private final OnActivatedEvaluator dpd1ActivatedEvaluator;
@@ -228,7 +224,7 @@ public class TerabytesIntoTheDeep {
         rb2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_bumper);
         a2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.a);
         y2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.y);
-        b2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.b);
+        x2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.x);
         dpu1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.dpad_up);
         dpd1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.dpad_down);
 
@@ -380,8 +376,8 @@ public class TerabytesIntoTheDeep {
 
             boolean zeroArm = armMin.isPressed();
             if (zeroExtender && !zeroArm) {
-                armLeft.setPower(-0.30);
-                armRight.setPower(-0.30);
+                armLeft.setPower(0.30);
+                armRight.setPower(0.30);
             } else {
                 armLeft.setPower(0);
                 armRight.setPower(0);
@@ -406,8 +402,9 @@ public class TerabytesIntoTheDeep {
         if (state != IntoTheDeepOpModeState.STOPPED_UNTIL_END) {
             // Only subtract ticksAtInit for the purpose of control
             // For the purpose of knowing where we currently are, add currentPosition to ticksAtInit
-            controlArmMotor(controlTarget.armTickTarget - armLTicksAtInit, leftArmControl, armLeft);
-            controlArmMotor(controlTarget.armTickTarget - armRTicksAtInit, rightArmControl, armRight);
+            double reversedTickTarget = -controlTarget.armTickTarget;
+            controlArmMotor(reversedTickTarget - armLTicksAtInit, leftArmControl, armLeft);
+            controlArmMotor(reversedTickTarget - armRTicksAtInit, rightArmControl, armRight);
             extender.setTargetPosition(((int) controlTarget.extenderTickTarget) - extenderTicksAtInit);
         }
         tilt.setPosition(controlTarget.tiltTarget);
@@ -545,14 +542,30 @@ public class TerabytesIntoTheDeep {
                     appendageControl.setControlState(AppendageControlState.COLLECTING);
                 } else if (appendageControl.currentState == AppendageControlState.HIGH_BASKET) {
                     appendageControl.setControlState(AppendageControlState.DEFENSIVE);
+                } else if (appendageControl.currentState == AppendageControlState.COLLECT_CLIP ||
+                        appendageControl.currentState == AppendageControlState.SCORE_CLIP) {
+                    appendageControl.resetCollectParametersToDefault();
+                    appendageControl.setControlState(AppendageControlState.COLLECTING);
+
                 }
             } else if (y2ActivatedEvaluator.evaluate()) {
                 if (appendageControl.currentState == AppendageControlState.COLLECTING) {
                     appendageControl.setControlState(AppendageControlState.COLLECT_SAFE);
-                } else if (appendageControl.currentState == AppendageControlState.COLLECT_SAFE) {
+                } else if (appendageControl.currentState == AppendageControlState.COLLECT_SAFE
+                        ||appendageControl.currentState == AppendageControlState.COLLECT_CLIP
+                        || appendageControl.currentState == AppendageControlState.SCORE_CLIP) {
                     appendageControl.setControlState(AppendageControlState.DEFENSIVE);
                 } else if (appendageControl.currentState == AppendageControlState.DEFENSIVE) {
                     appendageControl.setControlState(AppendageControlState.HIGH_BASKET);
+                }
+            }
+
+
+            if (x2ActivatedEvaluator.evaluate()) {
+                if (appendageControl.currentState == AppendageControlState.SCORE_CLIP) {
+                    appendageControl.setControlState(AppendageControlState.COLLECT_CLIP);
+                } else {
+                    appendageControl.setControlState(AppendageControlState.SCORE_CLIP);
                 }
             }
 

@@ -6,5 +6,7 @@ public enum AppendageControlState {
     COLLECTING,
     COLLECT_SAFE,
     LOW_BASKET,
-    HIGH_BASKET
+    HIGH_BASKET,
+    COLLECT_CLIP,
+    SCORE_CLIP
 }

@@ -63,6 +63,12 @@ class AppendageControl {
             case HIGH_BASKET:
                 evaluateHighBasket();
                 break;
+            case COLLECT_CLIP:
+                evaluateCollectClip();
+                break;
+            case SCORE_CLIP:
+                evaluateScoreClip();
+                break;
             default:
                 throw new IllegalArgumentException("Unexpected state: " + currentState);
         }
@@ -192,6 +198,15 @@ class AppendageControl {
 
     private void evaluateHighBasket() {
         setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_BASKET_ANGLE, TerabytesIntoTheDeep.EXTENDER_MAX_EXTENSION_INCHES);
+        evaluateEndEffector();
+    }
+
+    private void evaluateCollectClip() {
+        setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_COLLECT_CLIP_ANGLE,0);
+        evaluateEndEffector();
+    }
+    private void evaluateScoreClip() {
+        setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_SCORE_CLIP_ANGLE, 0);
         evaluateEndEffector();
     }
 
