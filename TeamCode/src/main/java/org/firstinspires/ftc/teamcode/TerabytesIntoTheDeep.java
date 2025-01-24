@@ -243,9 +243,6 @@ public class TerabytesIntoTheDeep {
         pincer = hardwareMap.get(Servo.class, "pincer");
         wrist = hardwareMap.get(Servo.class, "wrist");
         colorSensor = hardwareMap.get(ColorRangeSensor.class, "colorSensor");
-
-        armLeft.setDirection(DcMotorSimple.Direction.REVERSE);
-        armRight.setDirection(DcMotorSimple.Direction.REVERSE);
     }
 
     public Pose2d getLatestPoseEstimate() {
