@@ -9,6 +9,7 @@ class AppendageControl {
     private static double DISTANCE_SIGNAL_INCREMENT_AMOUNT = 0.085;
     private static int ARM_SETTLED_TICK_THRESHOLD = 32;
     private static int EXTENDER_SETTLED_TICK_THRESHOLD = 24;
+    private static int UNTUCK_END_EFFECTOR_TIMEOUT_MILLIS = 3000;
 
     private int currentArmLTicks;
     private int currentArmRTicks;
@@ -26,6 +27,7 @@ class AppendageControl {
     private boolean levelTilt = false;
     private boolean isAuton = false;
     private ElapsedTime justDunkedTimer;
+    private ElapsedTime untuckedTimer;
 
     public AppendageControl(AppendageControlState initialState, boolean isAuton) {
         currentState = initialState;
@@ -38,10 +40,15 @@ class AppendageControl {
         currentExtenderTicks = extenderTicks;
 
         if (justDunkedTimer != null && justDunkedTimer.milliseconds() > DUNK_AUTO_RETRACT_DELAY) {
-            if (isScoring()) {
+            if (isBasketScoring()) {
                 setControlState(AppendageControlState.DEFENSIVE);
             }
             justDunkedTimer = null;
+        }
+
+        if (currentState != AppendageControlState.TUCKED && untuckedTimer == null)
+        {
+            untuckedTimer = new ElapsedTime();
         }
 
         switch (currentState) {
@@ -87,7 +94,7 @@ class AppendageControl {
 
     public void togglePincer() {
         openPincer = !openPincer;
-        if (isScoring() && dunkSignal > DUNK_AUTO_RETRACT_WHEN_SCORE_THRESHOLD) {
+        if (isBasketScoring() && dunkSignal > DUNK_AUTO_RETRACT_WHEN_SCORE_THRESHOLD) {
             justDunkedTimer = new ElapsedTime();
         }
     }
@@ -134,14 +141,26 @@ class AppendageControl {
     }
 
     private void evaluateEndEffector() {
+        if (untuckedTimer != null && untuckedTimer.milliseconds() < UNTUCK_END_EFFECTOR_TIMEOUT_MILLIS) {
+            target.wristTarget = TerabytesIntoTheDeep.WRIST_TUCKED;
+            target.tiltTarget = TerabytesIntoTheDeep.TILT_TUCKED;
+            target.pincerTarget = TerabytesIntoTheDeep.PINCER_OPEN;
+            return;
+        }
+
         double armDegreesFromHorizontal = currentArmDegreesAboveHorizontal();
         double tiltLevel = TerabytesIntoTheDeep.TILT_ORIGIN + (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * (90 - armDegreesFromHorizontal));
+        double tiltClip = TerabytesIntoTheDeep.TILT_ORIGIN + (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * (90 + 35 - armDegreesFromHorizontal));
         double tiltUp = tiltLevel + (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * 90);
-        double tiltDown = TerabytesIntoTheDeep.TILT_ORIGIN - (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * (armDegreesFromHorizontal - 15));
+        double tiltDown = TerabytesIntoTheDeep.TILT_ORIGIN - (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * armDegreesFromHorizontal);
+        boolean isClipCollect = currentState == AppendageControlState.COLLECT_CLIP;
+        boolean isClipScore = currentState == AppendageControlState.SCORE_CLIP;
         boolean isCollecting = currentState == AppendageControlState.COLLECTING;
-        double tiltActualSetpoint = isCollecting ? tiltDown : tiltUp;
-        if (isScoring()) {
+        double tiltActualSetpoint = isCollecting ? tiltDown : (isClipCollect || isClipScore) ? tiltClip : tiltUp;
+        if (isBasketScoring() || isClipCollect) {
             tiltActualSetpoint = tiltActualSetpoint - (dunkSignal * TerabytesIntoTheDeep.TILT_DUNK_RANGE);
+        } else if (isClipScore) {
+            tiltActualSetpoint = tiltActualSetpoint + (dunkSignal * TerabytesIntoTheDeep.TILT_DUNK_RANGE);
         }
         tiltActualSetpoint = Math.max(0, Math.min(1, tiltActualSetpoint));
         double wristActualSetpoint = Math.max(-1, Math.min(1, wristSignal));
@@ -217,7 +236,7 @@ class AppendageControl {
         return armDegreesFromZero - TerabytesIntoTheDeep.ARM_LEVEL_DEGREES_ABOVE_ZERO;
     }
 
-    public boolean isScoring() {
+    public boolean isBasketScoring() {
         return currentState == AppendageControlState.HIGH_BASKET || currentState == AppendageControlState.LOW_BASKET;
     }
 

@@ -211,7 +211,7 @@ public abstract class TerabytesOpMode extends LinearOpMode {
 
         while (!isStopRequested() && terabytes.evaluate()) {
             long currentTime = System.currentTimeMillis();
-            if (currentTime - lastSaveTime >= SAVE_INTERVAL_MS) {
+            if (currentTime - lastSaveTime >= SAVE_INTERVAL_MS && opModeIsActive()) {
                 savePersistedData(
                         terabytes.getLatestPoseEstimate(),
                         terabytes.getAppendageControlStateInteger(),

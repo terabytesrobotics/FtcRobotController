@@ -67,8 +67,8 @@ public class TerabytesIntoTheDeep {
     public static final double ARM_MAX_COLLECT_HEIGHT_INCHES = 14.75d;
     public static final double ARM_DEFENSIVE_ANGLE = 55.6;
     public static final double ARM_BASKET_ANGLE = 97.5;
-    public static final double ARM_COLLECT_CLIP_ANGLE = 0;
-    public static final double ARM_SCORE_CLIP_ANGLE = 44;
+    public static final double ARM_COLLECT_CLIP_ANGLE = -25;
+    public static final double ARM_SCORE_CLIP_ANGLE = 22.5;
     // TODO: tune extender parameters to get accurate ratio of tick per inch and no-extension length
     public static final double EXTENDER_MIN_LENGTH_INCHES = 16d;
     public static final double EXTENDER_GEAR_RATIO = 5.2d;
@@ -376,8 +376,8 @@ public class TerabytesIntoTheDeep {
 
             boolean zeroArm = armMin.isPressed();
             if (zeroExtender && !zeroArm) {
-                armLeft.setPower(0.30);
-                armRight.setPower(0.30);
+                armLeft.setPower(0.35);
+                armRight.setPower(0.35);
             } else {
                 armLeft.setPower(0);
                 armRight.setPower(0);
@@ -395,9 +395,11 @@ public class TerabytesIntoTheDeep {
     }
 
     private void evaluateAppendageControl() {
+        int appendageControlArmLTickPosition = -getArmLTickPosition();
+        int appendageControlArmRTickPosition = -getArmRTickPosition();
         AppendageControlTarget controlTarget = appendageControl.evaluate(
-                getArmLTickPosition(),
-                getArmRTickPosition(),
+                appendageControlArmLTickPosition,
+                appendageControlArmRTickPosition,
                 getExtenderTickPosition());
         if (state != IntoTheDeepOpModeState.STOPPED_UNTIL_END) {
             // Only subtract ticksAtInit for the purpose of control
@@ -562,20 +564,20 @@ public class TerabytesIntoTheDeep {
 
 
             if (x2ActivatedEvaluator.evaluate()) {
-                if (appendageControl.currentState == AppendageControlState.SCORE_CLIP) {
-                    appendageControl.setControlState(AppendageControlState.COLLECT_CLIP);
-                } else {
+                if (appendageControl.currentState == AppendageControlState.COLLECT_CLIP) {
                     appendageControl.setControlState(AppendageControlState.SCORE_CLIP);
+                } else {
+                    appendageControl.setControlState(AppendageControlState.COLLECT_CLIP);
                 }
             }
 
-            if ((rb1ActivatedEvaluator.evaluate() && appendageControl.isScoring()) || rb2ActivatedEvaluator.evaluate()) {
+            if ((rb1ActivatedEvaluator.evaluate() && appendageControl.isBasketScoring()) || rb2ActivatedEvaluator.evaluate()) {
                 appendageControl.togglePincer();
             }
 
             appendageControl.setDunkSignal(gamepad1.right_trigger + gamepad2.right_trigger);
             appendageControl.accumulateWristSignal(gamepad2.right_stick_x * WRIST_ACCUMULATOR_SPEED_PER_MILLI * dtMillis);
-            appendageControl.applyTiltLevel(gamepad2.b || gamepad1.b);
+            appendageControl.applyTiltLevel(gamepad2.b || gamepad1.b); // TODO: is this used?
 
             boolean isCollecting = appendageControl.currentState == AppendageControlState.COLLECTING;
             if (isCollecting) {
@@ -598,7 +600,7 @@ public class TerabytesIntoTheDeep {
         // -1 means collect is front
 
         boolean hasPositionEstimate = hasPositionEstimate();
-        boolean isScoring = appendageControl != null && appendageControl.isScoring();
+        boolean isScoring = appendageControl != null && appendageControl.isBasketScoring();
         boolean wasScoring = appendageControl != null && (appendageControl.previousState == AppendageControlState.HIGH_BASKET || appendageControl.previousState == AppendageControlState.LOW_BASKET);
         boolean isDefensive = appendageControl != null && appendageControl.currentState == AppendageControlState.DEFENSIVE;
 
