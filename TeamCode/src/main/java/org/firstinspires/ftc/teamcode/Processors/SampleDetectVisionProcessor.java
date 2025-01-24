@@ -16,6 +16,7 @@ import org.opencv.core.MatOfPoint;
 import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.Point;
 import org.opencv.core.Rect;
+import org.opencv.core.RotatedRect;
 import org.opencv.core.Scalar;
 import org.opencv.imgproc.Imgproc;
 
@@ -91,6 +92,10 @@ public class SampleDetectVisionProcessor implements VisionProcessor {
         List<MatOfPoint> contours = new ArrayList<>();
         Imgproc.findContours(combinedMask, contours, new Mat(), Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_SIMPLE);
 
+        // Set size limit
+        int frameArea = frame.rows() * frame.cols();
+        double minArea = 0.025 * frameArea;  // Minimum rectangle area (25% of image area)
+
         // Process detected contours (shapes)
         for (MatOfPoint contour : contours) {
             MatOfPoint2f contour2f = new MatOfPoint2f(contour.toArray());
@@ -105,23 +110,54 @@ public class SampleDetectVisionProcessor implements VisionProcessor {
             if (numVertices == 4) {
                 // Get bounding box around the shape
                 Rect boundingRect = Imgproc.boundingRect(new MatOfPoint(approx.toArray()));
+                double rectArea = boundingRect.area();
 
-           /* // Identify the shape based on the number of vertices
-            String shape = "";
-            if (numVertices == 3) {
-                shape = "Triangle";
-            } else if (numVertices == 4) {
-                shape = "Rectangle";
-            } else {
-                shape = "Circle";
-            }*/
+                // Skip small rectangles
+                if (rectArea < minArea) continue;
 
-                // Draw bounding box around the detected shape
-                Imgproc.rectangle(lastFrame, boundingRect, new Scalar(0, 255, 0), 2);
 
-                // Put text on the detected object to indicate color and shape
-                Imgproc.putText(lastFrame, "Rectangle", new Point(boundingRect.x, boundingRect.y - 10),
-                        Imgproc.FONT_HERSHEY_SIMPLEX, 0.5, new Scalar(255, 255, 255), 2);
+
+                // Calculate rotation using minAreaRect
+                RotatedRect rotatedRect = Imgproc.minAreaRect(new MatOfPoint2f(approx.toArray()));
+                double angle = rotatedRect.angle;
+
+// Adjust angle to differentiate between vertical and horizontal
+                if (rotatedRect.size.width < rotatedRect.size.height) {
+                    // Rectangle is vertical; angle is relative to the vertical axis
+                    angle = 90 + angle;
+                } else {
+                    // Rectangle is horizontal; angle is relative to the horizontal axis
+                    angle = angle;
+                }
+
+
+                // Determine color of the rectangle
+                String colorLabel = "Unknown";
+                Mat maskROI = combinedMask.submat(boundingRect);
+                double redPixels = Core.sumElems(redMask.submat(boundingRect)).val[0] / 255.0;
+                double bluePixels = Core.sumElems(blueMask.submat(boundingRect)).val[0] / 255.0;
+                double yellowPixels = Core.sumElems(yellowMask.submat(boundingRect)).val[0] / 255.0;
+
+                if (redPixels > bluePixels && redPixels > yellowPixels) {
+                    colorLabel = "Red";
+                } else if (bluePixels > redPixels && bluePixels > yellowPixels) {
+                    colorLabel = "Blue";
+                } else if (yellowPixels > redPixels && yellowPixels > bluePixels) {
+                    colorLabel = "Yellow";
+                }
+
+                // Draw rectangle and labels
+                Imgproc.rectangle(lastFrame, boundingRect, new Scalar(0, 255, 0), 2);  // Green rectangle
+                Imgproc.putText(lastFrame, colorLabel, new Point(boundingRect.x, boundingRect.y - 30),
+                        Imgproc.FONT_HERSHEY_SIMPLEX, 0.5, new Scalar(255, 255, 255), 2);  // Color label
+                Imgproc.putText(lastFrame, String.format("Angle: %.2f", angle),
+                        new Point(boundingRect.x, boundingRect.y - 10),
+                        Imgproc.FONT_HERSHEY_SIMPLEX, 0.5, new Scalar(255, 255, 255), 2);  // Rotation angle
+
+
+
+
+
 
             }
 
