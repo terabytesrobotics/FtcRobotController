@@ -160,7 +160,7 @@ class AppendageControl {
         if (isBasketScoring() || isClipCollect) {
             tiltActualSetpoint = tiltActualSetpoint - (dunkSignal * TerabytesIntoTheDeep.TILT_DUNK_RANGE);
         } else if (isClipScore) {
-            tiltActualSetpoint = tiltActualSetpoint + (dunkSignal * TerabytesIntoTheDeep.TILT_DUNK_RANGE);
+            tiltActualSetpoint = tiltActualSetpoint - (dunkSignal * 0.5 * TerabytesIntoTheDeep.TILT_DUNK_RANGE);
         }
         tiltActualSetpoint = Math.max(0, Math.min(1, tiltActualSetpoint));
         double wristActualSetpoint = Math.max(-1, Math.min(1, wristSignal));
