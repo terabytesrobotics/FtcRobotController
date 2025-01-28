@@ -4,7 +4,11 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.util.Log;
 
+import com.qualcomm.robotcore.util.ElapsedTime;
+
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibration;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
 import org.firstinspires.ftc.vision.VisionProcessor;
@@ -20,6 +24,7 @@ import org.opencv.core.RotatedRect;
 import org.opencv.core.Scalar;
 import org.opencv.imgproc.Imgproc;
 
+import java.lang.annotation.ElementType;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,7 +41,9 @@ public class SampleDetectVisionProcessor implements VisionProcessor {
     public Rect startrect;*/
 
     public Paint rectPaint;
-
+    public ElapsedTime sampleTime = new ElapsedTime();
+    public double lastSampleDelayTimeMillis = 0;
+    public double lastSampleProcessingTimeMillis = 0;
 
     @Override
     public void init(int width, int height, CameraCalibration calibration) {
@@ -52,14 +59,14 @@ public class SampleDetectVisionProcessor implements VisionProcessor {
     @Override
     public Object processFrame(Mat frame, long captureTimeNanos) {
 
+        lastSampleDelayTimeMillis = sampleTime.milliseconds();
+        sampleTime.reset();
+
         lastFrame = frame.clone();
-
-        //return lastFrame;
-
 
         // Convert to HSV color space
         Mat hsvFrame = new Mat();
-        Imgproc.cvtColor(lastFrame, hsvFrame, Imgproc.COLOR_RGB2HSV);
+        Imgproc.cvtColor(frame, hsvFrame, Imgproc.COLOR_RGB2HSV);
 
         // Detect colors (red, blue, and yellow as an example)
         Mat redMask = new Mat();
@@ -147,10 +154,10 @@ public class SampleDetectVisionProcessor implements VisionProcessor {
                 }
 
                 // Draw rectangle and labels
-                Imgproc.rectangle(lastFrame, boundingRect, new Scalar(0, 255, 0), 2);  // Green rectangle
-                Imgproc.putText(lastFrame, colorLabel, new Point(boundingRect.x, boundingRect.y - 30),
+                Imgproc.rectangle(frame, boundingRect, new Scalar(0, 255, 0), 2);  // Green rectangle
+                Imgproc.putText(frame, colorLabel, new Point(boundingRect.x, boundingRect.y - 30),
                         Imgproc.FONT_HERSHEY_SIMPLEX, 0.5, new Scalar(255, 255, 255), 2);  // Color label
-                Imgproc.putText(lastFrame, String.format("Angle: %.2f", angle),
+                Imgproc.putText(frame, String.format("Angle: %.2f", angle),
                         new Point(boundingRect.x, boundingRect.y - 10),
                         Imgproc.FONT_HERSHEY_SIMPLEX, 0.5, new Scalar(255, 255, 255), 2);  // Rotation angle
 
@@ -162,7 +169,11 @@ public class SampleDetectVisionProcessor implements VisionProcessor {
             }
 
         }
-        return lastFrame; // Return the processed frame with shapes and bounding boxes
+
+        lastSampleProcessingTimeMillis = sampleTime.milliseconds();
+        sampleTime.reset();
+
+        return frame; // Return the processed frame with shapes and bounding boxes
     }
 
 

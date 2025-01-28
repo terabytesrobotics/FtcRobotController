@@ -29,6 +29,8 @@
 
 package org.firstinspires.ftc.teamcode.util;
 
+import android.content.Context;
+
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
@@ -130,7 +132,8 @@ public class SampleDetectTest_LAK extends LinearOpMode {
                 }
                     else return;
 */
-
+                telemetry.addData("sampleProcessingTime", SampleFinder.lastSampleProcessingTimeMillis);
+                telemetry.addData("sampleDelayTime", SampleFinder.lastSampleDelayTimeMillis);
 
                 telemetry.update();
 

@@ -36,6 +36,7 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.robotcore.external.hardware.camera.BuiltinCameraDirection;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
+import org.firstinspires.ftc.robotcore.external.stream.CameraStreamSource;
 import org.firstinspires.ftc.teamcode.Processors.SampleDetectVisionProcessor;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.opencv.core.Mat;
@@ -80,12 +81,22 @@ public class SampleDetectTest_LAK_webcam extends LinearOpMode {
     @Override
     public void runOpMode() {
 
-       FtcDashboard dashboard = FtcDashboard.getInstance();
+        SampleFinder = new SampleDetectVisionProcessor();
+
+        // Create the vision portal the easy way.
+        if (USE_WEBCAM) {
+            visionPortal = VisionPortal.easyCreateWithDefaults(
+                    hardwareMap.get(WebcamName.class, "Webcam 1"), SampleFinder);
+            visionPortal.setProcessorEnabled(SampleFinder, true);
+        } else {
+            visionPortal = VisionPortal.easyCreateWithDefaults(
+                    BuiltinCameraDirection.BACK, SampleFinder);
+        }
+
+        FtcDashboard dashboard = FtcDashboard.getInstance();
+        dashboard.startCameraStream(visionPortal, 30);
         telemetry = dashboard.getTelemetry();
 
-
-
-        initsamplefinder();
 
         // Wait for the DS start button to be touched.
        /* telemetry.addData("DS preview on/off", "3 dots, Camera Stream");
@@ -129,7 +140,8 @@ public class SampleDetectTest_LAK_webcam extends LinearOpMode {
                 }
                     else return;
 */
-
+                telemetry.addData("sampleProcessingTime", SampleFinder.lastSampleProcessingTimeMillis);
+                telemetry.addData("sampleDelayTime", SampleFinder.lastSampleDelayTimeMillis);
 
                 telemetry.update();
 
@@ -201,20 +213,6 @@ public class SampleDetectTest_LAK_webcam extends LinearOpMode {
 
     }   // end method telemetryAprilTag()
 */
-    private void initsamplefinder() {
-
-        SampleFinder = new SampleDetectVisionProcessor();
-
-        // Create the vision portal the easy way.
-        if (USE_WEBCAM) {
-            visionPortal = VisionPortal.easyCreateWithDefaults(
-                    hardwareMap.get(WebcamName.class, "Webcam 1"), SampleFinder);
-        } else {
-            visionPortal = VisionPortal.easyCreateWithDefaults(
-                    BuiltinCameraDirection.BACK, SampleFinder);
-        }
-
-    }   // end method initsamplefinder()
 
 
 }   // end class
