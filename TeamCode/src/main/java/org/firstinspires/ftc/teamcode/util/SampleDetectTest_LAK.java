@@ -43,6 +43,10 @@ import org.firstinspires.ftc.teamcode.Processors.SampleDetectVisionProcessor;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.opencv.core.Mat;
 
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.List;
+
 /*
 
  * Use Android Studio to Copy this Class, and Paste it into your team's code folder with a new name.
@@ -207,7 +211,12 @@ public class SampleDetectTest_LAK extends LinearOpMode {
 */
     private void initsamplefinder() {
 
-        SampleFinder = new SampleDetectVisionProcessor();
+        EnumSet<SampleDetectVisionProcessor.DetectableColor> colors = EnumSet.of(
+                SampleDetectVisionProcessor.DetectableColor.RED,
+                SampleDetectVisionProcessor.DetectableColor.BLUE
+        );
+
+        SampleFinder = new SampleDetectVisionProcessor(colors);
 
         // Create the vision portal the easy way.
         if (USE_WEBCAM) {

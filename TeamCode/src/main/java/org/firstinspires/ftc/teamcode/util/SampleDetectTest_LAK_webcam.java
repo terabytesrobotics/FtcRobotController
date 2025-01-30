@@ -41,6 +41,8 @@ import org.firstinspires.ftc.teamcode.Processors.SampleDetectVisionProcessor;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.opencv.core.Mat;
 
+import java.util.EnumSet;
+
 /*
 
  * Use Android Studio to Copy this Class, and Paste it into your team's code folder with a new name.
@@ -57,20 +59,7 @@ public class SampleDetectTest_LAK_webcam extends LinearOpMode {
     /**
      * The variable to store our instance of the AprilTag processor.
      */
-    //private AprilTagProcessor aprilTag;
    public SampleDetectVisionProcessor SampleFinder;
-    //public CameraCalibration calibration;
-
-
-
-
-    int Height = 480;
-    int Width = 640;
-
-
-   public static int rows = 3;
-   public static int cols = 2;
-
    public static String color = "RED";//Change to BLUE as necessary.
 
     /**
@@ -81,27 +70,30 @@ public class SampleDetectTest_LAK_webcam extends LinearOpMode {
     @Override
     public void runOpMode() {
 
-        SampleFinder = new SampleDetectVisionProcessor();
+        EnumSet<SampleDetectVisionProcessor.DetectableColor> colors = EnumSet.of(
+                SampleDetectVisionProcessor.DetectableColor.RED,
+                SampleDetectVisionProcessor.DetectableColor.YELLOW
+        );
+
+        SampleFinder = new SampleDetectVisionProcessor(colors);
 
         // Create the vision portal the easy way.
         if (USE_WEBCAM) {
             visionPortal = VisionPortal.easyCreateWithDefaults(
                     hardwareMap.get(WebcamName.class, "Webcam 1"), SampleFinder);
+
             visionPortal.setProcessorEnabled(SampleFinder, true);
+
         } else {
             visionPortal = VisionPortal.easyCreateWithDefaults(
                     BuiltinCameraDirection.BACK, SampleFinder);
         }
 
+
         FtcDashboard dashboard = FtcDashboard.getInstance();
         dashboard.startCameraStream(visionPortal, 30);
         telemetry = dashboard.getTelemetry();
 
-
-        // Wait for the DS start button to be touched.
-       /* telemetry.addData("DS preview on/off", "3 dots, Camera Stream");
-        telemetry.addData(">", "Touch Play to start OpMode");
-        telemetry.update();*/
         waitForStart();
 
         if (opModeIsActive()) {

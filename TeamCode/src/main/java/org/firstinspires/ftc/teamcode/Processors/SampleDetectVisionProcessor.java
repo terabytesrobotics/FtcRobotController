@@ -10,6 +10,8 @@ import org.firstinspires.ftc.vision.VisionProcessor;
 import org.opencv.android.Utils;
 import org.opencv.core.Core;
 import org.opencv.core.Mat;
+import org.opencv.core.MatOfPoint;
+import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.Point;
 import org.opencv.core.RotatedRect;
 import org.opencv.core.Scalar;
@@ -18,14 +20,19 @@ import org.opencv.imgproc.Imgproc;
 import org.opencv.imgproc.Moments;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 
 public class SampleDetectVisionProcessor implements VisionProcessor {
+    private static int MAX_BLOCKS = 1;
     public Mat lastFrame;
     public ElapsedTime sampleTime = new ElapsedTime();
     public double lastSampleDelayTimeMillis = 0;
     public double lastSampleProcessingTimeMillis = 0;
-    private static final int MAX_BLOCKS = 3;
+
+    public enum DetectableColor { RED, BLUE, YELLOW }
+    private final EnumSet<DetectableColor> colorsToDetect;
+
     private static final Scalar RED_LOW1 =  new Scalar(0,120,70);
     private static final Scalar RED_HIGH1 = new Scalar(10,255,255);
     private static final Scalar RED_LOW2 =  new Scalar(170,120,70);
@@ -35,24 +42,45 @@ public class SampleDetectVisionProcessor implements VisionProcessor {
     private static final Scalar YEL_LOW   = new Scalar(20,150,70);
     private static final Scalar YEL_HIGH  = new Scalar(30,255,255);
 
-    @Override public void init(int width, int height, CameraCalibration calibration) {}
+    public SampleDetectVisionProcessor(EnumSet<DetectableColor> colorsToDetect) {
+        this.colorsToDetect = colorsToDetect;
+    }
 
-    @Override public Object processFrame(Mat frame, long captureTimeNanos) {
+    @Override
+    public void init(int width, int height, CameraCalibration calibration) {}
+
+    @Override
+    public Object processFrame(Mat frame, long captureTimeNanos) {
         lastSampleDelayTimeMillis = sampleTime.milliseconds();
         sampleTime.reset();
-        Mat hsv = new Mat(); Imgproc.cvtColor(frame, hsv, Imgproc.COLOR_BGR2HSV);
 
-        Mat red1=new Mat(), red2=new Mat(), maskRed=new Mat(), maskBlue=new Mat(), maskYel=new Mat();
-        Core.inRange(hsv, RED_LOW1, RED_HIGH1, red1);
-        Core.inRange(hsv, RED_LOW2, RED_HIGH2, red2);
-        Core.bitwise_or(red1, red2, maskRed);
-        Core.inRange(hsv, BLUE_LOW, BLUE_HIGH, maskBlue);
-        Core.inRange(hsv, YEL_LOW,  YEL_HIGH,  maskYel);
+        Mat rotated = new Mat();
+        Core.rotate(frame, rotated, Core.ROTATE_90_COUNTERCLOCKWISE);
+        frame = rotated;
 
+        Mat hsv = new Mat();
+        Imgproc.cvtColor(frame, hsv, Imgproc.COLOR_RGB2HSV);
         Mat annotated = frame.clone();
-        detectAndDrawLargestBlobs(maskRed,   annotated, new Scalar(0,0,255));
-        detectAndDrawLargestBlobs(maskBlue,  annotated, new Scalar(255,0,0));
-        detectAndDrawLargestBlobs(maskYel,   annotated, new Scalar(0,255,255));
+
+        if (colorsToDetect.contains(DetectableColor.RED)) {
+            Mat red1 = new Mat(), red2 = new Mat(), maskRed = new Mat();
+            Core.inRange(hsv, RED_LOW1, RED_HIGH1, red1);
+            Core.inRange(hsv, RED_LOW2, RED_HIGH2, red2);
+            Core.bitwise_or(red1, red2, maskRed);
+            detectAndDrawBlocks(maskRed, annotated, new Scalar(255, 255, 255));
+        }
+
+        if (colorsToDetect.contains(DetectableColor.BLUE)) {
+            Mat maskBlue = new Mat();
+            Core.inRange(hsv, BLUE_LOW, BLUE_HIGH, maskBlue);
+            detectAndDrawBlocks(maskBlue, annotated, new Scalar(255, 255, 255));
+        }
+
+        if (colorsToDetect.contains(DetectableColor.YELLOW)) {
+            Mat maskYellow = new Mat();
+            Core.inRange(hsv, YEL_LOW, YEL_HIGH, maskYellow);
+            detectAndDrawBlocks(maskYellow, annotated, new Scalar(255, 255, 255));
+        }
 
         lastFrame = annotated;
         lastSampleProcessingTimeMillis = sampleTime.milliseconds();
@@ -60,29 +88,20 @@ public class SampleDetectVisionProcessor implements VisionProcessor {
         return annotated;
     }
 
-    private void detectAndDrawLargestBlobs(Mat mask, Mat drawOn, Scalar color) {
-        Mat labels = new Mat(), stats = new Mat(), centroids = new Mat();
-        int n = Imgproc.connectedComponentsWithStats(mask, labels, stats, centroids);
-        List<Integer> idxs = new ArrayList<>();
-        for(int i=1;i<n;i++){
-            double area = stats.get(i,Imgproc.CC_STAT_AREA)[0];
-            if(area>100) idxs.add(i);
-        }
-        idxs.sort((a,b)->Double.compare(
-                stats.get(b,Imgproc.CC_STAT_AREA)[0],
-                stats.get(a,Imgproc.CC_STAT_AREA)[0])
-        );
-        for(int i=0;i<idxs.size() && i<MAX_BLOCKS;i++){
-            int lbl = idxs.get(i);
-            Mat cmp = new Mat(); Core.compare(labels,new Scalar(lbl),cmp,Core.CMP_EQ);
-            Moments m = Imgproc.moments(cmp,false);
-            double cx = m.m10/m.m00, cy = m.m01/m.m00;
-            double mu20 = m.mu20/m.m00, mu02 = m.mu02/m.m00, mu11 = m.mu11/m.m00;
-            double angle = 0.5*Math.atan2(2*mu11, mu20 - mu02)*180/Math.PI;
-            double a = mu20+mu02, b = Math.sqrt(4*mu11*mu11 + (mu20-mu02)*(mu20-mu02));
-            double major = 4*Math.sqrt((a+b)/2), minor = 4*Math.sqrt((a-b)/2);
-            RotatedRect r = new RotatedRect(new Point(cx, cy), new Size(major,minor), angle);
-            Imgproc.ellipse(drawOn,r,color,2);
+    private void detectAndDrawBlocks(Mat mask, Mat drawOn, Scalar color) {
+        List<MatOfPoint> contours = new ArrayList<>();
+        Mat hierarchy = new Mat();
+        Imgproc.findContours(mask, contours, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+        contours.sort((c1, c2) -> Double.compare(Imgproc.contourArea(c2), Imgproc.contourArea(c1)));
+
+        int count = 0;
+        for (MatOfPoint contour : contours) {
+            if (count >= MAX_BLOCKS) break;
+            double area = Imgproc.contourArea(contour);
+            if (area < 100) continue;
+            RotatedRect ellipse = Imgproc.fitEllipse(new MatOfPoint2f(contour.toArray()));
+            Imgproc.ellipse(drawOn, ellipse, color, 2);
+            count++;
         }
     }
 
