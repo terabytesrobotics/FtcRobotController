@@ -30,6 +30,8 @@ import com.qualcomm.robotcore.hardware.TouchSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
 
+import org.firstinspires.ftc.robotcore.external.ClassFactory;
+import org.firstinspires.ftc.robotcore.external.hardware.camera.CameraName;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
@@ -188,9 +190,10 @@ public class TerabytesIntoTheDeep {
     private final TouchSensor armMin;
     private final TouchSensor extenderMin;
     private final WebcamName frontCamera;
-    private final VisionPortal visionPortal;
+    private final WebcamName wristCamera;
     private final AprilTagProcessor aprilTagProcessor;
     private final ColorRangeSensor colorSensor;
+    public final VisionPortal visionPortal;
 
     // Appendage state
     private int servoInitStageIndex = 0;
@@ -205,9 +208,14 @@ public class TerabytesIntoTheDeep {
         this.debugMode = debugMode;
 
         frontCamera = hardwareMap.get(WebcamName.class, "Webcam 1");
+        wristCamera = hardwareMap.get(WebcamName.class, "Webcam 2");
+        CameraName switchableCamera = ClassFactory.getInstance()
+                .getCameraManager()
+                .nameForSwitchableCamera(frontCamera, wristCamera);
+
         aprilTagProcessor = new AprilTagProcessor.Builder().build();
         visionPortal = new VisionPortal.Builder()
-                .setCamera(frontCamera)
+                .setCamera(switchableCamera)
                 .addProcessor(aprilTagProcessor)
                 .build();
         visionPortal.setProcessorEnabled(aprilTagProcessor, true);
@@ -422,6 +430,14 @@ public class TerabytesIntoTheDeep {
         }
     }
 
+    private void evaluateSwitchCamera() {
+        if (appendageControl == null || appendageControl.currentState != AppendageControlState.COLLECTING) {
+            visionPortal.setActiveCamera(frontCamera);
+        } else {
+           visionPortal.setActiveCamera(wristCamera);
+        }
+    }
+
     // Control loop.  Returns true iff the op-mode should continue running.
     public boolean evaluate() {
         double dt = loopTime.milliseconds();
@@ -431,6 +447,7 @@ public class TerabytesIntoTheDeep {
         // keep updating the drive and keep the machine alive
         drive.update();
         latestPoseEstimate = drive.getPoseEstimate();
+        evaluateSwitchCamera();
         evaluateAppendageInitOrControl();
         evaluatePositioningSystems();
 
