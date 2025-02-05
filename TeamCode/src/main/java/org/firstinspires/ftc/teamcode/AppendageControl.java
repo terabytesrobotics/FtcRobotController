@@ -76,6 +76,8 @@ class AppendageControl {
             case SCORE_CLIP:
                 evaluateScoreClip();
                 break;
+            case HANG:
+                evaluateHang();
             default:
                 throw new IllegalArgumentException("Unexpected state: " + currentState);
         }
@@ -226,6 +228,10 @@ class AppendageControl {
     }
     private void evaluateScoreClip() {
         setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_SCORE_CLIP_ANGLE, 0);
+        evaluateEndEffector();
+    }
+    private void evaluateHang(){
+        setArmAndExtenderSetpoints(TerabytesIntoTheDeep.EXTENDER_HANG, TerabytesIntoTheDeep.ARM_HANG_ANGLE);
         evaluateEndEffector();
     }
 

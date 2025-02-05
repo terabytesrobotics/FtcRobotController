@@ -71,6 +71,7 @@ public class TerabytesIntoTheDeep {
     public static final double ARM_BASKET_ANGLE = 97.5;
     public static final double ARM_COLLECT_CLIP_ANGLE = -25;
     public static final double ARM_SCORE_CLIP_ANGLE = 22.5;
+    public static final double ARM_HANG_ANGLE = 0;
     // TODO: tune extender parameters to get accurate ratio of tick per inch and no-extension length
     public static final double EXTENDER_MIN_LENGTH_INCHES = 16d;
     public static final double EXTENDER_GEAR_RATIO = 5.2d;
@@ -79,6 +80,8 @@ public class TerabytesIntoTheDeep {
     public static final double EXTENDER_MAX_TOTAL_LENGTH = EXTENDER_MIN_LENGTH_INCHES + EXTENDER_MAX_EXTENSION_INCHES;
     public static final double EXTENDER_MAX_LENGTH_TICKS = EXTENDER_MAX_EXTENSION_INCHES * EXTENDER_TICKS_PER_INCH; //
     public static final double EXTENDER_DEFLECTION_RATIO = 1d / 12; // One inch per foot of extension
+    public static final double EXTENDER_HANG = EXTENDER_MAX_EXTENSION_INCHES * 0.5;
+
 
     public static final double TILT_ORIGIN = 0.0;
     public static final double TILT_TICKS_PER_DEGREE = 1.0 / 270.0;
@@ -175,6 +178,7 @@ public class TerabytesIntoTheDeep {
     private final Gamepad gamepad1;
     private final Gamepad gamepad2;
     private final OnActivatedEvaluator rb1ActivatedEvaluator;
+    private final OnActivatedEvaluator lb1ActivatedEvaluator;
     private final OnActivatedEvaluator a1ActivatedEvaluator;
     private final OnActivatedEvaluator b1ActivatedEvaluator;
     private final OnActivatedEvaluator y1ActivatedEvaluator;
@@ -235,6 +239,7 @@ public class TerabytesIntoTheDeep {
         x2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.x);
         dpu1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.dpad_up);
         dpd1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.dpad_down);
+        lb1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.left_bumper);
 
         leftArmControl.setTolerance(20);
         rightArmControl.setTolerance(20);
@@ -578,6 +583,8 @@ public class TerabytesIntoTheDeep {
                     appendageControl.setControlState(AppendageControlState.HIGH_BASKET);
                 }
             }
+
+            if (lb1ActivatedEvaluator.evaluate())
 
 
             if (x2ActivatedEvaluator.evaluate()) {
