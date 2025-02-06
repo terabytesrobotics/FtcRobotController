@@ -170,14 +170,13 @@ class AppendageControl {
         this.collectHeightSignal = Math.max(0, Math.min(1, this.collectHeightSignal));
     }
 
-    private void evaluateEndEffector() {
-        if (untuckedTimer != null && untuckedTimer.milliseconds() < UNTUCK_END_EFFECTOR_TIMEOUT_MILLIS) {
-            target.wristTarget = TerabytesIntoTheDeep.WRIST_TUCKED;
-            target.tiltTarget = TerabytesIntoTheDeep.TILT_TUCKED;
-            target.pincerTarget = TerabytesIntoTheDeep.PINCER_OPEN;
-            return;
-        }
+    private void holdSafeEndEffector() {
+        target.wristTarget = TerabytesIntoTheDeep.WRIST_TUCKED;
+        target.tiltTarget = TerabytesIntoTheDeep.TILT_TUCKED;
+        target.pincerTarget = TerabytesIntoTheDeep.PINCER_OPEN;
+    }
 
+    private void evaluateEndEffector() {
         double armDegreesFromHorizontal = currentArmDegreesAboveHorizontal();
         double tiltLevel = TerabytesIntoTheDeep.TILT_ORIGIN + (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * (90 - armDegreesFromHorizontal));
         double tiltClip = TerabytesIntoTheDeep.TILT_ORIGIN + (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * (90 + 35 - armDegreesFromHorizontal));
@@ -229,8 +228,12 @@ class AppendageControl {
         double desiredTotalLength = Math.sqrt((desiredCollectDepth * desiredCollectDepth) + (desiredDistance * desiredDistance));
         double extensionLengthToApply = Math.max(0, desiredTotalLength - TerabytesIntoTheDeep.EXTENDER_MIN_LENGTH_INCHES);
 
+        if (untuckedTimer != null && untuckedTimer.milliseconds() < UNTUCK_END_EFFECTOR_TIMEOUT_MILLIS) {
+            holdSafeEndEffector();
+        } else {
+            evaluateEndEffector();
+        }
         setArmAndExtenderSetpoints(desiredArmAngle, extensionLengthToApply);
-        evaluateEndEffector();
     }
 
     private void evaluateCollectSafe() {
