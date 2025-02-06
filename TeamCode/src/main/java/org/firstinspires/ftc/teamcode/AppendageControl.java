@@ -11,6 +11,12 @@ class AppendageControl {
     private static int EXTENDER_SETTLED_TICK_THRESHOLD = 24;
     private static int UNTUCK_END_EFFECTOR_TIMEOUT_MILLIS = 3000;
 
+    // NEW: For vision-based wrist control debounce.
+    private boolean waitingForWristSettle = false;
+    private ElapsedTime wristSettleTimer = new ElapsedTime();
+    private static final double WRIST_SETTLE_TIME_MS = 300; // milliseconds delay until we accept new vision input
+    private static final double WRIST_SERVO_TOLERANCE = 0.02; // not used if no feedback is available
+
     private int currentArmLTicks;
     private int currentArmRTicks;
     private int currentExtenderTicks;
@@ -51,6 +57,11 @@ class AppendageControl {
             untuckedTimer = new ElapsedTime();
         }
 
+        // NEW: Check if the wrist servo has had enough time to settle.
+        if (waitingForWristSettle && wristSettleTimer.milliseconds() > WRIST_SETTLE_TIME_MS) {
+            waitingForWristSettle = false;
+        }
+
         switch (currentState) {
             case TUCKED:
                 evaluateTucked();
@@ -85,6 +96,25 @@ class AppendageControl {
         return target;
     }
 
+    public void updateVisionWristAdjustment(Double wristHeadingErrorDegrees) {
+        double wristOffsetTicks = TerabytesIntoTheDeep.WRIST_ORIGIN - target.wristTarget;
+        double currentWristHeadingOffset = wristOffsetTicks * TerabytesIntoTheDeep.WRIST_DEGREES_TOTAL_RANGE;
+        if (currentState == AppendageControlState.COLLECTING && !waitingForWristSettle) {
+            double wristHeadingDegreesToSet =
+                    Math.max(TerabytesIntoTheDeep.WRIST_DEGREES_HEADING_MIN,
+                            Math.min(TerabytesIntoTheDeep.WRIST_DEGREES_HEADING_MAX,
+                                    currentWristHeadingOffset + wristHeadingErrorDegrees));
+
+            if (Math.abs(wristHeadingDegreesToSet) > TerabytesIntoTheDeep.WRIST_DEGREES_ALLOWABLE_HALF_RANGE) {
+                wristHeadingDegreesToSet = (180 - wristHeadingDegreesToSet) % 180;
+            }
+
+            wristSignal = wristHeadingDegreesToSet / TerabytesIntoTheDeep.WRIST_DEGREES_ALLOWABLE_HALF_RANGE;
+            waitingForWristSettle = true;
+            wristSettleTimer.reset();
+        }
+    }
+
     public void accumulateWristSignal(double signal) {
         wristSignal += signal;
         wristSignal = Math.max(-1, Math.min(1, this.wristSignal));
@@ -101,7 +131,6 @@ class AppendageControl {
         }
     }
 
-    // [-1, 1]
     public void setWristSignal(double signal) {
         wristSignal = signal;
     }
@@ -223,7 +252,7 @@ class AppendageControl {
     }
 
     private void evaluateCollectClip() {
-        setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_COLLECT_CLIP_ANGLE,0);
+        setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_COLLECT_CLIP_ANGLE, 0);
         evaluateEndEffector();
     }
     private void evaluateScoreClip() {
@@ -235,7 +264,6 @@ class AppendageControl {
         evaluateEndEffector();
     }
 
-    // Negative when collecting
     public double currentArmDegreesAboveHorizontal() {
         int averageArmTicks = (currentArmLTicks + currentArmRTicks) / 2;
         double armDegreesFromZero = averageArmTicks / TerabytesIntoTheDeep.ARM_TICKS_PER_DEGREE;

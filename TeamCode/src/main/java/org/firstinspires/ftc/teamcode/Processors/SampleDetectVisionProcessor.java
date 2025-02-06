@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.Processors;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 
+import com.acmerobotics.roadrunner.util.Angle;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibration;
@@ -17,7 +18,6 @@ import org.opencv.core.RotatedRect;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
-import org.opencv.imgproc.Moments;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -29,6 +29,11 @@ public class SampleDetectVisionProcessor implements VisionProcessor {
     public ElapsedTime sampleTime = new ElapsedTime();
     public double lastSampleDelayTimeMillis = 0;
     public double lastSampleProcessingTimeMillis = 0;
+
+    // NEW: Holds the best detected ellipse’s angle (in degrees)
+    public volatile Double detectedEllipseAngle = null;
+    // Used to choose the best candidate in the frame.
+    private double bestEllipseArea = 0;
 
     public enum DetectableColor { RED, BLUE, YELLOW }
     private final EnumSet<DetectableColor> colorsToDetect;
@@ -51,12 +56,12 @@ public class SampleDetectVisionProcessor implements VisionProcessor {
 
     @Override
     public Object processFrame(Mat frame, long captureTimeNanos) {
+        // Reset the best candidate for this frame.
+        bestEllipseArea = 0;
+        detectedEllipseAngle = null;
+
         lastSampleDelayTimeMillis = sampleTime.milliseconds();
         sampleTime.reset();
-
-        Mat rotated = new Mat();
-        Core.rotate(frame, rotated, Core.ROTATE_90_COUNTERCLOCKWISE);
-        frame = rotated;
 
         Mat hsv = new Mat();
         Imgproc.cvtColor(frame, hsv, Imgproc.COLOR_RGB2HSV);
@@ -101,21 +106,20 @@ public class SampleDetectVisionProcessor implements VisionProcessor {
             if (area < 100) continue;
             RotatedRect ellipse = Imgproc.fitEllipse(new MatOfPoint2f(contour.toArray()));
             Imgproc.ellipse(drawOn, ellipse, color, 2);
+            // If this ellipse is larger than any previously detected in this frame, save its angle.
+            if (area > bestEllipseArea) {
+                bestEllipseArea = area;
+                detectedEllipseAngle = -(ellipse.angle - 90);
+            }
             count++;
         }
     }
 
     @Override
     public void onDrawFrame(Canvas canvas, int onscreenWidth, int onscreenHeight, float scaleBmpPxToCanvasPx, float scaleCanvasDensity, Object userContext) {
-        // Drawing is handled in processFrame now, nothing needed here.
-        // Convert the lastFrame Mat to a Bitmap
         Bitmap bmp = Bitmap.createBitmap(lastFrame.cols(), lastFrame.rows(), Bitmap.Config.ARGB_8888);
         Utils.matToBitmap(lastFrame, bmp);
-
-        //Scale bitmap
         Bitmap scaledBmp = Bitmap.createScaledBitmap(bmp,onscreenWidth,onscreenHeight,false);
-
-        // Draw the Bitmap on the Canvas
         canvas.drawBitmap(scaledBmp, 0, 0, null);
     }
 }

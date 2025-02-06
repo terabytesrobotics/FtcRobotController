@@ -43,12 +43,14 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagGameDatabase;
 import org.firstinspires.ftc.vision.apriltag.AprilTagLibrary;
 import org.firstinspires.ftc.vision.apriltag.AprilTagMetadata;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
+import org.firstinspires.ftc.teamcode.Processors.SampleDetectVisionProcessor;
 
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.EnumSet;
 
 public class TerabytesIntoTheDeep {
 
@@ -97,6 +99,10 @@ public class TerabytesIntoTheDeep {
     public static final double WRIST_ORIGIN = 0.5;
     public static final double WRIST_RANGE = 0.35;
     public static final double WRIST_TUCKED = WRIST_ORIGIN;
+    public static final double WRIST_DEGREES_TOTAL_RANGE = 300;
+    public static final double WRIST_DEGREES_ALLOWABLE_HALF_RANGE = WRIST_RANGE * WRIST_DEGREES_TOTAL_RANGE;
+    public static final double WRIST_DEGREES_HEADING_MAX = WRIST_RANGE * WRIST_DEGREES_TOTAL_RANGE;
+    public static final double WRIST_DEGREES_HEADING_MIN = -WRIST_DEGREES_HEADING_MAX;
 
     public static final double PINCER_CENTER = 0.575;
     public static final double PINCER_OPEN = 0.5;
@@ -199,6 +205,9 @@ public class TerabytesIntoTheDeep {
     private final ColorRangeSensor colorSensor;
     public final VisionPortal visionPortal;
 
+    // NEW: Vision processor for sample detection
+    private final SampleDetectVisionProcessor sampleDetectVisionProcessor;
+
     // Appendage state
     private int servoInitStageIndex = 0;
     private ElapsedTime initStageTimer = new ElapsedTime();
@@ -218,9 +227,14 @@ public class TerabytesIntoTheDeep {
                 .nameForSwitchableCamera(frontCamera, wristCamera);
 
         aprilTagProcessor = new AprilTagProcessor.Builder().build();
+        sampleDetectVisionProcessor = new SampleDetectVisionProcessor(
+                EnumSet.of(SampleDetectVisionProcessor.DetectableColor.RED,
+                        SampleDetectVisionProcessor.DetectableColor.BLUE,
+                        SampleDetectVisionProcessor.DetectableColor.YELLOW));
         visionPortal = new VisionPortal.Builder()
                 .setCamera(switchableCamera)
                 .addProcessor(aprilTagProcessor)
+                .addProcessor(sampleDetectVisionProcessor)
                 .build();
         visionPortal.setProcessorEnabled(aprilTagProcessor, true);
 
@@ -316,6 +330,9 @@ public class TerabytesIntoTheDeep {
         packet.put("extenderCurrentPosition", getExtenderTickPosition());
 
         if (appendageControl != null) {
+            double wristOffset = appendageControl.target.wristTarget - WRIST_ORIGIN;
+            double wristHeading = wristOffset * WRIST_DEGREES_TOTAL_RANGE;
+            packet.put("wristHeadingOffset",  wristHeading);
             packet.put("armTickTarget", appendageControl.target.armTickTarget);
             packet.put("extenderTickTarget", appendageControl.target.extenderTickTarget);
         }
@@ -326,6 +343,7 @@ public class TerabytesIntoTheDeep {
 
         packet.put("DriveInputX", driveInput.getX());
         packet.put("DriveInputY", driveInput.getY());
+        packet.put("VisionProcessorAngle", sampleDetectVisionProcessor.detectedEllipseAngle);
         return packet;
     }
 
@@ -407,7 +425,16 @@ public class TerabytesIntoTheDeep {
         }
     }
 
+    // NEW: Modified to first update the wrist based on vision (only in COLLECTING state)
     private void evaluateAppendageControl() {
+        if (appendageControl != null && appendageControl.currentState == AppendageControlState.COLLECTING) {
+            Double ellipseAngle = sampleDetectVisionProcessor.detectedEllipseAngle;
+            if (ellipseAngle != null) {
+                appendageControl.updateVisionWristAdjustment(ellipseAngle);
+                // Clear the value so that we don’t repeatedly update until a new reading arrives.
+                sampleDetectVisionProcessor.detectedEllipseAngle = null;
+            }
+        }
         int appendageControlArmLTickPosition = -getArmLTickPosition();
         int appendageControlArmRTickPosition = -getArmRTickPosition();
         AppendageControlTarget controlTarget = appendageControl.evaluate(
@@ -427,6 +454,14 @@ public class TerabytesIntoTheDeep {
         pincer.setPosition(controlTarget.pincerTarget);
     }
 
+    private void evaluateSwitchCamera() {
+        if (appendageControl == null || appendageControl.currentState != AppendageControlState.COLLECTING) {
+            visionPortal.setActiveCamera(frontCamera);
+        } else {
+            visionPortal.setActiveCamera(wristCamera);
+        }
+    }
+
     private void evaluateAppendageInitOrControl() {
         if (appendageControl != null) {
             evaluateAppendageControl();
@@ -435,34 +470,20 @@ public class TerabytesIntoTheDeep {
         }
     }
 
-    private void evaluateSwitchCamera() {
-        if (appendageControl == null || appendageControl.currentState != AppendageControlState.COLLECTING) {
-            visionPortal.setActiveCamera(frontCamera);
-        } else {
-           visionPortal.setActiveCamera(wristCamera);
-        }
-    }
-
-    // Control loop.  Returns true iff the op-mode should continue running.
     public boolean evaluate() {
         double dt = loopTime.milliseconds();
         loopTime.reset();
 
-        // Do the things we should do regardless of state
-        // keep updating the drive and keep the machine alive
         drive.update();
         latestPoseEstimate = drive.getPoseEstimate();
         evaluateSwitchCamera();
         evaluateAppendageInitOrControl();
         evaluatePositioningSystems();
 
-        // Power down when given the gesture
         boolean debugKill = debugMode &&
                 ((gamepad1.left_bumper && gamepad1.right_bumper && gamepad1.a) ||
                         (gamepad2.left_bumper && gamepad2.right_bumper && gamepad2.a));
 
-        // Determine whether there's been a state change
-        // Run the state specific control logic
         IntoTheDeepOpModeState currentState = debugKill ? IntoTheDeepOpModeState.STOPPED_UNTIL_END : state;
         IntoTheDeepOpModeState nextState = currentState;
         switch (currentState) {
@@ -473,7 +494,6 @@ public class TerabytesIntoTheDeep {
                 nextState = evaluateCommandSequence();
                 break;
             case STOPPED_UNTIL_END:
-                // Hold the drive still.
                 armLeft.setMotorDisable();
                 armRight.setMotorDisable();
                 extender.setMotorDisable();
@@ -482,7 +502,6 @@ public class TerabytesIntoTheDeep {
                 break;
         }
 
-        // Reset the timer so that the state logic can use it to tell how long it's been in that state
         if (nextState != currentState) {
             timeInState.reset();
             state = nextState;
@@ -552,7 +571,6 @@ public class TerabytesIntoTheDeep {
     }
 
     private IntoTheDeepOpModeState evaluateManualControl(double dtMillis) {
-        // Example usage on gamepad2
         if (gamepad2.left_bumper && gamepad2.right_bumper && gamepad2.a) {
             forceArmInit();
         }
@@ -601,12 +619,11 @@ public class TerabytesIntoTheDeep {
 
             appendageControl.setDunkSignal(gamepad1.right_trigger + gamepad2.right_trigger);
             appendageControl.accumulateWristSignal(gamepad2.right_stick_x * WRIST_ACCUMULATOR_SPEED_PER_MILLI * dtMillis);
-            appendageControl.applyTiltLevel(gamepad2.b || gamepad1.b); // TODO: is this used?
+            appendageControl.applyTiltLevel(gamepad2.b || gamepad1.b);
 
             boolean isCollecting = appendageControl.currentState == AppendageControlState.COLLECTING;
             if (isCollecting) {
 
-                // Up is negative on stick y axis
                 double collectHeightSignal = -gamepad2.left_stick_y;
                 int collectDistanceIncrements = y1ActivatedEvaluator.evaluate() ? 1 : a1ActivatedEvaluator.evaluate() ? -1 : 0;
 
@@ -621,8 +638,6 @@ public class TerabytesIntoTheDeep {
         }
 
         boolean fastMode = gamepad1.left_bumper;
-        // -1 means collect is front
-
         boolean hasPositionEstimate = hasPositionEstimate();
         boolean isScoring = appendageControl != null && appendageControl.isBasketScoring();
         boolean wasScoring = appendageControl != null && (appendageControl.previousState == AppendageControlState.HIGH_BASKET || appendageControl.previousState == AppendageControlState.LOW_BASKET);
@@ -645,7 +660,6 @@ public class TerabytesIntoTheDeep {
             if (isScoring || (isDefensive && !wasScoring)) {
                 driveInput = getAutoDriveToNetInput(isDefensive);
             } else {
-                // Could add more drive targets for other states
                 driveInput = new Pose2d();
             }
         }
@@ -716,7 +730,6 @@ public class TerabytesIntoTheDeep {
             currentCommandSettledTime.reset();
         }
 
-        // No-op if we are waiting to run this command.
         if (timeSinceStart.milliseconds() < currentCommand.WaitUntilElapsedMillis) {
             setDrivePower(new Pose2d());
             return IntoTheDeepOpModeState.COMMAND_SEQUENCE;
@@ -772,7 +785,6 @@ public class TerabytesIntoTheDeep {
         List<AprilTagDetection> detections = aprilTagProcessor.getFreshDetections();
         if (detections != null) {
             for (AprilTagDetection detection : detections) {
-                // This sometimes happens.
                 if (detection.ftcPose == null) {
                     continue;
                 }
@@ -786,18 +798,16 @@ public class TerabytesIntoTheDeep {
 
                 Pose2d estimatedPose = calculateRobotPose(detection, cameraDistanceOffset, cameraAngleOffset);
                 if (poseQueue.size() >= APRIL_TAG_QUEUE_CAPACITY) {
-                    poseQueue.poll(); // Remove the oldest element
+                    poseQueue.poll();
                 }
                 poseQueue.offer(estimatedPose);
             }
         }
 
-        // Calculate average and variance
         if (poseQueue.size() == APRIL_TAG_QUEUE_CAPACITY) {
             Pose2d averagePose = calculateAveragePose(poseQueue);
             Pose2d variancePose = calculateVariancePose(poseQueue, averagePose);
 
-            // Thresholds for variance, adjust as needed
             double translationVarianceThreshold = 1.0;
             double headingVarianceThreshold = Math.PI / 32;
             if (variancePose.getX() <= translationVarianceThreshold && variancePose.getY() <= translationVarianceThreshold && variancePose.getHeading() <= headingVarianceThreshold) {
@@ -883,7 +893,6 @@ public class TerabytesIntoTheDeep {
         double bearing = Math.toRadians(detection.ftcPose.bearing);
         double range = detection.ftcPose.range;
 
-        // Get the correct tagFieldHeading based on the tag ID
         double tagFieldHeading = getTagFieldHeading(detection.id);
 
         double tagToCameraHeading = Angle.norm(tagFieldHeading + bearing - yaw);
@@ -900,18 +909,18 @@ public class TerabytesIntoTheDeep {
 
     private double getTagFieldHeading(int tagId) {
         switch (tagId) {
-            case 11: // BlueAudienceWall
-            case 16: // RedAudienceWall
+            case 11:
+            case 16:
                 return 0;
-            case 12: // BlueAllianceWall
+            case 12:
                 return -Math.PI / 2;
-            case 13: // BlueRearWall
-            case 14: // RedRearWall
+            case 13:
+            case 14:
                 return Math.PI;
-            case 15: // RedAllianceWall
+            case 15:
                 return Math.PI / 2;
             default:
-                return 0; // Default to 0 if unknown
+                return 0;
         }
     }
 
@@ -929,7 +938,6 @@ public class TerabytesIntoTheDeep {
         return lastAprilTagFieldPosition != null && latestPoseEstimate != null;
     }
 
-    // Brake and de-energize
     public void shutDown() {
         extender.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
@@ -967,7 +975,6 @@ public class TerabytesIntoTheDeep {
             ).div(denom);
         }
 
-        // This should be the only place we call drive.setDrivePower
         drive.setDrivePower(new Pose2d(
                 Math.abs(normalized.getX()) < 0.005 ? 0 : normalized.getX(),
                 Math.abs(normalized.getY()) < 0.005 ? 0 : normalized.getY(),
