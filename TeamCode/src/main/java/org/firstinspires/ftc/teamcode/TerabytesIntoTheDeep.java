@@ -599,7 +599,9 @@ public class TerabytesIntoTheDeep {
                 }
             }
 
-            if (lb1ActivatedEvaluator.evaluate())
+            if (lb1ActivatedEvaluator.evaluate() && appendageControl.currentState == AppendageControlState.HIGH_BASKET){
+                appendageControl.setControlState(AppendageControlState.HANG);
+            }
 
 
             if (x2ActivatedEvaluator.evaluate()) {
