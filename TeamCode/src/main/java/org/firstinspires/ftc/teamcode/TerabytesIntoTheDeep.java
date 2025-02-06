@@ -441,14 +441,10 @@ public class TerabytesIntoTheDeep {
                 appendageControlArmLTickPosition,
                 appendageControlArmRTickPosition,
                 getExtenderTickPosition());
-        if (state != IntoTheDeepOpModeState.STOPPED_UNTIL_END) {
-            // Only subtract ticksAtInit for the purpose of control
-            // For the purpose of knowing where we currently are, add currentPosition to ticksAtInit
-            double reversedTickTarget = -controlTarget.armTickTarget;
-            controlArmMotor(reversedTickTarget - armLTicksAtInit, leftArmControl, armLeft);
-            controlArmMotor(reversedTickTarget - armRTicksAtInit, rightArmControl, armRight);
-            extender.setTargetPosition(((int) controlTarget.extenderTickTarget) - extenderTicksAtInit);
-        }
+        double reversedTickTarget = -controlTarget.armTickTarget;
+        controlArmMotor(reversedTickTarget - armLTicksAtInit, leftArmControl, armLeft);
+        controlArmMotor(reversedTickTarget - armRTicksAtInit, rightArmControl, armRight);
+        extender.setTargetPosition(((int) controlTarget.extenderTickTarget) - extenderTicksAtInit);
         tilt.setPosition(controlTarget.tiltTarget);
         wrist.setPosition(controlTarget.wristTarget);
         pincer.setPosition(controlTarget.pincerTarget);
@@ -484,7 +480,7 @@ public class TerabytesIntoTheDeep {
                 ((gamepad1.left_bumper && gamepad1.right_bumper && gamepad1.a) ||
                         (gamepad2.left_bumper && gamepad2.right_bumper && gamepad2.a));
 
-        IntoTheDeepOpModeState currentState = debugKill ? IntoTheDeepOpModeState.STOPPED_UNTIL_END : state;
+        IntoTheDeepOpModeState currentState = state;
         IntoTheDeepOpModeState nextState = currentState;
         switch (currentState) {
             case MANUAL_CONTROL:
@@ -498,6 +494,7 @@ public class TerabytesIntoTheDeep {
                 armRight.setMotorDisable();
                 extender.setMotorDisable();
                 setDrivePower(new Pose2d());
+                break;
             default:
                 break;
         }

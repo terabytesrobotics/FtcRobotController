@@ -23,7 +23,7 @@ class AppendageControl {
 
     public AppendageControlState previousState;
     public AppendageControlState currentState;
-    public final AppendageControlTarget target = new AppendageControlTarget(0, 0, TerabytesIntoTheDeep.TILT_ORIGIN, TerabytesIntoTheDeep.WRIST_ORIGIN, TerabytesIntoTheDeep.PINCER_CENTER);
+    public volatile AppendageControlTarget target = new AppendageControlTarget(0, 0, TerabytesIntoTheDeep.TILT_ORIGIN, TerabytesIntoTheDeep.WRIST_ORIGIN, TerabytesIntoTheDeep.PINCER_CENTER);
 
     private double collectHeightSignal = 0.5d;
     private double collectDistanceSignal = 0d;
@@ -229,11 +229,12 @@ class AppendageControl {
         double extensionLengthToApply = Math.max(0, desiredTotalLength - TerabytesIntoTheDeep.EXTENDER_MIN_LENGTH_INCHES);
 
         if (untuckedTimer != null && untuckedTimer.milliseconds() < UNTUCK_END_EFFECTOR_TIMEOUT_MILLIS) {
+            setArmAndExtenderSetpoints(desiredArmAngle, extensionLengthToApply);
             holdSafeEndEffector();
         } else {
+            setArmAndExtenderSetpoints(desiredArmAngle, extensionLengthToApply);
             evaluateEndEffector();
         }
-        setArmAndExtenderSetpoints(desiredArmAngle, extensionLengthToApply);
     }
 
     private void evaluateCollectSafe() {
