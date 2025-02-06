@@ -84,6 +84,7 @@ class AppendageControl {
                 break;
             case HANG:
                 evaluateHang();
+                break;
             default:
                 throw new IllegalArgumentException("Unexpected state: " + currentState);
         }
