@@ -52,11 +52,6 @@ class AppendageControl {
             justDunkedTimer = null;
         }
 
-        if (currentState != AppendageControlState.TUCKED && untuckedTimer == null)
-        {
-            untuckedTimer = new ElapsedTime();
-        }
-
         // NEW: Check if the wrist servo has had enough time to settle.
         if (waitingForWristSettle && wristSettleTimer.milliseconds() > WRIST_SETTLE_TIME_MS) {
             waitingForWristSettle = false;
@@ -151,9 +146,12 @@ class AppendageControl {
         levelTilt = level;
     }
 
-    public void setControlState(AppendageControlState state) {
+    public void setControlState(AppendageControlState newState) {
+        if (this.currentState == AppendageControlState.TUCKED && newState != AppendageControlState.TUCKED) {
+            untuckedTimer = new ElapsedTime();
+        }
         previousState = currentState;
-        currentState = state;
+        currentState = newState;
     }
 
     public void resetCollectParametersToDefault() {
