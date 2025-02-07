@@ -16,7 +16,6 @@ import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.Point;
 import org.opencv.core.RotatedRect;
 import org.opencv.core.Scalar;
-import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 
 import java.util.ArrayList;
@@ -30,7 +29,7 @@ public class SampleDetectVisionProcessor implements VisionProcessor {
     public double lastSampleDelayTimeMillis = 0;
     public double lastSampleProcessingTimeMillis = 0;
 
-    // NEW: Holds the best detected ellipse’s angle (in degrees)
+    // Holds the best detected ellipse’s angle (in degrees)
     public volatile Double detectedEllipseAngle = null;
     // Used to choose the best candidate in the frame.
     private double bestEllipseArea = 0;
@@ -38,6 +37,7 @@ public class SampleDetectVisionProcessor implements VisionProcessor {
     public enum DetectableColor { RED, BLUE, YELLOW }
     private final EnumSet<DetectableColor> colorsToDetect;
 
+    // HSV thresholds for our colors.
     private static final Scalar RED_LOW1 =  new Scalar(0,120,70);
     private static final Scalar RED_HIGH1 = new Scalar(10,255,255);
     private static final Scalar RED_LOW2 =  new Scalar(170,120,70);
@@ -52,61 +52,81 @@ public class SampleDetectVisionProcessor implements VisionProcessor {
     }
 
     @Override
-    public void init(int width, int height, CameraCalibration calibration) {}
+    public void init(int width, int height, CameraCalibration calibration) {
+        // Initialization if needed.
+    }
 
     @Override
     public Object processFrame(Mat frame, long captureTimeNanos) {
-        // Reset the best candidate for this frame.
+        // Reset candidate information.
         bestEllipseArea = 0;
         detectedEllipseAngle = null;
 
         lastSampleDelayTimeMillis = sampleTime.milliseconds();
         sampleTime.reset();
 
+        // Convert the frame from RGB to HSV.
         Mat hsv = new Mat();
         Imgproc.cvtColor(frame, hsv, Imgproc.COLOR_RGB2HSV);
-        Mat annotated = frame.clone();
 
+        // Draw ellipses directly on the original frame.
         if (colorsToDetect.contains(DetectableColor.RED)) {
             Mat red1 = new Mat(), red2 = new Mat(), maskRed = new Mat();
             Core.inRange(hsv, RED_LOW1, RED_HIGH1, red1);
             Core.inRange(hsv, RED_LOW2, RED_HIGH2, red2);
             Core.bitwise_or(red1, red2, maskRed);
-            detectAndDrawBlocks(maskRed, annotated, new Scalar(255, 255, 255));
+            detectAndDrawBlocks(maskRed, frame, new Scalar(255, 0, 0));
         }
 
         if (colorsToDetect.contains(DetectableColor.BLUE)) {
             Mat maskBlue = new Mat();
             Core.inRange(hsv, BLUE_LOW, BLUE_HIGH, maskBlue);
-            detectAndDrawBlocks(maskBlue, annotated, new Scalar(255, 255, 255));
+            detectAndDrawBlocks(maskBlue, frame, new Scalar(0, 0, 255));
         }
 
         if (colorsToDetect.contains(DetectableColor.YELLOW)) {
             Mat maskYellow = new Mat();
             Core.inRange(hsv, YEL_LOW, YEL_HIGH, maskYellow);
-            detectAndDrawBlocks(maskYellow, annotated, new Scalar(255, 255, 255));
+            detectAndDrawBlocks(maskYellow, frame, new Scalar(255, 255, 0));
         }
 
-        lastFrame = annotated;
+        // Save the modified frame for onDrawFrame().
+        lastFrame = frame;
         lastSampleProcessingTimeMillis = sampleTime.milliseconds();
         sampleTime.reset();
-        return annotated;
+        return frame;
     }
 
+    /**
+     * Finds contours in the mask and draws fitted ellipses on the provided image.
+     *
+     * @param mask   The binary mask where the desired color is white.
+     * @param drawOn The image (original frame) on which to draw the ellipses.
+     * @param color  The color to use for drawing.
+     */
     private void detectAndDrawBlocks(Mat mask, Mat drawOn, Scalar color) {
         List<MatOfPoint> contours = new ArrayList<>();
         Mat hierarchy = new Mat();
         Imgproc.findContours(mask, contours, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+        // Sort contours by area (largest first)
         contours.sort((c1, c2) -> Double.compare(Imgproc.contourArea(c2), Imgproc.contourArea(c1)));
 
         int count = 0;
         for (MatOfPoint contour : contours) {
             if (count >= MAX_BLOCKS) break;
             double area = Imgproc.contourArea(contour);
+            // Skip small contours.
             if (area < 100) continue;
+            // fitEllipse requires at least 5 points.
+            if (contour.toArray().length < 5) continue;
+
             RotatedRect ellipse = Imgproc.fitEllipse(new MatOfPoint2f(contour.toArray()));
-            Imgproc.ellipse(drawOn, ellipse, color, 2);
-            // If this ellipse is larger than any previously detected in this frame, save its angle.
+            // Draw the ellipse outline with a thicker stroke.
+            Imgproc.ellipse(drawOn, ellipse, color, 3);
+            // Optionally, draw the center point.
+            Imgproc.circle(drawOn, ellipse.center, 4, color, -1);
+
+            // Save the angle of the largest detected ellipse.
             if (area > bestEllipseArea) {
                 bestEllipseArea = area;
                 detectedEllipseAngle = -(ellipse.angle - 90);
@@ -116,10 +136,12 @@ public class SampleDetectVisionProcessor implements VisionProcessor {
     }
 
     @Override
-    public void onDrawFrame(Canvas canvas, int onscreenWidth, int onscreenHeight, float scaleBmpPxToCanvasPx, float scaleCanvasDensity, Object userContext) {
+    public void onDrawFrame(Canvas canvas, int onscreenWidth, int onscreenHeight,
+                            float scaleBmpPxToCanvasPx, float scaleCanvasDensity, Object userContext) {
+        // Convert the modified frame to a Bitmap and draw it.
         Bitmap bmp = Bitmap.createBitmap(lastFrame.cols(), lastFrame.rows(), Bitmap.Config.ARGB_8888);
         Utils.matToBitmap(lastFrame, bmp);
-        Bitmap scaledBmp = Bitmap.createScaledBitmap(bmp,onscreenWidth,onscreenHeight,false);
+        Bitmap scaledBmp = Bitmap.createScaledBitmap(bmp, onscreenWidth, onscreenHeight, false);
         canvas.drawBitmap(scaledBmp, 0, 0, null);
     }
 }

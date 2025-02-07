@@ -99,7 +99,7 @@ public class SampleDetectTest_LAK_webcam extends LinearOpMode {
         if (opModeIsActive()) {
             while (opModeIsActive()) {
 
-                Mat results =SampleFinder.lastFrame;
+                //Mat results =SampleFinder.lastFrame;
 
                 /*
                 telemetryAprilTag();
