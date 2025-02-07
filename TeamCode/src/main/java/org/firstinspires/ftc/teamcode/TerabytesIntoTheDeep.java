@@ -563,7 +563,8 @@ public class TerabytesIntoTheDeep {
     private void controlArmMotor(double armTickTarget, PIDController controller, DcMotorEx armMotor) {
         double armPower = controller.calculate(armMotor.getCurrentPosition(), armTickTarget);
         if(Math.abs(armPower) < 0.02) armPower = 0;
-        if(armPower < 0 && armMin.isPressed()) armPower = 0;
+        // Positive arm power is currently down.
+        if(armPower > 0 && armMin.isPressed()) armPower = 0;
         armMotor.setPower(armPower);
     }
 
