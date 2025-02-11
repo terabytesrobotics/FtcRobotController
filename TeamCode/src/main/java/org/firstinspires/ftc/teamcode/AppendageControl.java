@@ -264,7 +264,7 @@ class AppendageControl {
         evaluateEndEffector();
     }
     private void evaluateHang(){
-        setArmAndExtenderSetpoints(TerabytesIntoTheDeep.EXTENDER_HANG, TerabytesIntoTheDeep.ARM_HANG_ANGLE);
+        setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_HANG_ANGLE, TerabytesIntoTheDeep.EXTENDER_HANG);
         evaluateEndEffector();
     }
 

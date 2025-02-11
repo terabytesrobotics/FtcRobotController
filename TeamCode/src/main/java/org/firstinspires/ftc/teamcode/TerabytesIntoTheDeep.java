@@ -73,7 +73,7 @@ public class TerabytesIntoTheDeep {
     public static final double ARM_BASKET_ANGLE = 97.5;
     public static final double ARM_COLLECT_CLIP_ANGLE = -25;
     public static final double ARM_SCORE_CLIP_ANGLE = 22.5;
-    public static final double ARM_HANG_ANGLE = 0;
+    public static final double ARM_HANG_ANGLE = 20;
     // TODO: tune extender parameters to get accurate ratio of tick per inch and no-extension length
     public static final double EXTENDER_MIN_LENGTH_INCHES = 16d;
     public static final double EXTENDER_GEAR_RATIO = 5.2d;
