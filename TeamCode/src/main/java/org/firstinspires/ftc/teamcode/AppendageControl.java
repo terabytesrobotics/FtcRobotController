@@ -9,7 +9,7 @@ class AppendageControl {
     private static double DISTANCE_SIGNAL_INCREMENT_AMOUNT = 0.085;
     private static int ARM_SETTLED_TICK_THRESHOLD = 32;
     private static int EXTENDER_SETTLED_TICK_THRESHOLD = 24;
-    private static int UNTUCK_END_EFFECTOR_TIMEOUT_MILLIS = 3000;
+    private static int UNTUCK_END_EFFECTOR_TIMEOUT_MILLIS = 750;
 
     // NEW: For vision-based wrist control debounce.
     private boolean waitingForWristSettle = false;
