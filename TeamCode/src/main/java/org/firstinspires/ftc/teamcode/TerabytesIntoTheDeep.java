@@ -67,8 +67,8 @@ public class TerabytesIntoTheDeep {
     public static final double ARM_LEVEL_DEGREES_ABOVE_ZERO_EMPIRICAL = 45; // TODO: Tune this to actual level up from min.
     public static final double ARM_AXLE_HEIGHT_INCHES = 15.5d;
     public static final double ARM_AXLE_OFFSET_FROM_ROBOT_CENTER_INCHES = 5.5; // TODO: Tune this to reality
-    public static final double ARM_MIN_COLLECT_HEIGHT_INCHES = 7d;
-    public static final double ARM_MAX_COLLECT_HEIGHT_INCHES = 14.75d;
+    public static final double ARM_MIN_COLLECT_HEIGHT_INCHES = 6d;
+    public static final double ARM_MAX_COLLECT_HEIGHT_INCHES = 13d;
     public static final double ARM_DEFENSIVE_ANGLE = 55.6;
     public static final double ARM_BASKET_ANGLE = 97.5;
     public static final double ARM_COLLECT_CLIP_ANGLE = -25;
