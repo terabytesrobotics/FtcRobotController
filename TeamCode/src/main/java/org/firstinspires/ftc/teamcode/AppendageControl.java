@@ -14,7 +14,9 @@ class AppendageControl {
     // NEW: For vision-based wrist control debounce.
     private boolean waitingForWristSettle = false;
     private ElapsedTime wristSettleTimer = new ElapsedTime();
-    private static final double WRIST_SETTLE_TIME_MS = 300; // milliseconds delay until we accept new vision input
+    private static final double WRIST_SETTLE_MIN_TIME = 75;
+    private static final double WRIST_SETTLE_MS_PER_DEGREE = 3;
+    private static final double WRIST_SETTLE_TIME_MS = 333; // milliseconds delay until we accept new vision input
     private static final double WRIST_SERVO_TOLERANCE = 0.02; // not used if no feedback is available
 
     private int currentArmLTicks;
@@ -34,6 +36,8 @@ class AppendageControl {
     private boolean isAuton = false;
     private ElapsedTime justDunkedTimer;
     private ElapsedTime untuckedTimer;
+
+    private double wristDynamicTimeoutMs = WRIST_SETTLE_TIME_MS;
 
     public AppendageControl(AppendageControlState initialState, boolean isAuton) {
         currentState = initialState;
@@ -93,19 +97,38 @@ class AppendageControl {
     }
 
     public void updateVisionWristAdjustment(Double wristHeadingErrorDegrees) {
-        double wristOffsetTicks = TerabytesIntoTheDeep.WRIST_ORIGIN - target.wristTarget;
-        double currentWristHeadingOffset = wristOffsetTicks * TerabytesIntoTheDeep.WRIST_DEGREES_TOTAL_RANGE;
-        if (currentState == AppendageControlState.COLLECTING && !waitingForWristSettle) {
-            double wristHeadingDegreesToSet =
-                    Math.max(TerabytesIntoTheDeep.WRIST_DEGREES_HEADING_MIN,
-                            Math.min(TerabytesIntoTheDeep.WRIST_DEGREES_HEADING_MAX,
-                                    currentWristHeadingOffset + wristHeadingErrorDegrees));
+        // Determine the current wrist angle (in degrees) based on the current target.
+        double wristOffsetTicks = target.wristTarget - TerabytesIntoTheDeep.WRIST_ORIGIN;
+        double currentWristHeadingOffset = (wristOffsetTicks / TerabytesIntoTheDeep.WRIST_RANGE)
+                * TerabytesIntoTheDeep.WRIST_DEGREES_ALLOWABLE_HALF_RANGE;
 
-            if (Math.abs(wristHeadingDegreesToSet) > TerabytesIntoTheDeep.WRIST_DEGREES_ALLOWABLE_HALF_RANGE) {
-                wristHeadingDegreesToSet = (180 - wristHeadingDegreesToSet) % 180;
+        if (currentState == AppendageControlState.COLLECTING && !waitingForWristSettle) {
+            // Compute the raw candidate angle by applying the vision error correction.
+            double candidateAngle = currentWristHeadingOffset + wristHeadingErrorDegrees;
+
+            // If candidateAngle is out of the allowed range, try the 180° equivalent.
+            if (Math.abs(candidateAngle) > TerabytesIntoTheDeep.WRIST_DEGREES_ALLOWABLE_HALF_RANGE) {
+                double altCandidate = candidateAngle > 0 ? candidateAngle - 180 : candidateAngle + 180;
+                // Use the alternative if it is closer to zero (i.e., within the allowed half range).
+                if (Math.abs(altCandidate) < Math.abs(candidateAngle)) {
+                    candidateAngle = altCandidate;
+                }
             }
 
-            wristSignal = wristHeadingDegreesToSet / TerabytesIntoTheDeep.WRIST_DEGREES_ALLOWABLE_HALF_RANGE;
+            // Clamp the candidate angle to be within the allowable half range.
+            candidateAngle = Math.max(-TerabytesIntoTheDeep.WRIST_DEGREES_ALLOWABLE_HALF_RANGE,
+                    Math.min(TerabytesIntoTheDeep.WRIST_DEGREES_ALLOWABLE_HALF_RANGE, candidateAngle));
+
+            // Set the normalized wrist signal based on the candidate angle.
+            wristSignal = candidateAngle / TerabytesIntoTheDeep.WRIST_DEGREES_ALLOWABLE_HALF_RANGE;
+
+            // Compute the actual adjustment required: the difference between the candidate angle and the current angle.
+            double angleDifference = Math.abs(candidateAngle - currentWristHeadingOffset);
+
+            // Compute a dynamic timeout proportional to the adjustment.
+            // Ensure the timeout is at least WRIST_SETTLE_MIN_TIME.
+            wristDynamicTimeoutMs = Math.max(WRIST_SETTLE_MIN_TIME, angleDifference * WRIST_SETTLE_MS_PER_DEGREE);
+
             waitingForWristSettle = true;
             wristSettleTimer.reset();
         }

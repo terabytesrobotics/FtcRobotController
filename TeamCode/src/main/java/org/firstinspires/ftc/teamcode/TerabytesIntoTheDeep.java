@@ -349,7 +349,7 @@ public class TerabytesIntoTheDeep {
 
         if (appendageControl != null) {
             double wristOffset = appendageControl.target.wristTarget - WRIST_ORIGIN;
-            double wristHeading = wristOffset * WRIST_DEGREES_TOTAL_RANGE;
+            double wristHeading = (wristOffset / TerabytesIntoTheDeep.WRIST_RANGE) * WRIST_DEGREES_ALLOWABLE_HALF_RANGE;
             packet.put("wristHeadingOffset",  wristHeading);
             packet.put("armTickTarget", appendageControl.target.armTickTarget);
             packet.put("extenderTickTarget", appendageControl.target.extenderTickTarget);
