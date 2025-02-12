@@ -71,12 +71,12 @@ public class TerabytesIntoTheDeep {
     public static final double ARM_DEFENSIVE_ANGLE = 55.6;
     public static final double ARM_BASKET_ANGLE = 97.5;
     public static final double ARM_COLLECT_CLIP_ANGLE = -25;
-    public static final double ARM_SCORE_CLIP_ANGLE = 22.5;
+    public static final double ARM_SCORE_CLIP_ANGLE = 36;
     public static final double ARM_HANG_ANGLE = 20;
     public static final double EXTENDER_MIN_LENGTH_INCHES = 16d;
     public static final double EXTENDER_GEAR_RATIO = 5.2d;
     public static final double EXTENDER_TICKS_PER_INCH = (EXTENDER_GEAR_RATIO * 28 / 0.8 / 2) * 2.54;
-    public static final double EXTENDER_MAX_EXTENSION_INCHES = 11.75d;
+    public static final double EXTENDER_MAX_EXTENSION_INCHES = 13.25d;
     public static final double EXTENDER_MAX_TOTAL_LENGTH = EXTENDER_MIN_LENGTH_INCHES + EXTENDER_MAX_EXTENSION_INCHES;
     public static final double EXTENDER_MAX_LENGTH_TICKS = EXTENDER_MAX_EXTENSION_INCHES * EXTENDER_TICKS_PER_INCH; //
     public static final double EXTENDER_DEFLECTION_RATIO = 1d / 12; // One inch per foot of extension
