@@ -227,10 +227,28 @@ public class TerabytesIntoTheDeep {
                 .nameForSwitchableCamera(frontCamera, wristCamera);
 
         aprilTagProcessor = new AprilTagProcessor.Builder().build();
-        sampleDetectVisionProcessor = new SampleDetectVisionProcessor(
-                EnumSet.of(SampleDetectVisionProcessor.DetectableColor.RED,
-                        SampleDetectVisionProcessor.DetectableColor.BLUE,
-                        SampleDetectVisionProcessor.DetectableColor.YELLOW));
+
+
+        EnumSet<SampleDetectVisionProcessor.DetectableColor> colorsToDetect;
+        switch (allianceColor) {
+            case RED:
+                colorsToDetect = EnumSet.of(SampleDetectVisionProcessor.DetectableColor.RED,
+                        SampleDetectVisionProcessor.DetectableColor.YELLOW);
+                break;
+            case BLUE:
+                colorsToDetect = EnumSet.of(SampleDetectVisionProcessor.DetectableColor.BLUE,
+                        SampleDetectVisionProcessor.DetectableColor.YELLOW);
+                break;
+            default:
+                colorsToDetect = EnumSet.of(
+                    SampleDetectVisionProcessor.DetectableColor.RED,
+                    SampleDetectVisionProcessor.DetectableColor.BLUE,
+                    SampleDetectVisionProcessor.DetectableColor.YELLOW);
+                break;
+        }
+
+        sampleDetectVisionProcessor = new SampleDetectVisionProcessor(colorsToDetect);
+
         visionPortal = new VisionPortal.Builder()
                 .setCamera(switchableCamera)
                 .addProcessor(aprilTagProcessor)
