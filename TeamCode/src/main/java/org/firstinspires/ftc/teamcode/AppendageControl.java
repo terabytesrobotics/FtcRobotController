@@ -180,7 +180,7 @@ class AppendageControl {
 
     public void resetCollectParametersToDefault() {
         collectDistanceSignal = 0;
-        collectHeightSignal = 0.5;
+        collectHeightSignal = 1;
     }
 
     public void incrementCollectDistance(int increments) {
