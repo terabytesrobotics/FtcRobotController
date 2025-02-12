@@ -308,4 +308,47 @@ class AppendageControl {
         boolean extenderSettled = Math.abs(target.extenderTickTarget - currentExtenderTicks) < EXTENDER_SETTLED_TICK_THRESHOLD;
         return armSettled && extenderSettled;
     }
+
+    public double getCurrentWristHeadingDegrees() {
+        double wristOffsetTicks = target.wristTarget - TerabytesIntoTheDeep.WRIST_ORIGIN;
+        return (wristOffsetTicks / TerabytesIntoTheDeep.WRIST_RANGE) * TerabytesIntoTheDeep.WRIST_DEGREES_ALLOWABLE_HALF_RANGE;
+    }
+
+    public double getCurrentArmAngleDegrees() {
+        int averageArmTicks = (currentArmLTicks + currentArmRTicks) / 2;
+        double armDegreesFromZero = averageArmTicks / TerabytesIntoTheDeep.ARM_TICKS_PER_DEGREE;
+        return armDegreesFromZero - TerabytesIntoTheDeep.ARM_LEVEL_DEGREES_ABOVE_ZERO;
+    }
+
+    public Double getCurrentEndEffectorHeight(int armLTicks, int armRTicks, int extenderTicks) {
+        // Only return a height if we're in the collecting state.
+        if (currentState != AppendageControlState.COLLECTING) {
+            return null;
+        }
+
+        // Compute the average arm encoder ticks.
+        int averageArmTicks = (armLTicks + armRTicks) / 2;
+
+        // Compute the arm angle relative to horizontal (in degrees).
+        // This uses the same conversion as in getCurrentArmAngleDegrees().
+        double armAngleDegrees = (averageArmTicks / TerabytesIntoTheDeep.ARM_TICKS_PER_DEGREE)
+                - TerabytesIntoTheDeep.ARM_LEVEL_DEGREES_ABOVE_ZERO;
+        // Convert the angle to radians for trigonometric calculations.
+        double armAngleRadians = Math.toRadians(armAngleDegrees);
+
+        // Convert extender ticks to inches.
+        // Note: In your setArmAndExtenderSetpoints method, the extension (in inches) is
+        // applied above the minimum extension length.
+        double extensionInches = extenderTicks / TerabytesIntoTheDeep.EXTENDER_TICKS_PER_INCH;
+
+        // The effective total distance from the pivot (arm axle) to the end effector.
+        double effectiveLength = TerabytesIntoTheDeep.EXTENDER_MIN_LENGTH_INCHES + extensionInches;
+
+        // The pivot (arm axle) is at a known height (ARM_AXLE_HEIGHT_INCHES).
+        // The vertical displacement of the end effector from the pivot is given by the
+        // effective length multiplied by the sine of the arm angle.
+        double endEffectorHeight = TerabytesIntoTheDeep.ARM_AXLE_HEIGHT_INCHES + effectiveLength * Math.sin(armAngleRadians);
+
+        return endEffectorHeight;
+    }
 }

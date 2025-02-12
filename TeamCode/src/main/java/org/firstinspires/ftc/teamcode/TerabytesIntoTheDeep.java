@@ -61,20 +61,18 @@ public class TerabytesIntoTheDeep {
     public static final double GEAR_RATIO = 13.7d;
     public static final double WORM_RATIO = 28.0d;
     public static final double ARM_TICKS_PER_DEGREE = WORM_RATIO * 28.0d * GEAR_RATIO / 360.0d;
-    public static final double ARM_LEVEL_DEGREES_ABOVE_ZERO = 59; // TODO: Tune this to actual level up from min.
+    public static final double ARM_LEVEL_DEGREES_ABOVE_ZERO = 59;
     public static final double ARM_LEVEL_TICKS = ARM_LEVEL_DEGREES_ABOVE_ZERO * ARM_TICKS_PER_DEGREE;
-    public static final double ARM_LEVEL_TICKS_EMPIRICAL = 0;
-    public static final double ARM_LEVEL_DEGREES_ABOVE_ZERO_EMPIRICAL = 45; // TODO: Tune this to actual level up from min.
     public static final double ARM_AXLE_HEIGHT_INCHES = 15.5d;
-    public static final double ARM_AXLE_OFFSET_FROM_ROBOT_CENTER_INCHES = 5.5; // TODO: Tune this to reality
     public static final double ARM_MIN_COLLECT_HEIGHT_INCHES = 6d;
     public static final double ARM_MAX_COLLECT_HEIGHT_INCHES = 13d;
+    public static final double ARM_MIN_HEIGHT_WRIST_DETECT_INCHES = 10d;
+    public static final double ARM_MAX_HEIGHT_WRIST_DETECT_INCHES = ARM_MAX_COLLECT_HEIGHT_INCHES;
     public static final double ARM_DEFENSIVE_ANGLE = 55.6;
     public static final double ARM_BASKET_ANGLE = 97.5;
     public static final double ARM_COLLECT_CLIP_ANGLE = -25;
     public static final double ARM_SCORE_CLIP_ANGLE = 22.5;
     public static final double ARM_HANG_ANGLE = 20;
-    // TODO: tune extender parameters to get accurate ratio of tick per inch and no-extension length
     public static final double EXTENDER_MIN_LENGTH_INCHES = 16d;
     public static final double EXTENDER_GEAR_RATIO = 5.2d;
     public static final double EXTENDER_TICKS_PER_INCH = (EXTENDER_GEAR_RATIO * 28 / 0.8 / 2) * 2.54;
@@ -348,11 +346,22 @@ public class TerabytesIntoTheDeep {
         packet.put("extenderCurrentPosition", getExtenderTickPosition());
 
         if (appendageControl != null) {
+            int appendageControlArmLTickPosition = -getArmLTickPosition();
+            int appendageControlArmRTickPosition = -getArmRTickPosition();
+            int extenderTickPosition = getExtenderTickPosition();
+
+            Double endEffectorHeight = appendageControl != null ?
+                    appendageControl.getCurrentEndEffectorHeight(
+                            appendageControlArmLTickPosition,
+                            appendageControlArmRTickPosition,
+                            extenderTickPosition) : null;
+
             double wristOffset = appendageControl.target.wristTarget - WRIST_ORIGIN;
             double wristHeading = (wristOffset / TerabytesIntoTheDeep.WRIST_RANGE) * WRIST_DEGREES_ALLOWABLE_HALF_RANGE;
             packet.put("wristHeadingOffset",  wristHeading);
             packet.put("armTickTarget", appendageControl.target.armTickTarget);
             packet.put("extenderTickTarget", appendageControl.target.extenderTickTarget);
+            packet.put("endEffectorHeight", endEffectorHeight);
         }
 
         packet.put("armLTicksAtInit", armLTicksAtInit);
@@ -443,9 +452,21 @@ public class TerabytesIntoTheDeep {
         }
     }
 
-    // NEW: Modified to first update the wrist based on vision (only in COLLECTING state)
     private void evaluateAppendageControl() {
-        if (appendageControl != null && appendageControl.currentState == AppendageControlState.COLLECTING) {
+        int appendageControlArmLTickPosition = -getArmLTickPosition();
+        int appendageControlArmRTickPosition = -getArmRTickPosition();
+        int extenderTickPosition = getExtenderTickPosition();
+
+        boolean isCollectingCameraDown = appendageControl != null && appendageControl.currentState == AppendageControlState.COLLECTING;
+        Double endEffectorHeight = appendageControl != null ?
+                appendageControl.getCurrentEndEffectorHeight(
+                        appendageControlArmLTickPosition,
+                        appendageControlArmRTickPosition,
+                        extenderTickPosition) : null;
+        boolean updateWristBasedOnVision = endEffectorHeight != null &&
+                (endEffectorHeight < TerabytesIntoTheDeep.ARM_MAX_HEIGHT_WRIST_DETECT_INCHES && endEffectorHeight > TerabytesIntoTheDeep.ARM_MIN_HEIGHT_WRIST_DETECT_INCHES);
+
+        if (isCollectingCameraDown && updateWristBasedOnVision) {
             Double ellipseAngle = sampleDetectVisionProcessor.detectedEllipseAngle;
             if (ellipseAngle != null) {
                 appendageControl.updateVisionWristAdjustment(ellipseAngle);
@@ -453,12 +474,11 @@ public class TerabytesIntoTheDeep {
                 sampleDetectVisionProcessor.detectedEllipseAngle = null;
             }
         }
-        int appendageControlArmLTickPosition = -getArmLTickPosition();
-        int appendageControlArmRTickPosition = -getArmRTickPosition();
+
         AppendageControlTarget controlTarget = appendageControl.evaluate(
                 appendageControlArmLTickPosition,
                 appendageControlArmRTickPosition,
-                getExtenderTickPosition());
+                extenderTickPosition);
         double reversedTickTarget = -controlTarget.armTickTarget;
         controlArmMotor(reversedTickTarget - armLTicksAtInit, leftArmControl, armLeft);
         controlArmMotor(reversedTickTarget - armRTicksAtInit, rightArmControl, armRight);
