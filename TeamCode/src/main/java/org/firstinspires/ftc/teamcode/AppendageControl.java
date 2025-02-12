@@ -351,4 +351,17 @@ class AppendageControl {
 
         return endEffectorHeight;
     }
+
+    public boolean isWristMotionSettled() {
+        // If we are not currently waiting for the wrist to settle, then it's settled.
+        if (!waitingForWristSettle) {
+            return true;
+        }
+        // If the elapsed time exceeds the dynamic timeout, consider it settled.
+        if (wristSettleTimer.milliseconds() >= wristDynamicTimeoutMs) {
+            waitingForWristSettle = false; // update the internal state for consistency
+            return true;
+        }
+        return false;
+    }
 }

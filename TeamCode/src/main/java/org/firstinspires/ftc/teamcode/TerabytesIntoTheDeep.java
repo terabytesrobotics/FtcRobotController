@@ -606,6 +606,16 @@ public class TerabytesIntoTheDeep {
         armMotor.setPower(armPower);
     }
 
+    private void setAppendageState(AppendageControlState state) {
+        boolean isCollecting = state == AppendageControlState.COLLECTING;
+        if (isCollecting) {
+            appendageControl.resetCollectParametersToDefault();
+        }
+        appendageControl.setControlState(AppendageControlState.COLLECTING);
+        visionPortal.setProcessorEnabled(sampleDetectVisionProcessor, isCollecting);
+        visionPortal.setProcessorEnabled(aprilTagProcessor, !isCollecting);
+    }
+
     private IntoTheDeepOpModeState evaluateManualControl(double dtMillis) {
         if (gamepad2.left_bumper && gamepad2.right_bumper && gamepad2.a) {
             forceArmInit();
@@ -616,38 +626,35 @@ public class TerabytesIntoTheDeep {
                 if (appendageControl.currentState == AppendageControlState.DEFENSIVE ||
                         appendageControl.currentState == AppendageControlState.TUCKED ||
                         appendageControl.currentState == AppendageControlState.COLLECT_SAFE) {
-                    appendageControl.resetCollectParametersToDefault();
-                    appendageControl.setControlState(AppendageControlState.COLLECTING);
+                    setAppendageState(AppendageControlState.COLLECTING);
                 } else if (appendageControl.currentState == AppendageControlState.HIGH_BASKET) {
-                    appendageControl.setControlState(AppendageControlState.DEFENSIVE);
+                    setAppendageState(AppendageControlState.DEFENSIVE);
                 } else if (appendageControl.currentState == AppendageControlState.COLLECT_CLIP ||
                         appendageControl.currentState == AppendageControlState.SCORE_CLIP) {
-                    appendageControl.resetCollectParametersToDefault();
-                    appendageControl.setControlState(AppendageControlState.COLLECTING);
-
+                    setAppendageState(AppendageControlState.COLLECTING);
                 }
             } else if (y2ActivatedEvaluator.evaluate()) {
                 if (appendageControl.currentState == AppendageControlState.COLLECTING) {
-                    appendageControl.setControlState(AppendageControlState.COLLECT_SAFE);
+                    setAppendageState(AppendageControlState.COLLECT_SAFE);
                 } else if (appendageControl.currentState == AppendageControlState.COLLECT_SAFE
                         ||appendageControl.currentState == AppendageControlState.COLLECT_CLIP
                         || appendageControl.currentState == AppendageControlState.SCORE_CLIP) {
-                    appendageControl.setControlState(AppendageControlState.DEFENSIVE);
+                    setAppendageState(AppendageControlState.DEFENSIVE);
                 } else if (appendageControl.currentState == AppendageControlState.DEFENSIVE) {
-                    appendageControl.setControlState(AppendageControlState.HIGH_BASKET);
+                    setAppendageState(AppendageControlState.HIGH_BASKET);
                 }
             }
 
             if (lb1ActivatedEvaluator.evaluate() && appendageControl.currentState == AppendageControlState.HIGH_BASKET){
-                appendageControl.setControlState(AppendageControlState.HANG);
+                setAppendageState(AppendageControlState.HANG);
             }
 
 
             if (x2ActivatedEvaluator.evaluate()) {
                 if (appendageControl.currentState == AppendageControlState.COLLECT_CLIP) {
-                    appendageControl.setControlState(AppendageControlState.SCORE_CLIP);
+                    setAppendageState(AppendageControlState.SCORE_CLIP);
                 } else {
-                    appendageControl.setControlState(AppendageControlState.COLLECT_CLIP);
+                    setAppendageState(AppendageControlState.COLLECT_CLIP);
                 }
             }
 
@@ -779,7 +786,7 @@ public class TerabytesIntoTheDeep {
         }
 
         if (currentCommand.AppendageCommand != null && appendageControl != null) {
-            appendageControl.setControlState(currentCommand.AppendageCommand.AppendageState);
+            setAppendageState(currentCommand.AppendageCommand.AppendageState);
             double dunkSignal = currentCommand.AppendageCommand.Dunk ? 1 : 0;
             double heightSignal = currentCommand.AppendageCommand.CollectHeightSignal != null ?
                     currentCommand.AppendageCommand.CollectHeightSignal :
