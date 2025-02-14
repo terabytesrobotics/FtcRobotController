@@ -30,9 +30,14 @@ public class SampleDetectVisionProcessor implements VisionProcessor {
     public double lastSampleProcessingTimeMillis = 0;
 
     // Holds the best detected ellipse’s angle (in degrees)
-    public volatile Double detectedEllipseAngle = null;
+    public Double detectedEllipseAngle = null;
     // Used to choose the best candidate in the frame.
     private double bestEllipseArea = 0;
+    private Point bestEllipseCenter = null;
+    public Double collectHeadingDegrees = null;
+
+    // TODO: if there's a detected ellipse that's our favorite, we want to compute a [-1, 1] signal of how far from the center the center of it is in the direction of the true robot heading (the green line)
+    public Double detectedExtenderErrorSignal = null;
 
     public enum DetectableColor { RED, BLUE, YELLOW }
     private final EnumSet<DetectableColor> colorsToDetect;
@@ -61,6 +66,8 @@ public class SampleDetectVisionProcessor implements VisionProcessor {
         // Reset candidate information.
         bestEllipseArea = 0;
         detectedEllipseAngle = null;
+        bestEllipseCenter = null;
+        detectedExtenderErrorSignal = null; // reset error signal each frame
 
         lastSampleDelayTimeMillis = sampleTime.milliseconds();
         sampleTime.reset();
@@ -69,7 +76,7 @@ public class SampleDetectVisionProcessor implements VisionProcessor {
         Mat hsv = new Mat();
         Imgproc.cvtColor(frame, hsv, Imgproc.COLOR_RGB2HSV);
 
-        // Draw ellipses directly on the original frame.
+        // Draw ellipses for detected colors.
         if (colorsToDetect.contains(DetectableColor.RED)) {
             Mat red1 = new Mat(), red2 = new Mat(), maskRed = new Mat();
             Core.inRange(hsv, RED_LOW1, RED_HIGH1, red1);
@@ -88,6 +95,62 @@ public class SampleDetectVisionProcessor implements VisionProcessor {
             Mat maskYellow = new Mat();
             Core.inRange(hsv, YEL_LOW, YEL_HIGH, maskYellow);
             detectAndDrawBlocks(maskYellow, frame, new Scalar(255, 255, 0));
+        }
+
+        // Draw heading indicator based on the current wrist heading.
+        // Also compute the error signal if a best ellipse was detected.
+        if (collectHeadingDegrees != null) {
+            // Get the center of the frame.
+            int centerX = frame.cols() / 2;
+            int centerY = frame.rows() / 2;
+
+            // Choose a line length (for example, one-fourth the smaller dimension).
+            int lineLength = Math.min(frame.cols(), frame.rows()) / 4;
+
+            // ----- Conversion Variables -----
+            // 1. sensorHeading: the raw sensor reading (wrist heading in degrees).
+            double sensorHeading = collectHeadingDegrees;
+
+            // 2. robotHeading: adjust the sensor reading by subtracting 90 degrees.
+            //    Based on your NB, when the wrist is at 0 the sensor might read 90°,
+            //    so robotHeading becomes 0 (pointing to the right).
+            double robotHeading = sensorHeading - 90;
+
+            // 3. drawAngleRad: convert the robot heading to a drawing angle in radians.
+            //    In our drawing coordinate system:
+            //       • 0 radians means "to the right".
+            //       • Angles increase counterclockwise.
+            //    We negate the radian value because the image coordinate system has y increasing downward.
+            double drawAngleRad = -Math.toRadians(robotHeading);
+            // ---------------------------------
+
+            // Compute the endpoint of the indicator line.
+            int endX = (int) (centerX + lineLength * Math.cos(drawAngleRad));
+            int endY = (int) (centerY + lineLength * Math.sin(drawAngleRad));
+
+            // Draw the heading indicator line in green with a thickness of 3.
+            Imgproc.line(frame, new Point(centerX, centerY), new Point(endX, endY), new Scalar(0, 255, 0), 3);
+
+            // ----- Compute Error Signal -----
+            // If a best ellipse candidate was detected, compute how far its center is
+            // from the frame center along the robot's heading direction.
+            if (bestEllipseCenter != null) {
+                // Calculate the offset between the ellipse center and the frame center.
+                double dx = bestEllipseCenter.x - centerX;
+                double dy = bestEllipseCenter.y - centerY;
+                // Create a unit vector in the heading direction.
+                double vx = Math.cos(drawAngleRad);
+                double vy = Math.sin(drawAngleRad);
+                // Project the offset onto the heading vector.
+                double projection = dx * vx + dy * vy;
+                // Normalize the projection to the range [-1, 1] using the lineLength as the maximum expected offset.
+                double error = projection / ((double) lineLength);
+                // Clamp the error to [-1, 1].
+                if (error > 1) error = 1;
+                if (error < -1) error = -1;
+                detectedExtenderErrorSignal = error;
+            }
+            // --------------------------------
         }
 
         // Save the modified frame for onDrawFrame().
@@ -126,9 +189,13 @@ public class SampleDetectVisionProcessor implements VisionProcessor {
             // Optionally, draw the center point.
             Imgproc.circle(drawOn, ellipse.center, 4, color, -1);
 
-            // Save the angle of the largest detected ellipse.
+            // Save the angle and center of the largest detected ellipse.
             if (area > bestEllipseArea) {
                 bestEllipseArea = area;
+                bestEllipseCenter = ellipse.center;
+                // !!NB!! The right of the frame is 0 heading when the wrist is at 0 heading.
+                // In the robot's world heading increases counterclockwise from 0 which is straight ahead.
+                // This is different than the convention used by OpenCV.
                 detectedEllipseAngle = -(ellipse.angle - 90);
             }
             count++;

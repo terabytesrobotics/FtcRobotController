@@ -464,14 +464,15 @@ public class TerabytesIntoTheDeep {
                         appendageControlArmRTickPosition,
                         extenderTickPosition) : null;
         boolean updateWristBasedOnVision = endEffectorHeight != null &&
-                (endEffectorHeight < TerabytesIntoTheDeep.ARM_MAX_HEIGHT_WRIST_DETECT_INCHES && endEffectorHeight > TerabytesIntoTheDeep.ARM_MIN_HEIGHT_WRIST_DETECT_INCHES);
+                (endEffectorHeight < TerabytesIntoTheDeep.ARM_MAX_HEIGHT_WRIST_DETECT_INCHES && endEffectorHeight > TerabytesIntoTheDeep.ARM_MIN_HEIGHT_WRIST_DETECT_INCHES) &&
+                !gamepad2.left_bumper;
+
+        sampleDetectVisionProcessor.collectHeadingDegrees = appendageControl != null ? appendageControl.getCurrentWristHeadingDegrees() : null;
 
         if (isCollectingCameraDown && updateWristBasedOnVision) {
             Double ellipseAngle = sampleDetectVisionProcessor.detectedEllipseAngle;
-            if (ellipseAngle != null) {
+            if (appendageControl != null && ellipseAngle != null) {
                 appendageControl.updateVisionWristAdjustment(ellipseAngle);
-                // Clear the value so that we don’t repeatedly update until a new reading arrives.
-                sampleDetectVisionProcessor.detectedEllipseAngle = null;
             }
         }
 
@@ -606,12 +607,21 @@ public class TerabytesIntoTheDeep {
         armMotor.setPower(armPower);
     }
 
+    private boolean isReadyToCollectAgain = true;
+
     private void setAppendageState(AppendageControlState state) {
         boolean isCollecting = state == AppendageControlState.COLLECTING;
+        boolean isScoring = state == AppendageControlState.HIGH_BASKET ||
+                state == AppendageControlState.LOW_BASKET ||
+                state == AppendageControlState.SCORE_CLIP;
         if (isCollecting) {
             appendageControl.resetCollectParametersToDefault();
+            appendageControl.setPincerOpen(isReadyToCollectAgain);
+            isReadyToCollectAgain = false;
+        } else if (isScoring) {
+            isReadyToCollectAgain = true;
         }
-        appendageControl.setControlState(AppendageControlState.COLLECTING);
+        appendageControl.setControlState(state);
         visionPortal.setProcessorEnabled(sampleDetectVisionProcessor, isCollecting);
         visionPortal.setProcessorEnabled(aprilTagProcessor, !isCollecting);
     }
@@ -637,7 +647,7 @@ public class TerabytesIntoTheDeep {
                 if (appendageControl.currentState == AppendageControlState.COLLECTING) {
                     setAppendageState(AppendageControlState.COLLECT_SAFE);
                 } else if (appendageControl.currentState == AppendageControlState.COLLECT_SAFE
-                        ||appendageControl.currentState == AppendageControlState.COLLECT_CLIP
+                        || appendageControl.currentState == AppendageControlState.COLLECT_CLIP
                         || appendageControl.currentState == AppendageControlState.SCORE_CLIP) {
                     setAppendageState(AppendageControlState.DEFENSIVE);
                 } else if (appendageControl.currentState == AppendageControlState.DEFENSIVE) {
@@ -645,10 +655,9 @@ public class TerabytesIntoTheDeep {
                 }
             }
 
-            if (lb1ActivatedEvaluator.evaluate() && appendageControl.currentState == AppendageControlState.HIGH_BASKET){
+            if (lb1ActivatedEvaluator.evaluate() && appendageControl.currentState == AppendageControlState.HIGH_BASKET) {
                 setAppendageState(AppendageControlState.HANG);
             }
-
 
             if (x2ActivatedEvaluator.evaluate()) {
                 if (appendageControl.currentState == AppendageControlState.COLLECT_CLIP) {
