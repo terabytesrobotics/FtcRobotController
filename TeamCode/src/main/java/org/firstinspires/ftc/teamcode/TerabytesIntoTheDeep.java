@@ -64,14 +64,20 @@ public class TerabytesIntoTheDeep {
     public static final double ARM_LEVEL_DEGREES_ABOVE_ZERO = 59;
     public static final double ARM_LEVEL_TICKS = ARM_LEVEL_DEGREES_ABOVE_ZERO * ARM_TICKS_PER_DEGREE;
     public static final double ARM_AXLE_HEIGHT_INCHES = 15.5d;
+<<<<<<< HEAD
     public static final double ARM_MIN_COLLECT_HEIGHT_INCHES = 6d;
+=======
+    public static final double ARM_AXLE_OFFSET_FROM_ROBOT_CENTER_INCHES = 5.5; // TODO: Tune this to reality
+    public static final double ARM_MIN_COLLECT_HEIGHT_INCHES = 5.25d;
+>>>>>>> 2798fd5 (Our changes as of 7pm)
     public static final double ARM_MAX_COLLECT_HEIGHT_INCHES = 13d;
     public static final double ARM_MIN_HEIGHT_WRIST_DETECT_INCHES = 10d;
     public static final double ARM_MAX_HEIGHT_WRIST_DETECT_INCHES = ARM_MAX_COLLECT_HEIGHT_INCHES;
     public static final double ARM_DEFENSIVE_ANGLE = 55.6;
-    public static final double ARM_BASKET_ANGLE = 97.5;
+    public static final double ARM_BASKET_ANGLE = 92;
     public static final double ARM_COLLECT_CLIP_ANGLE = -25;
     public static final double ARM_SCORE_CLIP_ANGLE = 36;
+    public static final double ARM_PRE_HANG_ANGLE = 97.5;
     public static final double ARM_HANG_ANGLE = 20;
     public static final double EXTENDER_MIN_LENGTH_INCHES = 16d;
     public static final double EXTENDER_GEAR_RATIO = 5.2d;
@@ -90,7 +96,7 @@ public class TerabytesIntoTheDeep {
     public static final double TILT_DOWN_RANGE = 40;
     public static final double TILT_RANGE = TILT_TICKS_PER_DEGREE * TILT_RANGE_DEGREES;
     public static final double TILT_TUCKED = 1.0;
-    public static final double TILT_DUNK_RANGE = -0.3;
+    public static final double TILT_DUNK_RANGE = -0.25;
     public static final double TILT_LOW_PROFILE = TILT_STRAIGHT;
     public static final double TILT_PREGRAB = TILT_STRAIGHT / 2;
 
@@ -107,7 +113,7 @@ public class TerabytesIntoTheDeep {
     public static final double PINCER_CLOSED = 0.65;
 
     // We don't yet support collecting at multiple distances in auton.
-    public static final double AUTON_PRE_COLLECT_HEIGHT_SIGNAL = 0.5;
+    public static final double AUTON_PRE_COLLECT_HEIGHT_SIGNAL = 0.75;
     public static final double AUTON_COLLECT_HEIGHT_SIGNAL = 0.1;
     public static final double AUTON_COLLECT_DISTANCE_SIGNAL = 0;
     public static final double AUTON_COLLECT_OFFSET_DISTANCE = 9.75;
@@ -635,8 +641,10 @@ public class TerabytesIntoTheDeep {
             if (a2ActivatedEvaluator.evaluate()) {
                 if (appendageControl.currentState == AppendageControlState.DEFENSIVE ||
                         appendageControl.currentState == AppendageControlState.TUCKED ||
-                        appendageControl.currentState == AppendageControlState.COLLECT_SAFE) {
-                    setAppendageState(AppendageControlState.COLLECTING);
+                        appendageControl.currentState == AppendageControlState.COLLECT_SAFE ||
+                        appendageControl.currentState == AppendageControlState.PRE_HANG ||
+                        appendageControl.currentState == AppendageControlState.HANG) {
+                        setAppendageState(AppendageControlState.COLLECTING);
                 } else if (appendageControl.currentState == AppendageControlState.HIGH_BASKET) {
                     setAppendageState(AppendageControlState.DEFENSIVE);
                 } else if (appendageControl.currentState == AppendageControlState.COLLECT_CLIP ||
@@ -644,7 +652,9 @@ public class TerabytesIntoTheDeep {
                     setAppendageState(AppendageControlState.COLLECTING);
                 }
             } else if (y2ActivatedEvaluator.evaluate()) {
-                if (appendageControl.currentState == AppendageControlState.COLLECTING) {
+                if (appendageControl.currentState == AppendageControlState.COLLECTING ||
+                        appendageControl.currentState == AppendageControlState.PRE_HANG ||
+                        appendageControl.currentState == AppendageControlState.HANG) {
                     setAppendageState(AppendageControlState.COLLECT_SAFE);
                 } else if (appendageControl.currentState == AppendageControlState.COLLECT_SAFE
                         || appendageControl.currentState == AppendageControlState.COLLECT_CLIP
@@ -655,7 +665,12 @@ public class TerabytesIntoTheDeep {
                 }
             }
 
-            if (lb1ActivatedEvaluator.evaluate() && appendageControl.currentState == AppendageControlState.HIGH_BASKET) {
+            boolean lbActivated = lb1ActivatedEvaluator.evaluate();
+            if (lbActivated && appendageControl.currentState != AppendageControlState.HANG) {
+                setAppendageState(AppendageControlState.PRE_HANG);
+            }
+
+            if (lbActivated && appendageControl.currentState == AppendageControlState.PRE_HANG) {
                 setAppendageState(AppendageControlState.HANG);
             }
 
@@ -922,8 +937,8 @@ public class TerabytesIntoTheDeep {
         boolean yErrEliminated = Math.abs(yErr) < 0.75;
         boolean thetaErrEliminated = Math.abs(error.getHeading()) < (Math.PI / 15);
 
-        double minPower = 0.235;
-        double minRotation = 0.5;
+        double minPower = 0.2825;
+        double minRotation = 0.6;
         double xMin = xErrEliminated ? 0 : Math.signum(xErr) * minPower;
         double yMin = yErrEliminated ? 0 : Math.signum(yErr) * minPower;
         double thetaMin = thetaErrEliminated ? 0 : Math.signum(error.getHeading()) * minRotation;
