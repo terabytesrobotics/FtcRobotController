@@ -86,6 +86,8 @@ class AppendageControl {
             case SCORE_CLIP:
                 evaluateScoreClip();
                 break;
+            case CLIP_CLIP:
+                evaluateClipClip();
             case PRE_HANG_1:
                 evaluatePreHang1();
                 break;
@@ -297,7 +299,10 @@ class AppendageControl {
         setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_SCORE_CLIP_ANGLE, 0);
         evaluateEndEffector();
     }
-
+    private void evaluateClipClip() {
+        setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_CLIP_CLIP_ANGLE, 0);
+        evaluateEndEffector();
+    }
     private void evaluatePreHang1(){
         setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_PRE_HANG_ANGLE, TerabytesIntoTheDeep.EXTENDER_MAX_EXTENSION_INCHES);
         evaluateEndEffector();
