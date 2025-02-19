@@ -646,7 +646,8 @@ public class TerabytesIntoTheDeep {
                 } else if (appendageControl.currentState == AppendageControlState.HIGH_BASKET) {
                     setAppendageState(AppendageControlState.DEFENSIVE);
                 } else if (appendageControl.currentState == AppendageControlState.COLLECT_CLIP ||
-                        appendageControl.currentState == AppendageControlState.SCORE_CLIP) {
+                        appendageControl.currentState == AppendageControlState.SCORE_CLIP ||
+                        appendageControl.currentState==AppendageControlState.CLIP_CLIP) {
                     setAppendageState(AppendageControlState.COLLECTING);
                 }
             } else if (y2ActivatedEvaluator.evaluate()) {
@@ -657,7 +658,8 @@ public class TerabytesIntoTheDeep {
                     setAppendageState(AppendageControlState.COLLECT_SAFE);
                 } else if (appendageControl.currentState == AppendageControlState.COLLECT_SAFE
                         || appendageControl.currentState == AppendageControlState.COLLECT_CLIP
-                        || appendageControl.currentState == AppendageControlState.SCORE_CLIP) {
+                        || appendageControl.currentState == AppendageControlState.SCORE_CLIP ||
+                        appendageControl.currentState==AppendageControlState.CLIP_CLIP) {
                     setAppendageState(AppendageControlState.DEFENSIVE);
                 } else if (appendageControl.currentState == AppendageControlState.DEFENSIVE) {
                     setAppendageState(AppendageControlState.HIGH_BASKET);
@@ -685,7 +687,10 @@ public class TerabytesIntoTheDeep {
             if (x2ActivatedEvaluator.evaluate()) {
                 if (appendageControl.currentState == AppendageControlState.COLLECT_CLIP) {
                     setAppendageState(AppendageControlState.SCORE_CLIP);
-                } else {
+                } else if (appendageControl.currentState == AppendageControlState.SCORE_CLIP) {
+                    setAppendageState(AppendageControlState.CLIP_CLIP);
+                }
+                else {
                     setAppendageState(AppendageControlState.COLLECT_CLIP);
                 }
             }
