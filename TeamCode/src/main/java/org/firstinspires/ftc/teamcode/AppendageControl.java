@@ -88,6 +88,7 @@ class AppendageControl {
                 break;
             case CLIP_CLIP:
                 evaluateClipClip();
+                break;
             case PRE_HANG_1:
                 evaluatePreHang1();
                 break;
