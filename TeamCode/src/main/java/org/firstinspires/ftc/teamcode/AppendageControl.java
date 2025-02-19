@@ -86,8 +86,11 @@ class AppendageControl {
             case SCORE_CLIP:
                 evaluateScoreClip();
                 break;
-            case PRE_HANG:
-                evaluatePreHang();
+            case PRE_HANG_1:
+                evaluatePreHang1();
+                break;
+            case PRE_HANG_2:
+                evaluatePreHang2();
                 break;
             case HANG:
                 evaluateHang();
@@ -191,6 +194,11 @@ class AppendageControl {
         this.collectDistanceSignal = Math.max(0, Math.min(1, this.collectDistanceSignal));
     }
 
+    public void accumulateCollectDistanceSignal(double collectDistance) {
+        this.collectDistanceSignal += collectDistance;
+        this.collectDistanceSignal = Math.max(0, Math.min(1, this.collectDistanceSignal));
+    }
+
     public void accumulateCollectHeightSignal(double collectHeight) {
         this.collectHeightSignal += collectHeight;
         this.collectHeightSignal = Math.max(0, Math.min(1, this.collectHeightSignal));
@@ -290,7 +298,12 @@ class AppendageControl {
         evaluateEndEffector();
     }
 
-    private void evaluatePreHang(){
+    private void evaluatePreHang1(){
+        setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_PRE_HANG_ANGLE, TerabytesIntoTheDeep.EXTENDER_MAX_EXTENSION_INCHES);
+        evaluateEndEffector();
+    }
+
+    private void evaluatePreHang2(){
         setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_PRE_HANG_ANGLE, TerabytesIntoTheDeep.EXTENDER_MAX_EXTENSION_INCHES);
         evaluateEndEffector();
     }

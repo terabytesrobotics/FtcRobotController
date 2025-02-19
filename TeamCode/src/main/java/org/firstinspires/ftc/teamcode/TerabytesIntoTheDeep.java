@@ -54,7 +54,7 @@ import java.util.EnumSet;
 
 public class TerabytesIntoTheDeep {
 
-    public static final double COLLECT_DISTANCE_ACCUMULATOR_SPEED_PER_MILLI = 1 / 1150.0;
+    public static final double COLLECT_DISTANCE_ACCUMULATOR_SPEED_PER_MILLI = 1 / 1750.0;
     public static final double COLLECT_HEIGHT_ACCUMULATOR_SPEED_PER_MILLI = 1 / 2000.0;
     public static final double WRIST_ACCUMULATOR_SPEED_PER_MILLI = 1 / 500.0;
 
@@ -638,7 +638,8 @@ public class TerabytesIntoTheDeep {
                 if (appendageControl.currentState == AppendageControlState.DEFENSIVE ||
                         appendageControl.currentState == AppendageControlState.TUCKED ||
                         appendageControl.currentState == AppendageControlState.COLLECT_SAFE ||
-                        appendageControl.currentState == AppendageControlState.PRE_HANG ||
+                        appendageControl.currentState == AppendageControlState.PRE_HANG_1 ||
+                        appendageControl.currentState == AppendageControlState.PRE_HANG_2 ||
                         appendageControl.currentState == AppendageControlState.HANG) {
                         setAppendageState(AppendageControlState.COLLECTING);
                 } else if (appendageControl.currentState == AppendageControlState.HIGH_BASKET) {
@@ -649,7 +650,8 @@ public class TerabytesIntoTheDeep {
                 }
             } else if (y2ActivatedEvaluator.evaluate()) {
                 if (appendageControl.currentState == AppendageControlState.COLLECTING ||
-                        appendageControl.currentState == AppendageControlState.PRE_HANG ||
+                        appendageControl.currentState == AppendageControlState.PRE_HANG_1 ||
+                        appendageControl.currentState == AppendageControlState.PRE_HANG_2 ||
                         appendageControl.currentState == AppendageControlState.HANG) {
                     setAppendageState(AppendageControlState.COLLECT_SAFE);
                 } else if (appendageControl.currentState == AppendageControlState.COLLECT_SAFE
@@ -662,13 +664,22 @@ public class TerabytesIntoTheDeep {
             }
 
             boolean lbActivated = lb1ActivatedEvaluator.evaluate();
-            if (lbActivated && appendageControl.currentState != AppendageControlState.HANG) {
-                setAppendageState(AppendageControlState.PRE_HANG);
+            if (lbActivated) {
+                // TODO: Shorten these long conditions into more simple local variable names.
+                if (appendageControl.currentState == AppendageControlState.COLLECTING ||
+                        appendageControl.currentState == AppendageControlState.DEFENSIVE ||
+                        appendageControl.currentState == AppendageControlState.HIGH_BASKET ||
+                        appendageControl.currentState == AppendageControlState.LOW_BASKET ||
+                        appendageControl.currentState == AppendageControlState.COLLECT_SAFE ||
+                        appendageControl.currentState == AppendageControlState.TUCKED) {
+                    setAppendageState(AppendageControlState.PRE_HANG_1);
+                } else if (appendageControl.currentState == AppendageControlState.PRE_HANG_1) {
+                    setAppendageState(AppendageControlState.PRE_HANG_2);
+                } else if (appendageControl.currentState == AppendageControlState.PRE_HANG_2) {
+                    setAppendageState(AppendageControlState.HANG);
+                }
             }
 
-            if (lbActivated && appendageControl.currentState == AppendageControlState.PRE_HANG) {
-                setAppendageState(AppendageControlState.HANG);
-            }
 
             if (x2ActivatedEvaluator.evaluate()) {
                 if (appendageControl.currentState == AppendageControlState.COLLECT_CLIP) {
@@ -689,13 +700,20 @@ public class TerabytesIntoTheDeep {
             boolean isCollecting = appendageControl.currentState == AppendageControlState.COLLECTING;
             if (isCollecting) {
 
+
                 double collectHeightSignal = -gamepad2.left_stick_y;
+                double collectDistanceSignal = (gamepad1.right_trigger - gamepad1.left_trigger);
                 int collectDistanceIncrements = y1ActivatedEvaluator.evaluate() ? 1 : a1ActivatedEvaluator.evaluate() ? -1 : 0;
 
                 if (Math.abs(collectHeightSignal) > 0.025) {
                     appendageControl.accumulateCollectHeightSignal(collectHeightSignal * COLLECT_HEIGHT_ACCUMULATOR_SPEED_PER_MILLI * dtMillis);
                 }
 
+                if (Math.abs(collectDistanceSignal) > 0.2) {
+                    appendageControl.accumulateCollectDistanceSignal(collectDistanceSignal * COLLECT_DISTANCE_ACCUMULATOR_SPEED_PER_MILLI * dtMillis);
+                }
+
+                // TODO: Deprecate?
                 if (Math.abs(collectDistanceIncrements) > 0.025) {
                     appendageControl.incrementCollectDistance(collectDistanceIncrements);
                 }

@@ -9,6 +9,7 @@ public enum AppendageControlState {
     HIGH_BASKET,
     COLLECT_CLIP,
     SCORE_CLIP,
-    PRE_HANG,
+    PRE_HANG_1,
+    PRE_HANG_2,
     HANG
 }
