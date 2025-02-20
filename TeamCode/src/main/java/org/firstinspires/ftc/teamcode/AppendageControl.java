@@ -244,6 +244,7 @@ class AppendageControl {
         double tiltDown = TerabytesIntoTheDeep.TILT_ORIGIN - (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * armDegreesFromHorizontal);
         boolean isClipCollect = currentState == AppendageControlState.COLLECT_CLIP;
         boolean isClipScore = currentState == AppendageControlState.SCORE_CLIP;
+        boolean isClipClip = currentState == AppendageControlState.CLIP_CLIP;
         boolean isCollecting = currentState == AppendageControlState.COLLECTING;
         double tiltActualSetpoint = isCollecting ? tiltDown : (isClipCollect || isClipScore) ? tiltClip : tiltUp;
         if (isBasketScoring() || isClipCollect) {

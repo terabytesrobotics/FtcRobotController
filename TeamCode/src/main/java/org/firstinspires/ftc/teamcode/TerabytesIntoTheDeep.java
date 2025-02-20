@@ -74,8 +74,13 @@ public class TerabytesIntoTheDeep {
     public static final double ARM_DEFENSIVE_ANGLE = 55.6;
     public static final double ARM_BASKET_ANGLE = 92;
     public static final double ARM_COLLECT_CLIP_ANGLE = -25;
-    public static final double ARM_SCORE_CLIP_ANGLE = 28;
-    public static final double ARM_CLIP_CLIP_ANGLE = ARM_SCORE_CLIP_ANGLE + 15;
+    //up clip settings
+    /*public static final double ARM_SCORE_CLIP_ANGLE = 28;
+    public static final double ARM_CLIP_CLIP_ANGLE = ARM_SCORE_CLIP_ANGLE - 25;
+    */
+    //down clip settings 20, +15
+    public static final double ARM_SCORE_CLIP_ANGLE = 30;
+    public static final double ARM_CLIP_CLIP_ANGLE = ARM_SCORE_CLIP_ANGLE +15;
     public static final double ARM_PRE_HANG_ANGLE = 97.5;
     public static final double ARM_HANG_ANGLE = 20;
     public static final double EXTENDER_MIN_LENGTH_INCHES = 16d;
