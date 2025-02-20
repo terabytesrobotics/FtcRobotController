@@ -29,7 +29,7 @@ public class SampleDetectVisionProcessor implements VisionProcessor {
     public double lastSampleDelayTimeMillis = 0;
     public double lastSampleProcessingTimeMillis = 0;
 
-    // Holds the best detected ellipse’s angle (in degrees)
+    // Holds the best detected ellipse's angle (in degrees)
     public Double detectedEllipseAngle = null;
     // Used to choose the best candidate in the frame.
     private double bestEllipseArea = 0;
@@ -38,6 +38,7 @@ public class SampleDetectVisionProcessor implements VisionProcessor {
 
     // TODO: if there's a detected ellipse that's our favorite, we want to compute a [-1, 1] signal of how far from the center the center of it is in the direction of the true robot heading (the green line)
     public Double detectedExtenderErrorSignal = null;
+    public Double detectedLateralErrorSignal = null;
 
     public enum DetectableColor { RED, BLUE, YELLOW }
     private final EnumSet<DetectableColor> colorsToDetect;
@@ -67,7 +68,8 @@ public class SampleDetectVisionProcessor implements VisionProcessor {
         bestEllipseArea = 0;
         detectedEllipseAngle = null;
         bestEllipseCenter = null;
-        detectedExtenderErrorSignal = null; // reset error signal each frame
+        detectedExtenderErrorSignal = null;
+        detectedLateralErrorSignal = null;
 
         lastSampleDelayTimeMillis = sampleTime.milliseconds();
         sampleTime.reset();
@@ -108,40 +110,22 @@ public class SampleDetectVisionProcessor implements VisionProcessor {
             int lineLength = Math.min(frame.cols(), frame.rows()) / 4;
 
             // ----- Conversion Variables -----
-            // 1. sensorHeading: the raw sensor reading (wrist heading in degrees).
             double sensorHeading = collectHeadingDegrees;
-
-            // 2. robotHeading: adjust the sensor reading by subtracting 90 degrees.
-            //    Based on your NB, when the wrist is at 0 the sensor might read 90°,
-            //    so robotHeading becomes 0 (pointing to the right).
             double robotHeading = sensorHeading - 90;
-
-            // 3. drawAngleRad: convert the robot heading to a drawing angle in radians.
-            //    In our drawing coordinate system:
-            //       • 0 radians means "to the right".
-            //       • Angles increase counterclockwise.
-            //    We negate the radian value because the image coordinate system has y increasing downward.
             double drawAngleRad = -Math.toRadians(robotHeading);
-            // ---------------------------------
 
             // Compute the endpoint of the indicator line.
             int endX = (int) (centerX + lineLength * Math.cos(drawAngleRad));
             int endY = (int) (centerY + lineLength * Math.sin(drawAngleRad));
 
-            // Draw the heading indicator line in green with a thickness of 3.
             Imgproc.line(frame, new Point(centerX, centerY), new Point(endX, endY), new Scalar(0, 255, 0), 3);
 
             // ----- Compute Error Signal -----
-            // If a best ellipse candidate was detected, compute how far its center is
-            // from the frame center along the robot's heading direction.
             if (bestEllipseCenter != null) {
-                // Calculate the offset between the ellipse center and the frame center.
                 double dx = bestEllipseCenter.x - centerX;
                 double dy = bestEllipseCenter.y - centerY;
-                // Create a unit vector in the heading direction.
                 double vx = Math.cos(drawAngleRad);
                 double vy = Math.sin(drawAngleRad);
-                // Project the offset onto the heading vector.
                 double projection = dx * vx + dy * vy;
                 // Normalize the projection to the range [-1, 1] using the lineLength as the maximum expected offset.
                 double error = projection / ((double) lineLength);
@@ -149,8 +133,17 @@ public class SampleDetectVisionProcessor implements VisionProcessor {
                 if (error > 1) error = 1;
                 if (error < -1) error = -1;
                 detectedExtenderErrorSignal = error;
+
+                // Calculate lateral error (orthogonal to heading direction)
+                // The lateral direction is 90 degrees rotated from the heading direction
+                double vlateralX = vy;  // Cos(θ + 90) = -sin(θ)
+                double vlateralY = -vx; // Sin(θ + 90) = cos(θ)
+                double lateralProjection = dx * vlateralX + dy * vlateralY;
+                double lateralError = lateralProjection / ((double) lineLength);
+                if (lateralError > 1) lateralError = 1;
+                if (lateralError < -1) lateralError = -1;
+                detectedLateralErrorSignal = lateralError;
             }
-            // --------------------------------
         }
 
         // Save the modified frame for onDrawFrame().
