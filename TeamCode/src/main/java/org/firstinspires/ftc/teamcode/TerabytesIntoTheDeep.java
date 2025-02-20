@@ -349,16 +349,7 @@ public class TerabytesIntoTheDeep {
         packet.put("extenderCurrentPosition", getExtenderTickPosition());
 
         if (appendageControl != null) {
-            int appendageControlArmLTickPosition = -getArmLTickPosition();
-            int appendageControlArmRTickPosition = -getArmRTickPosition();
-            int extenderTickPosition = getExtenderTickPosition();
-
-            Double endEffectorHeight = appendageControl != null ?
-                    appendageControl.getCurrentEndEffectorHeight(
-                            appendageControlArmLTickPosition,
-                            appendageControlArmRTickPosition,
-                            extenderTickPosition) : null;
-
+            Double endEffectorHeight = appendageControl.getCurrentEndEffectorHeight();
             double wristOffset = appendageControl.target.wristTarget - WRIST_ORIGIN;
             double wristHeading = (wristOffset / TerabytesIntoTheDeep.WRIST_RANGE) * WRIST_DEGREES_ALLOWABLE_HALF_RANGE;
             packet.put("wristHeadingOffset",  wristHeading);
@@ -455,28 +446,14 @@ public class TerabytesIntoTheDeep {
         }
     }
 
-    private void evaluateAppendageControl() {
+    private void evaluateAppendageControl(AppendageControl appendageControl) {
         int appendageControlArmLTickPosition = -getArmLTickPosition();
         int appendageControlArmRTickPosition = -getArmRTickPosition();
         int extenderTickPosition = getExtenderTickPosition();
 
-        boolean isCollectingCameraDown = appendageControl != null && appendageControl.currentState == AppendageControlState.COLLECTING;
-        Double endEffectorHeight = appendageControl != null ?
-                appendageControl.getCurrentEndEffectorHeight(
-                        appendageControlArmLTickPosition,
-                        appendageControlArmRTickPosition,
-                        extenderTickPosition) : null;
-        boolean updateWristBasedOnVision = endEffectorHeight != null &&
-                (endEffectorHeight < TerabytesIntoTheDeep.ARM_MAX_HEIGHT_WRIST_DETECT_INCHES && endEffectorHeight > TerabytesIntoTheDeep.ARM_MIN_HEIGHT_WRIST_DETECT_INCHES) &&
-                !gamepad2.left_bumper;
-
-        sampleDetectVisionProcessor.collectHeadingDegrees = appendageControl != null ? appendageControl.getCurrentWristHeadingDegrees() : null;
-
-        if (isCollectingCameraDown && updateWristBasedOnVision) {
-            Double ellipseAngle = sampleDetectVisionProcessor.detectedEllipseAngle;
-            if (appendageControl != null && ellipseAngle != null) {
-                appendageControl.updateVisionWristAdjustment(ellipseAngle);
-            }
+        sampleDetectVisionProcessor.collectHeadingDegrees = appendageControl.getCurrentWristHeadingDegrees();
+        if (!gamepad2.left_bumper) {
+            appendageControl.updateVisionWristAdjustment(sampleDetectVisionProcessor.detectedEllipseAngle);
         }
 
         AppendageControlTarget controlTarget = appendageControl.evaluate(
@@ -502,7 +479,7 @@ public class TerabytesIntoTheDeep {
 
     private void evaluateAppendageInitOrControl() {
         if (appendageControl != null) {
-            evaluateAppendageControl();
+            evaluateAppendageControl(appendageControl);
         } else {
             evaluateAppendageInit();
         }

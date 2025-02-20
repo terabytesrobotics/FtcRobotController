@@ -56,7 +56,6 @@ class AppendageControl {
             justDunkedTimer = null;
         }
 
-        // NEW: Check if the wrist servo has had enough time to settle.
         if (waitingForWristSettle && wristSettleTimer.milliseconds() > WRIST_SETTLE_TIME_MS) {
             waitingForWristSettle = false;
         }
@@ -105,7 +104,19 @@ class AppendageControl {
         return target;
     }
 
+    private boolean shouldUpdateWristBasedOnVisionError() {
+        boolean isCollectingCameraDown = currentState == AppendageControlState.COLLECTING;
+        Double endEffectorHeight = getCurrentEndEffectorHeight();
+        return isCollectingCameraDown &&
+                endEffectorHeight != null &&
+                (endEffectorHeight < TerabytesIntoTheDeep.ARM_MAX_HEIGHT_WRIST_DETECT_INCHES && endEffectorHeight > TerabytesIntoTheDeep.ARM_MIN_HEIGHT_WRIST_DETECT_INCHES);
+    }
+
     public void updateVisionWristAdjustment(Double wristHeadingErrorDegrees) {
+        if (wristHeadingErrorDegrees == null) {
+            return;
+        }
+
         // Determine the current wrist angle (in degrees) based on the current target.
         double wristOffsetTicks = target.wristTarget - TerabytesIntoTheDeep.WRIST_ORIGIN;
         double currentWristHeadingOffset = (wristOffsetTicks / TerabytesIntoTheDeep.WRIST_RANGE)
@@ -348,14 +359,14 @@ class AppendageControl {
         return armDegreesFromZero - TerabytesIntoTheDeep.ARM_LEVEL_DEGREES_ABOVE_ZERO;
     }
 
-    public Double getCurrentEndEffectorHeight(int armLTicks, int armRTicks, int extenderTicks) {
+    public Double getCurrentEndEffectorHeight() {
         // Only return a height if we're in the collecting state.
         if (currentState != AppendageControlState.COLLECTING) {
             return null;
         }
 
         // Compute the average arm encoder ticks.
-        int averageArmTicks = (armLTicks + armRTicks) / 2;
+        int averageArmTicks = (currentArmLTicks + currentArmRTicks) / 2;
 
         // Compute the arm angle relative to horizontal (in degrees).
         // This uses the same conversion as in getCurrentArmAngleDegrees().
@@ -367,7 +378,7 @@ class AppendageControl {
         // Convert extender ticks to inches.
         // Note: In your setArmAndExtenderSetpoints method, the extension (in inches) is
         // applied above the minimum extension length.
-        double extensionInches = extenderTicks / TerabytesIntoTheDeep.EXTENDER_TICKS_PER_INCH;
+        double extensionInches = currentExtenderTicks / TerabytesIntoTheDeep.EXTENDER_TICKS_PER_INCH;
 
         // The effective total distance from the pivot (arm axle) to the end effector.
         double effectiveLength = TerabytesIntoTheDeep.EXTENDER_MIN_LENGTH_INCHES + extensionInches;
