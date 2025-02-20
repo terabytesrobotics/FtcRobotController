@@ -69,6 +69,8 @@ public class TerabytesIntoTheDeep {
     public static final double ARM_MAX_COLLECT_HEIGHT_INCHES = 13d;
     public static final double ARM_MIN_HEIGHT_WRIST_DETECT_INCHES = 10d;
     public static final double ARM_MAX_HEIGHT_WRIST_DETECT_INCHES = ARM_MAX_COLLECT_HEIGHT_INCHES;
+    public static final double ARM_MIN_HEIGHT_EXTENDER_DETECT_INCHES = 7.0d;
+    public static final double ARM_MAX_HEIGHT_EXTENDER_DETECT_INCHES = ARM_MAX_COLLECT_HEIGHT_INCHES;
     public static final double ARM_DEFENSIVE_ANGLE = 55.6;
     public static final double ARM_BASKET_ANGLE = 92;
     public static final double ARM_COLLECT_CLIP_ANGLE = -25;
@@ -446,15 +448,21 @@ public class TerabytesIntoTheDeep {
         }
     }
 
-    private void evaluateAppendageControl(AppendageControl appendageControl) {
-        int appendageControlArmLTickPosition = -getArmLTickPosition();
-        int appendageControlArmRTickPosition = -getArmRTickPosition();
-        int extenderTickPosition = getExtenderTickPosition();
+    private void evaluateAppendageControl(AppendageControl appendageControl, double dt) {
 
         sampleDetectVisionProcessor.collectHeadingDegrees = appendageControl.getCurrentWristHeadingDegrees();
         if (!gamepad2.left_bumper) {
+            double extenderErrorSignal = sampleDetectVisionProcessor.detectedExtenderErrorSignal != null ?
+                    sampleDetectVisionProcessor.detectedExtenderErrorSignal : 0;
+            if (Math.abs(extenderErrorSignal) > 0.15) {
+                appendageControl.updateVisionExtenderAdjustment(extenderErrorSignal * COLLECT_DISTANCE_ACCUMULATOR_SPEED_PER_MILLI * dt);
+            }
             appendageControl.updateVisionWristAdjustment(sampleDetectVisionProcessor.detectedEllipseAngle);
         }
+
+        int appendageControlArmLTickPosition = -getArmLTickPosition();
+        int appendageControlArmRTickPosition = -getArmRTickPosition();
+        int extenderTickPosition = getExtenderTickPosition();
 
         AppendageControlTarget controlTarget = appendageControl.evaluate(
                 appendageControlArmLTickPosition,
@@ -477,9 +485,9 @@ public class TerabytesIntoTheDeep {
         }
     }
 
-    private void evaluateAppendageInitOrControl() {
+    private void evaluateAppendageInitOrControl(double dt) {
         if (appendageControl != null) {
-            evaluateAppendageControl(appendageControl);
+            evaluateAppendageControl(appendageControl, dt);
         } else {
             evaluateAppendageInit();
         }
@@ -492,7 +500,7 @@ public class TerabytesIntoTheDeep {
         drive.update();
         latestPoseEstimate = drive.getPoseEstimate();
         evaluateSwitchCamera();
-        evaluateAppendageInitOrControl();
+        evaluateAppendageInitOrControl(dt);
         evaluatePositioningSystems();
 
         boolean debugKill = debugMode &&

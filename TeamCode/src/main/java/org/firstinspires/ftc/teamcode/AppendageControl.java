@@ -11,13 +11,11 @@ class AppendageControl {
     private static int EXTENDER_SETTLED_TICK_THRESHOLD = 24;
     private static int UNTUCK_END_EFFECTOR_TIMEOUT_MILLIS = 750;
 
-    // NEW: For vision-based wrist control debounce.
     private boolean waitingForWristSettle = false;
     private ElapsedTime wristSettleTimer = new ElapsedTime();
-    private static final double WRIST_SETTLE_MIN_TIME = 75;
-    private static final double WRIST_SETTLE_MS_PER_DEGREE = 3;
-    private static final double WRIST_SETTLE_TIME_MS = 333; // milliseconds delay until we accept new vision input
-    private static final double WRIST_SERVO_TOLERANCE = 0.02; // not used if no feedback is available
+    private static final double WRIST_SETTLE_MIN_TIME = 25;
+    private static final double WRIST_SETTLE_MS_PER_DEGREE = 5;
+    private static final double WRIST_SETTLE_TIME_DEFAULT = 500;
 
     private int currentArmLTicks;
     private int currentArmRTicks;
@@ -37,7 +35,7 @@ class AppendageControl {
     private ElapsedTime justDunkedTimer;
     private ElapsedTime untuckedTimer;
 
-    private double wristDynamicTimeoutMs = WRIST_SETTLE_TIME_MS;
+    private double wristDynamicTimeoutMs = WRIST_SETTLE_TIME_DEFAULT;
 
     public AppendageControl(AppendageControlState initialState, boolean isAuton) {
         currentState = initialState;
@@ -56,7 +54,7 @@ class AppendageControl {
             justDunkedTimer = null;
         }
 
-        if (waitingForWristSettle && wristSettleTimer.milliseconds() > WRIST_SETTLE_TIME_MS) {
+        if (waitingForWristSettle && wristSettleTimer.milliseconds() > wristDynamicTimeoutMs) {
             waitingForWristSettle = false;
         }
 
@@ -109,20 +107,26 @@ class AppendageControl {
         Double endEffectorHeight = getCurrentEndEffectorHeight();
         return isCollectingCameraDown &&
                 endEffectorHeight != null &&
-                (endEffectorHeight < TerabytesIntoTheDeep.ARM_MAX_HEIGHT_WRIST_DETECT_INCHES && endEffectorHeight > TerabytesIntoTheDeep.ARM_MIN_HEIGHT_WRIST_DETECT_INCHES);
+                (endEffectorHeight < TerabytesIntoTheDeep.ARM_MAX_HEIGHT_WRIST_DETECT_INCHES &&
+                        endEffectorHeight > TerabytesIntoTheDeep.ARM_MIN_HEIGHT_WRIST_DETECT_INCHES);
+    }
+
+    private boolean shouldUpdateExtenderBasedOnVisionError() {
+        boolean isCollectingCameraDown = currentState == AppendageControlState.COLLECTING;
+        Double endEffectorHeight = getCurrentEndEffectorHeight();
+        return isCollectingCameraDown &&
+                endEffectorHeight != null &&
+                (endEffectorHeight < TerabytesIntoTheDeep.ARM_MAX_HEIGHT_EXTENDER_DETECT_INCHES &&
+                        endEffectorHeight > TerabytesIntoTheDeep.ARM_MIN_HEIGHT_EXTENDER_DETECT_INCHES);
     }
 
     public void updateVisionWristAdjustment(Double wristHeadingErrorDegrees) {
-        if (wristHeadingErrorDegrees == null) {
-            return;
-        }
+        if (wristHeadingErrorDegrees != null &&isWristMotionSettled() && shouldUpdateWristBasedOnVisionError()) {
+            double wristOffsetTicks = target.wristTarget - TerabytesIntoTheDeep.WRIST_ORIGIN;
+            double currentWristHeadingOffset = (wristOffsetTicks / TerabytesIntoTheDeep.WRIST_RANGE)
+                    * TerabytesIntoTheDeep.WRIST_DEGREES_ALLOWABLE_HALF_RANGE;
 
-        // Determine the current wrist angle (in degrees) based on the current target.
-        double wristOffsetTicks = target.wristTarget - TerabytesIntoTheDeep.WRIST_ORIGIN;
-        double currentWristHeadingOffset = (wristOffsetTicks / TerabytesIntoTheDeep.WRIST_RANGE)
-                * TerabytesIntoTheDeep.WRIST_DEGREES_ALLOWABLE_HALF_RANGE;
 
-        if (currentState == AppendageControlState.COLLECTING && !waitingForWristSettle) {
             // Compute the raw candidate angle by applying the vision error correction.
             double candidateAngle = currentWristHeadingOffset + wristHeadingErrorDegrees;
 
@@ -151,6 +155,12 @@ class AppendageControl {
 
             waitingForWristSettle = true;
             wristSettleTimer.reset();
+        }
+    }
+
+    public void updateVisionExtenderAdjustment(Double signal) {
+        if (signal != null && isWristMotionSettled() && shouldUpdateExtenderBasedOnVisionError()) {
+            accumulateCollectDistanceSignal(signal);
         }
     }
 
