@@ -18,7 +18,7 @@ public enum IntoTheDeepFieldPosition {
 
     // Part targets for who's expectd to be first or second to the spot
     PARK_TARGET_FIRST(-60, 50),
-    PARK_TARGET_SECOND(-30, 54),
+    PARK_TARGET_SECOND(-36, 54),
     PARK_TARGET_OUT_OF_WAY_OBS(-12, 35),
     PARK_TARGET_OUT_OF_WAY_NET(48, 12),
 
@@ -33,7 +33,7 @@ public enum IntoTheDeepFieldPosition {
     SUBMERSIBLE_APPROACH_AUDIENCE_SIDE(-48, 0),
 
     BASKET_APPROACH_FAST(48, 48),
-    HIGH_BASKET_SCORING_APPROACH(57, 57),
+    HIGH_BASKET_SCORING_APPROACH(55, 55),
 
     AUTON_PREP_BLOCK_NEUTRAL_1(48, 58),
     AUTON_PREP_BLOCK_NEUTRAL_2(58, 58),

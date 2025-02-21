@@ -64,14 +64,21 @@ public enum IntoTheDeepPose {
         Vector2d blockPosition = block.getPosition(allianceColor);
         Pose2d collectPose = new Pose2d();
         double wristSignal = TerabytesIntoTheDeep.AUTON_COLLECT_WRIST_SIGNAL_ALIGNED;
-        double collectOffset = TerabytesIntoTheDeep.AUTON_COLLECT_OFFSET_DISTANCE;
+        double collectOffsetExtension = TerabytesIntoTheDeep.AUTON_COLLECT_X_OFFSET_DISTANCE;
+        double collectOffsetLateral = TerabytesIntoTheDeep.AUTON_COLLECT_Y_OFFSET_DISTANCE;
         switch (block) {
             case AUTON_BLOCK_NEUTRAL_1:
             case AUTON_BLOCK_NEUTRAL_2:
-                collectPose = new Pose2d(blockPosition.getX(), blockPosition.getY() + (collectOffset * ifRedSign), alignedHeading);
+                collectPose = new Pose2d(
+                        blockPosition.getX() + (collectOffsetLateral * ifRedSign),
+                        blockPosition.getY() + (collectOffsetExtension * ifRedSign),
+                        alignedHeading);
                 break;
             case AUTON_BLOCK_NEUTRAL_3:
-                collectPose = new Pose2d(blockPosition.getX() - (collectOffset * ifRedSign), blockPosition.getY(), acrossHeading);
+                collectPose = new Pose2d(
+                        blockPosition.getX() + (collectOffsetExtension * ifRedSign),
+                        blockPosition.getY() + (collectOffsetLateral * ifRedSign),
+                        acrossHeading);
                 wristSignal = TerabytesIntoTheDeep.AUTON_COLLECT_WRIST_SIGNAL_ACROSS;
                 break;
             default:

@@ -19,7 +19,6 @@ import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.acmerobotics.roadrunner.util.Angle;
 import com.arcrobotics.ftclib.controller.PIDController;
-import com.qualcomm.robotcore.hardware.ColorRangeSensor;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
@@ -33,7 +32,6 @@ import com.qualcomm.robotcore.util.Range;
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.CameraName;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
-import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
 import org.firstinspires.ftc.teamcode.util.OnActivatedEvaluator;
@@ -54,8 +52,8 @@ import java.util.EnumSet;
 
 public class TerabytesIntoTheDeep {
 
-    public static final double COLLECT_DISTANCE_ACCUMULATOR_SPEED_PER_MILLI = 1 / 1750.0;
-    public static final double COLLECT_HEIGHT_ACCUMULATOR_SPEED_PER_MILLI = 1 / 2000.0;
+    public static final double COLLECT_DISTANCE_ACCUMULATOR_SPEED_PER_MILLI = 1 / 1625.0;
+    public static final double COLLECT_HEIGHT_ACCUMULATOR_SPEED_PER_MILLI = 1 / 1125.0;
     public static final double WRIST_ACCUMULATOR_SPEED_PER_MILLI = 1 / 500.0;
 
     public static final double GEAR_RATIO = 13.7d;
@@ -66,10 +64,10 @@ public class TerabytesIntoTheDeep {
     public static final double ARM_AXLE_HEIGHT_INCHES = 15.5d;
     public static final double ARM_AXLE_OFFSET_FROM_ROBOT_CENTER_INCHES = 5.5; // TODO: Tune this to reality
     public static final double ARM_MIN_COLLECT_HEIGHT_INCHES = 5.75d;
-    public static final double ARM_MAX_COLLECT_HEIGHT_INCHES = 14d;
-    public static final double ARM_MIN_HEIGHT_WRIST_DETECT_INCHES = 10d;
+    public static final double ARM_MAX_COLLECT_HEIGHT_INCHES = 13.5d;
+    public static final double ARM_MIN_HEIGHT_WRIST_DETECT_INCHES = 12.5d;
     public static final double ARM_MAX_HEIGHT_WRIST_DETECT_INCHES = ARM_MAX_COLLECT_HEIGHT_INCHES + 1;
-    public static final double ARM_MIN_HEIGHT_EXTENDER_DETECT_INCHES = 10.0d;
+    public static final double ARM_MIN_HEIGHT_EXTENDER_DETECT_INCHES = 12.5d;
     public static final double ARM_MAX_HEIGHT_EXTENDER_DETECT_INCHES = ARM_MAX_COLLECT_HEIGHT_INCHES + 1;
     public static final double ARM_DEFENSIVE_ANGLE = 55.6;
     public static final double ARM_BASKET_ANGLE = 92;
@@ -118,9 +116,10 @@ public class TerabytesIntoTheDeep {
 
     // We don't yet support collecting at multiple distances in auton.
     public static final double AUTON_PRE_COLLECT_HEIGHT_SIGNAL = 0.75;
-    public static final double AUTON_COLLECT_HEIGHT_SIGNAL = 0.1;
+    public static final double AUTON_COLLECT_HEIGHT_SIGNAL = 0.025;
     public static final double AUTON_COLLECT_DISTANCE_SIGNAL = 0;
-    public static final double AUTON_COLLECT_OFFSET_DISTANCE = 9.75;
+    public static final double AUTON_COLLECT_X_OFFSET_DISTANCE = 9;
+    public static final double AUTON_COLLECT_Y_OFFSET_DISTANCE = 1.5;
     public static final double AUTON_COLLECT_WRIST_SIGNAL_ALIGNED = 0;
     public static final double AUTON_COLLECT_WRIST_SIGNAL_ACROSS = 0.9;
 
@@ -167,7 +166,6 @@ public class TerabytesIntoTheDeep {
 
     // April tag state
     private Pose2d lastAprilTagFieldPosition = null;
-    private double lastAprilTagFieldPositionMillis = 0;
     private final Queue<Pose2d> poseQueue = new LinkedList<>();
 
     // Command sequence state
@@ -261,7 +259,9 @@ public class TerabytesIntoTheDeep {
                 .addProcessor(aprilTagProcessor)
                 .addProcessor(sampleDetectVisionProcessor)
                 .build();
+        visionPortal.setActiveCamera(frontCamera);
         visionPortal.setProcessorEnabled(aprilTagProcessor, true);
+        visionPortal.setProcessorEnabled(sampleDetectVisionProcessor, false);
 
         drive = new SampleMecanumDrive(hardwareMap);
         drive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
@@ -379,6 +379,7 @@ public class TerabytesIntoTheDeep {
     public void teleopInit(Pose2d startPose) {
         timeSinceInit.reset();
         drive.setPoseEstimate(startPose);
+        lastAprilTagFieldPosition = startPose;
         forceArmReInit();
     }
 
@@ -890,7 +891,6 @@ public class TerabytesIntoTheDeep {
             if (variancePose.getX() <= translationVarianceThreshold && variancePose.getY() <= translationVarianceThreshold && variancePose.getHeading() <= headingVarianceThreshold) {
                 drive.setPoseEstimate(averagePose);
                 lastAprilTagFieldPosition = averagePose;
-                lastAprilTagFieldPositionMillis = timeSinceInit.milliseconds();
                 poseQueue.clear();
             }
         }
@@ -945,7 +945,7 @@ public class TerabytesIntoTheDeep {
         boolean yErrEliminated = Math.abs(yErr) < 0.75;
         boolean thetaErrEliminated = Math.abs(error.getHeading()) < (Math.PI / 15);
 
-        double minPower = 0.2825;
+        double minPower = 0.3;
         double minRotation = 0.6;
         double xMin = xErrEliminated ? 0 : Math.signum(xErr) * minPower;
         double yMin = yErrEliminated ? 0 : Math.signum(yErr) * minPower;
