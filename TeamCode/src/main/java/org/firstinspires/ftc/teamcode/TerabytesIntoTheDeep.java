@@ -66,11 +66,11 @@ public class TerabytesIntoTheDeep {
     public static final double ARM_AXLE_HEIGHT_INCHES = 15.5d;
     public static final double ARM_AXLE_OFFSET_FROM_ROBOT_CENTER_INCHES = 5.5; // TODO: Tune this to reality
     public static final double ARM_MIN_COLLECT_HEIGHT_INCHES = 5.75d;
-    public static final double ARM_MAX_COLLECT_HEIGHT_INCHES = 13d;
+    public static final double ARM_MAX_COLLECT_HEIGHT_INCHES = 14d;
     public static final double ARM_MIN_HEIGHT_WRIST_DETECT_INCHES = 10d;
-    public static final double ARM_MAX_HEIGHT_WRIST_DETECT_INCHES = ARM_MAX_COLLECT_HEIGHT_INCHES;
-    public static final double ARM_MIN_HEIGHT_EXTENDER_DETECT_INCHES = 7.0d;
-    public static final double ARM_MAX_HEIGHT_EXTENDER_DETECT_INCHES = ARM_MAX_COLLECT_HEIGHT_INCHES;
+    public static final double ARM_MAX_HEIGHT_WRIST_DETECT_INCHES = ARM_MAX_COLLECT_HEIGHT_INCHES + 1;
+    public static final double ARM_MIN_HEIGHT_EXTENDER_DETECT_INCHES = 10.0d;
+    public static final double ARM_MAX_HEIGHT_EXTENDER_DETECT_INCHES = ARM_MAX_COLLECT_HEIGHT_INCHES + 1;
     public static final double ARM_DEFENSIVE_ANGLE = 55.6;
     public static final double ARM_BASKET_ANGLE = 92;
     public static final double ARM_COLLECT_CLIP_ANGLE = -25;
@@ -210,7 +210,6 @@ public class TerabytesIntoTheDeep {
     private final WebcamName frontCamera;
     private final WebcamName wristCamera;
     private final AprilTagProcessor aprilTagProcessor;
-    private final ColorRangeSensor colorSensor;
     public final VisionPortal visionPortal;
 
     // NEW: Vision processor for sample detection
@@ -291,7 +290,6 @@ public class TerabytesIntoTheDeep {
         tilt = hardwareMap.get(Servo.class, "tilt");
         pincer = hardwareMap.get(Servo.class, "pincer");
         wrist = hardwareMap.get(Servo.class, "wrist");
-        colorSensor = hardwareMap.get(ColorRangeSensor.class, "colorSensor");
     }
 
     public Pose2d getLatestPoseEstimate() {
@@ -318,12 +316,6 @@ public class TerabytesIntoTheDeep {
     private Map<String, String> logData = new ArrayMap<>();
     public Map<String, String> getLogData() {
         logData.clear();
-
-        // Put all the values we care about
-        logData.put("blue", Integer.toString(colorSensor.blue()));
-        logData.put("red", Integer.toString(colorSensor.red()));
-        logData.put("green", Integer.toString(colorSensor.green()));
-        logData.put("distance", Double.toString(colorSensor.getDistance(DistanceUnit.INCH)));
 
         return logData;
     }
@@ -372,6 +364,8 @@ public class TerabytesIntoTheDeep {
         packet.put("DriveInputX", driveInput.getX());
         packet.put("DriveInputY", driveInput.getY());
         packet.put("VisionProcessorAngle", sampleDetectVisionProcessor.detectedEllipseAngle);
+        packet.put("VisionXError", sampleDetectVisionProcessor.detectedExtenderErrorSignal);
+        packet.put("VisionYError", sampleDetectVisionProcessor.detectedLateralErrorSignal);
         return packet;
     }
 
@@ -382,19 +376,10 @@ public class TerabytesIntoTheDeep {
         setCommandSequence(autonomousPlan.getCommandSequence(allianceColor));
     }
 
-    public void teleopInit(Pose2d startingPose) {
+    public void teleopInit(Pose2d startPose) {
         timeSinceInit.reset();
-        drive.setPoseEstimate(startingPose);
-    }
-
-    public void teleopInit(Pose2d startPose, AppendageControlState appendageControlState, int armLTickPosition, int armRTickPosition, int extenderTickPosition) {
-        teleopInit(startPose);
-        initExtenderMotor();
-        initArmMotors();
-        armLTicksAtInit = armLTickPosition;
-        armRTicksAtInit = armRTickPosition;
-        extenderTicksAtInit = extenderTickPosition;
-        appendageControl = new AppendageControl(appendageControlState, isAutonomous);
+        drive.setPoseEstimate(startPose);
+        forceArmReInit();
     }
 
     public void initializeMechanicalBlocking() {
@@ -483,10 +468,16 @@ public class TerabytesIntoTheDeep {
     }
 
     private void evaluateSwitchCamera() {
-        if (appendageControl == null || appendageControl.currentState != AppendageControlState.COLLECTING) {
+        if (appendageControl == null ||
+                appendageControl.currentState != AppendageControlState.COLLECTING ||
+            !hasPositionEstimate()) {
             visionPortal.setActiveCamera(frontCamera);
+            visionPortal.setProcessorEnabled(sampleDetectVisionProcessor, false);
+            visionPortal.setProcessorEnabled(aprilTagProcessor, true);
         } else {
             visionPortal.setActiveCamera(wristCamera);
+            visionPortal.setProcessorEnabled(sampleDetectVisionProcessor, true);
+            visionPortal.setProcessorEnabled(aprilTagProcessor, false);
         }
     }
 
@@ -563,6 +554,13 @@ public class TerabytesIntoTheDeep {
         return Math.hypot(a.getX() - b.getX(), a.getY() - b.getY());
     }
 
+    private void deInitExtenderMotor() {
+        extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        extender.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        extender.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        extender.setPower(0.0);
+    }
+
     private void initExtenderMotor() {
         extender.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         extender.setTargetPosition(0);
@@ -586,10 +584,12 @@ public class TerabytesIntoTheDeep {
         armRight.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
     }
 
-    private void forceArmInit() {
+    private void forceArmReInit() {
         appendageControl = null;
         servoInitStageIndex = 0;
         initStageTimer.reset();
+        deInitExtenderMotor();
+        initArmMotors();
     }
 
     private void controlArmMotor(double armTickTarget, PIDController controller, DcMotorEx armMotor) {
@@ -615,13 +615,11 @@ public class TerabytesIntoTheDeep {
             isReadyToCollectAgain = true;
         }
         appendageControl.setControlState(state);
-        visionPortal.setProcessorEnabled(sampleDetectVisionProcessor, isCollecting);
-        visionPortal.setProcessorEnabled(aprilTagProcessor, !isCollecting);
     }
 
     private IntoTheDeepOpModeState evaluateManualControl(double dtMillis) {
         if (gamepad2.left_bumper && gamepad2.right_bumper && gamepad2.a) {
-            forceArmInit();
+            forceArmReInit();
         }
 
         if (appendageControl != null) {
@@ -887,8 +885,8 @@ public class TerabytesIntoTheDeep {
             Pose2d averagePose = calculateAveragePose(poseQueue);
             Pose2d variancePose = calculateVariancePose(poseQueue, averagePose);
 
-            double translationVarianceThreshold = 1.0;
-            double headingVarianceThreshold = Math.PI / 32;
+            double translationVarianceThreshold = 2.0;
+            double headingVarianceThreshold = Math.PI / 16;
             if (variancePose.getX() <= translationVarianceThreshold && variancePose.getY() <= translationVarianceThreshold && variancePose.getHeading() <= headingVarianceThreshold) {
                 drive.setPoseEstimate(averagePose);
                 lastAprilTagFieldPosition = averagePose;

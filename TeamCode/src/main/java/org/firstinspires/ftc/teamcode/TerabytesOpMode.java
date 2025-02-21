@@ -189,13 +189,7 @@ public abstract class TerabytesOpMode extends LinearOpMode {
             if (debugMode || !persistedDataIsValid) {
                 terabytes.teleopInit(new Pose2d(0, 0, Math.toRadians(180) + allianceColor.OperatorHeadingOffset));
             } else {
-                AppendageControlState appendageControlState = AppendageControlState.values()[persistedData.appendageStateOrdinal];
-                terabytes.teleopInit(
-                        persistedData.pose,
-                        appendageControlState,
-                        persistedData.armLTicks,
-                        persistedData.armRTicks,
-                        persistedData.extenderTicks);
+                terabytes.teleopInit(persistedData.pose);
             }
         }
 

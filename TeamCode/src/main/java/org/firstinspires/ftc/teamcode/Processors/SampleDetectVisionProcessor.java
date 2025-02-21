@@ -24,6 +24,8 @@ import java.util.List;
 
 public class SampleDetectVisionProcessor implements VisionProcessor {
     private static int MAX_BLOCKS = 1;
+    private static final double MIN_ELLIPSE_AREA = 2400;
+
     public Mat lastFrame;
     public ElapsedTime sampleTime = new ElapsedTime();
     public double lastSampleDelayTimeMillis = 0;
@@ -114,9 +116,8 @@ public class SampleDetectVisionProcessor implements VisionProcessor {
             double robotHeading = sensorHeading - 90;
             double drawAngleRad = -Math.toRadians(robotHeading);
 
-            // Compute the endpoint of the indicator line.
-            int endX = (int) (centerX + lineLength * Math.cos(drawAngleRad));
-            int endY = (int) (centerY + lineLength * Math.sin(drawAngleRad));
+            int endX = (int) (centerX + lineLength * Math.sin(drawAngleRad));
+            int endY = (int) (centerY + lineLength * Math.cos(drawAngleRad));
 
             Imgproc.line(frame, new Point(centerX, centerY), new Point(endX, endY), new Scalar(0, 255, 0), 3);
 
@@ -170,21 +171,27 @@ public class SampleDetectVisionProcessor implements VisionProcessor {
         int count = 0;
         for (MatOfPoint contour : contours) {
             if (count >= MAX_BLOCKS) break;
-            double area = Imgproc.contourArea(contour);
+            double contourArea = Imgproc.contourArea(contour);
             // Skip small contours.
-            if (area < 100) continue;
+            if (contourArea < 100) continue;
             // fitEllipse requires at least 5 points.
             if (contour.toArray().length < 5) continue;
 
             RotatedRect ellipse = Imgproc.fitEllipse(new MatOfPoint2f(contour.toArray()));
+            // Compute the area of the ellipse:
+            // Area = π · (width/2) · (height/2) = (π · width · height) / 4.
+            double ellipseArea = Math.PI * ellipse.size.width * ellipse.size.height / 4.0;
+            // If the ellipse's area is below the threshold, ignore this detection.
+            if (ellipseArea < MIN_ELLIPSE_AREA) continue;
+
             // Draw the ellipse outline with a thicker stroke.
             Imgproc.ellipse(drawOn, ellipse, color, 3);
             // Optionally, draw the center point.
             Imgproc.circle(drawOn, ellipse.center, 4, color, -1);
 
             // Save the angle and center of the largest detected ellipse.
-            if (area > bestEllipseArea) {
-                bestEllipseArea = area;
+            if (ellipseArea > bestEllipseArea) {
+                bestEllipseArea = ellipseArea;
                 bestEllipseCenter = ellipse.center;
                 // !!NB!! The right of the frame is 0 heading when the wrist is at 0 heading.
                 // In the robot's world heading increases counterclockwise from 0 which is straight ahead.

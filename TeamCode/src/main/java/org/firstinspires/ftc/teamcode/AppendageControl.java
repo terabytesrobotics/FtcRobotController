@@ -13,8 +13,8 @@ class AppendageControl {
 
     private boolean waitingForWristSettle = false;
     private ElapsedTime wristSettleTimer = new ElapsedTime();
-    private static final double WRIST_SETTLE_MIN_TIME = 25;
-    private static final double WRIST_SETTLE_MS_PER_DEGREE = 5;
+    private static final double WRIST_SETTLE_MIN_TIME = 100;
+    private static final double WRIST_SETTLE_MS_PER_DEGREE = 10;
     private static final double WRIST_SETTLE_TIME_DEFAULT = 500;
 
     private int currentArmLTicks;

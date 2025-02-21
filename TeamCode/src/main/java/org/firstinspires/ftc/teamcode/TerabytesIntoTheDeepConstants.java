@@ -10,7 +10,7 @@ public class TerabytesIntoTheDeepConstants {
     public static final double DRIVE_TO_POSE_THRESHOLD = 1.5f;
     public static final int POSITION_ACQUIRED_INDICATE_MILLIS = 1000;
     public static final int POSITION_ACQUIRED_PULSE_MILLIS = 100;
-    public static double APRIL_TAG_RECOGNITION_MAX_RANGE = 32;
+    public static double APRIL_TAG_RECOGNITION_MAX_RANGE = 42;
     public static double APRIL_TAG_RECOGNITION_MIN_RANGE = 5;
     public static double APRIL_TAG_RECOGNITION_YAW_THRESHOLD = Math.PI / 6;
     public static double APRIL_TAG_RECOGNITION_BEARING_THRESHOLD = Math.PI / 6;
