@@ -89,9 +89,6 @@ class AppendageControl {
             case PRE_HANG_1:
                 evaluatePreHang1();
                 break;
-            case PRE_HANG_2:
-                evaluatePreHang2();
-                break;
             case HANG:
                 evaluateHang();
                 break;
@@ -327,12 +324,7 @@ class AppendageControl {
         evaluateEndEffector();
     }
     private void evaluatePreHang1(){
-        setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_PRE_HANG_ANGLE, TerabytesIntoTheDeep.EXTENDER_MAX_EXTENSION_INCHES);
-        evaluateEndEffector();
-    }
-
-    private void evaluatePreHang2(){
-        setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_PRE_HANG_ANGLE, TerabytesIntoTheDeep.EXTENDER_MAX_EXTENSION_INCHES);
+        setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_PRE_HANG_ANGLE, TerabytesIntoTheDeep.EXTENDER_MAX_EXTENSION_INCHES - 4);
         evaluateEndEffector();
     }
 
