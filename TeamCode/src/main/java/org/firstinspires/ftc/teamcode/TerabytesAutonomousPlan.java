@@ -48,8 +48,7 @@ public enum TerabytesAutonomousPlan {
                 break;
         }
 
-        commands.add(IntoTheDeepCommand.defensive()); // TODO: Speed up time with defensive drive to pose
-        commands.add(IntoTheDeepCommand.driveDirectToPoseCommand(parkPose));
+        commands.add(IntoTheDeepCommand.driveDirectToPoseDefensive(parkPose));
 
         return commands;
     }

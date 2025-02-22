@@ -11,5 +11,6 @@ public enum AppendageControlState {
     SCORE_CLIP,
     CLIP_CLIP,
     PRE_HANG_1,
+    PRE_HANG_2,
     HANG
 }

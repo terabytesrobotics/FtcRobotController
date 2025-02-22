@@ -118,8 +118,8 @@ public class TerabytesIntoTheDeep {
     public static final double AUTON_PRE_COLLECT_HEIGHT_SIGNAL = 0.4;
     public static final double AUTON_COLLECT_HEIGHT_SIGNAL = 0.025;
     public static final double AUTON_COLLECT_DISTANCE_SIGNAL = 0.25;
-    public static final double AUTON_COLLECT_X_OFFSET_DISTANCE = 14;
-    public static final double AUTON_COLLECT_Y_OFFSET_DISTANCE = 1.5;
+    public static final double AUTON_COLLECT_X_OFFSET_DISTANCE = 13.5;
+    public static final double AUTON_COLLECT_Y_OFFSET_DISTANCE = 1.55;
     public static final double AUTON_COLLECT_WRIST_SIGNAL_ALIGNED = 0;
     public static final double AUTON_COLLECT_WRIST_SIGNAL_ACROSS = 0.9;
 
@@ -626,6 +626,7 @@ public class TerabytesIntoTheDeep {
                         appendageControl.currentState == AppendageControlState.TUCKED ||
                         appendageControl.currentState == AppendageControlState.COLLECT_SAFE ||
                         appendageControl.currentState == AppendageControlState.PRE_HANG_1 ||
+                        appendageControl.currentState == AppendageControlState.PRE_HANG_2 ||
                         appendageControl.currentState == AppendageControlState.HANG) {
                         setAppendageState(AppendageControlState.COLLECTING);
                 } else if (appendageControl.currentState == AppendageControlState.HIGH_BASKET) {
@@ -638,6 +639,7 @@ public class TerabytesIntoTheDeep {
             } else if (y2ActivatedEvaluator.evaluate()) {
                 if (appendageControl.currentState == AppendageControlState.COLLECTING ||
                         appendageControl.currentState == AppendageControlState.PRE_HANG_1 ||
+                        appendageControl.currentState == AppendageControlState.PRE_HANG_2 ||
                         appendageControl.currentState == AppendageControlState.HANG) {
                     setAppendageState(AppendageControlState.COLLECT_SAFE);
                 } else if (appendageControl.currentState == AppendageControlState.COLLECT_SAFE
@@ -661,6 +663,8 @@ public class TerabytesIntoTheDeep {
                         appendageControl.currentState == AppendageControlState.TUCKED) {
                     setAppendageState(AppendageControlState.PRE_HANG_1);
                 } else if (appendageControl.currentState == AppendageControlState.PRE_HANG_1) {
+                    setAppendageState(AppendageControlState.PRE_HANG_2);
+                }  else if (appendageControl.currentState == AppendageControlState.PRE_HANG_2) {
                     setAppendageState(AppendageControlState.HANG);
                 }
             }

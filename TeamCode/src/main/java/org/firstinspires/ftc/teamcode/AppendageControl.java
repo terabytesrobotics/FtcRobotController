@@ -9,7 +9,7 @@ class AppendageControl {
     private static double DISTANCE_SIGNAL_INCREMENT_AMOUNT = 0.085;
     private static int ARM_SETTLED_TICK_THRESHOLD = 32;
     private static int EXTENDER_SETTLED_TICK_THRESHOLD = 24;
-    private static int UNTUCK_END_EFFECTOR_TIMEOUT_MILLIS = 750;
+    private static int UNTUCK_END_EFFECTOR_TIMEOUT_MILLIS = 333;
 
     private boolean waitingForWristSettle = false;
     private ElapsedTime wristSettleTimer = new ElapsedTime();
@@ -88,6 +88,9 @@ class AppendageControl {
                 break;
             case PRE_HANG_1:
                 evaluatePreHang1();
+                break;
+            case PRE_HANG_2:
+                evaluatePreHang2();
                 break;
             case HANG:
                 evaluateHang();
@@ -324,6 +327,11 @@ class AppendageControl {
         evaluateEndEffector();
     }
     private void evaluatePreHang1(){
+        setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_PRE_HANG_ANGLE, TerabytesIntoTheDeep.EXTENDER_MAX_EXTENSION_INCHES);
+        evaluateEndEffector();
+    }
+
+    private void evaluatePreHang2(){
         setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_PRE_HANG_ANGLE, TerabytesIntoTheDeep.EXTENDER_MAX_EXTENSION_INCHES - 4);
         evaluateEndEffector();
     }
