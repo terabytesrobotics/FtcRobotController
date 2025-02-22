@@ -59,7 +59,7 @@ public class TerabytesIntoTheDeep {
     public static final double GEAR_RATIO = 13.7d;
     public static final double WORM_RATIO = 28.0d;
     public static final double ARM_TICKS_PER_DEGREE = WORM_RATIO * 28.0d * GEAR_RATIO / 360.0d;
-    public static final double ARM_LEVEL_DEGREES_ABOVE_ZERO = 59.25;
+    public static final double ARM_LEVEL_DEGREES_ABOVE_ZERO = 59;
     public static final double ARM_LEVEL_TICKS = ARM_LEVEL_DEGREES_ABOVE_ZERO * ARM_TICKS_PER_DEGREE;
     public static final double ARM_AXLE_HEIGHT_INCHES = 15.5d;
     public static final double ARM_AXLE_OFFSET_FROM_ROBOT_CENTER_INCHES = 5.5; // TODO: Tune this to reality
