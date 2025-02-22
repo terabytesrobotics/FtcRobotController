@@ -118,7 +118,7 @@ public class TerabytesIntoTheDeep {
     public static final double AUTON_PRE_COLLECT_HEIGHT_SIGNAL = 0.4;
     public static final double AUTON_COLLECT_HEIGHT_SIGNAL = 0.02;
     public static final double AUTON_COLLECT_DISTANCE_SIGNAL = 0.25;
-    public static final double AUTON_COLLECT_X_OFFSET_DISTANCE = 13.5;
+    public static final double AUTON_COLLECT_X_OFFSET_DISTANCE = 13.85;
     public static final double AUTON_COLLECT_Y_OFFSET_DISTANCE = 1.55;
     public static final double AUTON_COLLECT_WRIST_SIGNAL_ALIGNED = 0;
     public static final double AUTON_COLLECT_WRIST_SIGNAL_ACROSS = 0.9;
@@ -942,7 +942,7 @@ public class TerabytesIntoTheDeep {
         boolean yErrEliminated = Math.abs(yErr) < 0.75;
         boolean thetaErrEliminated = Math.abs(error.getHeading()) < (Math.PI / 15);
 
-        double minPower = 0.2725;
+        double minPower = 0.2225;
         double minRotation = 0.6;
         double xMin = xErrEliminated ? 0 : Math.signum(xErr) * minPower;
         double yMin = yErrEliminated ? 0 : Math.signum(yErr) * minPower;
