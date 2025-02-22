@@ -110,8 +110,7 @@ public class TerabytesIntoTheDeep {
     public static final double WRIST_DEGREES_HEADING_MAX = WRIST_RANGE * WRIST_DEGREES_TOTAL_RANGE;
     public static final double WRIST_DEGREES_HEADING_MIN = -WRIST_DEGREES_HEADING_MAX;
 
-    public static final double PINCER_CENTER = 0.575;
-    public static final double PINCER_OPEN = 0.5;
+    public static final double PINCER_OPEN = 0.475;
     public static final double PINCER_CLOSED = 0.65;
 
     // We don't yet support collecting at multiple distances in auton.
