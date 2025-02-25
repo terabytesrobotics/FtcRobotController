@@ -79,7 +79,7 @@ public class TerabytesIntoTheDeep {
     //down clip settings 20, +15
     public static final double ARM_SCORE_CLIP_ANGLE = 30;
     public static final double ARM_CLIP_CLIP_ANGLE = ARM_SCORE_CLIP_ANGLE +15;
-    public static final double ARM_PRE_HANG_ANGLE = 97.5;
+    public static final double ARM_PRE_HANG_ANGLE = 105;
     public static final double ARM_HANG_ANGLE = 20;
     public static final double EXTENDER_MIN_LENGTH_INCHES = 16d;
     public static final double EXTENDER_GEAR_RATIO = 5.2d;
@@ -98,7 +98,7 @@ public class TerabytesIntoTheDeep {
     public static final double TILT_DOWN_RANGE = 40;
     public static final double TILT_RANGE = TILT_TICKS_PER_DEGREE * TILT_RANGE_DEGREES;
     public static final double TILT_TUCKED = 1.0;
-    public static final double TILT_DUNK_RANGE = -0.25;
+    public static final double TILT_DUNK_RANGE = -0.285;
     public static final double TILT_LOW_PROFILE = TILT_STRAIGHT;
     public static final double TILT_PREGRAB = TILT_STRAIGHT / 2;
 
