@@ -250,7 +250,7 @@ class AppendageControl {
         if (isBasketScoring() || isClipCollect) {
             tiltActualSetpoint = tiltActualSetpoint - (dunkSignal * TerabytesIntoTheDeep.TILT_DUNK_RANGE);
         } else if (isClipScore) {
-            tiltActualSetpoint = tiltActualSetpoint - (dunkSignal * 0.5 * TerabytesIntoTheDeep.TILT_DUNK_RANGE);
+            tiltActualSetpoint = tiltActualSetpoint - (1 * 1.25 * TerabytesIntoTheDeep.TILT_DUNK_RANGE);
         }
         tiltActualSetpoint = Math.max(0, Math.min(1, tiltActualSetpoint));
         double wristActualSetpoint = Math.max(-1, Math.min(1, wristSignal));
@@ -319,11 +319,14 @@ class AppendageControl {
         evaluateEndEffector();
     }
     private void evaluateScoreClip() {
-        setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_SCORE_CLIP_ANGLE, 0);
+        setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_SCORE_CLIP_ANGLE, 5);
+
+
         evaluateEndEffector();
     }
     private void evaluateClipClip() {
         setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_CLIP_CLIP_ANGLE, 0);
+        ;
         evaluateEndEffector();
     }
     private void evaluatePreHang1(){

@@ -77,7 +77,7 @@ public class TerabytesIntoTheDeep {
     public static final double ARM_CLIP_CLIP_ANGLE = ARM_SCORE_CLIP_ANGLE - 25;
     */
     //down clip settings 20, +15
-    public static final double ARM_SCORE_CLIP_ANGLE = 30;
+    public static final double ARM_SCORE_CLIP_ANGLE = 4;
     public static final double ARM_CLIP_CLIP_ANGLE = ARM_SCORE_CLIP_ANGLE +15;
     public static final double ARM_PRE_HANG_ANGLE = 105;
     public static final double ARM_HANG_ANGLE = 20;
@@ -111,7 +111,7 @@ public class TerabytesIntoTheDeep {
     public static final double WRIST_DEGREES_HEADING_MIN = -WRIST_DEGREES_HEADING_MAX;
 
     public static final double PINCER_OPEN = 0.475;
-    public static final double PINCER_CLOSED = 0.65;
+    public static final double PINCER_CLOSED = 0.8;
 
     // We don't yet support collecting at multiple distances in auton.
     public static final double AUTON_PRE_COLLECT_HEIGHT_SIGNAL = 0.4;
