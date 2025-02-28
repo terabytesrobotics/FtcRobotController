@@ -10,7 +10,8 @@ import java.util.List;
 public enum TerabytesAutonomousPlan {
     START_OBS_WAIT_SCORE_WAIT,
     START_NET_SCORE_COLLECT_SCORE_PARK,
-    START_NET_SCORE_COLLECT_SCORE_WAIT;
+    START_NET_SCORE_COLLECT_SCORE_WAIT,
+    STARTCLIP_CENTER_SCORE_PARK;
 
     private static double OBS_WAIT_DURATION_SECONDS = 15;
 

@@ -239,18 +239,20 @@ class AppendageControl {
     private void evaluateEndEffector() {
         double armDegreesFromHorizontal = currentArmDegreesAboveHorizontal();
         double tiltLevel = TerabytesIntoTheDeep.TILT_ORIGIN + (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * (90 - armDegreesFromHorizontal));
-        double tiltClip = TerabytesIntoTheDeep.TILT_ORIGIN + (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * (90 + 35 - armDegreesFromHorizontal));
+        double tiltClipCollect = TerabytesIntoTheDeep.TILT_ORIGIN + (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * (90 + 35 - armDegreesFromHorizontal));
+        double tiltClipScore = TerabytesIntoTheDeep.TILT_ORIGIN + (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * (90 + 100 - armDegreesFromHorizontal));
+        double tiltClipClip = TerabytesIntoTheDeep.TILT_ORIGIN + (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * (90 + 0 - armDegreesFromHorizontal));
         double tiltUp = tiltLevel + (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * 90);
         double tiltDown = TerabytesIntoTheDeep.TILT_ORIGIN - (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * armDegreesFromHorizontal);
         boolean isClipCollect = currentState == AppendageControlState.COLLECT_CLIP;
         boolean isClipScore = currentState == AppendageControlState.SCORE_CLIP;
         boolean isClipClip = currentState == AppendageControlState.CLIP_CLIP;
         boolean isCollecting = currentState == AppendageControlState.COLLECTING;
-        double tiltActualSetpoint = isCollecting ? tiltDown : (isClipCollect || isClipScore) ? tiltClip : tiltUp;
+        double tiltActualSetpoint = isCollecting ? tiltDown : isClipCollect ? tiltClipCollect : isClipScore ? tiltClipScore : isClipClip ? tiltClipClip : tiltUp;
         if (isBasketScoring() || isClipCollect) {
             tiltActualSetpoint = tiltActualSetpoint - (dunkSignal * TerabytesIntoTheDeep.TILT_DUNK_RANGE);
         } else if (isClipScore) {
-            tiltActualSetpoint = tiltActualSetpoint - (1 * 1.25 * TerabytesIntoTheDeep.TILT_DUNK_RANGE);
+            tiltActualSetpoint = tiltActualSetpoint - (dunkSignal * 0.5 * TerabytesIntoTheDeep.TILT_DUNK_RANGE);
         }
         tiltActualSetpoint = Math.max(0, Math.min(1, tiltActualSetpoint));
         double wristActualSetpoint = Math.max(-1, Math.min(1, wristSignal));
@@ -319,13 +321,14 @@ class AppendageControl {
         evaluateEndEffector();
     }
     private void evaluateScoreClip() {
-        setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_SCORE_CLIP_ANGLE, 5);
+        setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_SCORE_CLIP_ANGLE, 0);
 
 
         evaluateEndEffector();
     }
     private void evaluateClipClip() {
         setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_CLIP_CLIP_ANGLE, 0);
+        target.pincerTarget = TerabytesIntoTheDeep.PINCER_CLOSED;
         ;
         evaluateEndEffector();
     }
