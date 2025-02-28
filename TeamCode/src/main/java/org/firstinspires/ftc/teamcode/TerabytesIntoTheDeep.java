@@ -398,7 +398,8 @@ public class TerabytesIntoTheDeep {
         boolean isFullyTuckedStage = servoInitStageIndex == servoInitStages.length - 1;
         boolean isStageFinished = initStageTimer.milliseconds() > stage.durationMs;
 
-        tilt.setPosition(stage.tilt);
+       // tilt.setPosition(stage.tilt); Replaced code to allow for invert servo below
+        tilt.setPosition(TerabytesIntoTheDeepConstants.INVERT_TILT_SERVO ? (1.0 - stage.tilt) : stage.tilt);
         wrist.setPosition(stage.wrist);
         pincer.setPosition(stage.pincer);
 
@@ -459,7 +460,8 @@ public class TerabytesIntoTheDeep {
         controlArmMotor(reversedTickTarget - armLTicksAtInit, leftArmControl, armLeft);
         controlArmMotor(reversedTickTarget - armRTicksAtInit, rightArmControl, armRight);
         extender.setTargetPosition(((int) controlTarget.extenderTickTarget) - extenderTicksAtInit);
-        tilt.setPosition(controlTarget.tiltTarget);
+       // tilt.setPosition(controlTarget.tiltTarget); //Old code replaced by below to allow for invert servo
+        tilt.setPosition(TerabytesIntoTheDeepConstants.INVERT_TILT_SERVO ? (1.0 - controlTarget.tiltTarget) : controlTarget.tiltTarget);
         wrist.setPosition(controlTarget.wristTarget);
         pincer.setPosition(controlTarget.pincerTarget);
     }

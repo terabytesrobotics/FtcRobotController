@@ -17,6 +17,7 @@ public class TerabytesIntoTheDeepConstants {
     public static final int APRIL_TAG_QUEUE_CAPACITY = 8;
     public static final double SLOW_MODE_SCALE = 0.3;
     public static final double FAST_MODE_SCALE = 1;
+    public static final boolean INVERT_TILT_SERVO = true; // Switches direction for new servo Set to false if switching back
 
     public static void sleep(int millis) {
         try {

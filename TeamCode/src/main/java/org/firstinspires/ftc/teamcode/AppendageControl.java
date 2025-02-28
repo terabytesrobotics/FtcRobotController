@@ -230,7 +230,8 @@ class AppendageControl {
 
     private void holdSafe() {
         target.wristTarget = TerabytesIntoTheDeep.WRIST_TUCKED;
-        target.tiltTarget = TerabytesIntoTheDeep.TILT_TUCKED;
+        //target.tiltTarget = TerabytesIntoTheDeep.TILT_TUCKED; invert servo below
+        target.tiltTarget = TerabytesIntoTheDeepConstants.INVERT_TILT_SERVO ? (1.0 - TerabytesIntoTheDeep.TILT_TUCKED) : TerabytesIntoTheDeep.TILT_TUCKED;
         target.pincerTarget = TerabytesIntoTheDeep.PINCER_OPEN;
         target.armTickTarget = TerabytesIntoTheDeep.ARM_LEVEL_TICKS;
         target.extenderTickTarget = 0;
