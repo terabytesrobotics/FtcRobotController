@@ -34,7 +34,12 @@ public enum IntoTheDeepPose {
     SUBMERSIBLE_APPROACH_AUDIENCE_SIDE(IntoTheDeepFieldPosition.SUBMERSIBLE_APPROACH_AUDIENCE_SIDE, Math.toRadians(180)),
 
     BASKET_APPROACH(IntoTheDeepFieldPosition.BASKET_APPROACH_FAST, Math.toRadians(45)),
-    HIGH_BASKET_SCORING_APPROACH(IntoTheDeepFieldPosition.HIGH_BASKET_SCORING_APPROACH, Math.toRadians(45));
+    HIGH_BASKET_SCORING_APPROACH(IntoTheDeepFieldPosition.HIGH_BASKET_SCORING_APPROACH, Math.toRadians(45)),
+
+    CLIP_SCORE_APPROACH(IntoTheDeepFieldPosition.AUTON_CLIP_SCORE_APPROACH, Math.toRadians(90)),
+    CLIP_SCORE_SCORE(IntoTheDeepFieldPosition.AUTON_CLIP_SCORE_SCORE, Math.toRadians(90)),
+    CLIP_COLLECT_APPROACH(IntoTheDeepFieldPosition.AUTON_CLIP_COLLECT_APPROACH, Math.toRadians(270)),
+    CLIP_COLLECT_COLLECT(IntoTheDeepFieldPosition.AUTON_CLIP_COLLECT_COLLECT, Math.toRadians(270));
 
     public final Pose2d BluePose;
     public final Pose2d RedPose;

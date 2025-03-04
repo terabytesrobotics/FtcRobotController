@@ -42,8 +42,12 @@ public enum IntoTheDeepFieldPosition {
 
     AUTON_BLOCK_NEUTRAL_1(48, 25.5),
     AUTON_BLOCK_NEUTRAL_2(58, 25.5),
-    AUTON_BLOCK_NEUTRAL_3(68, 25.5);
+    AUTON_BLOCK_NEUTRAL_3(68, 25.5),
 
+    AUTON_CLIP_COLLECT_APPROACH(-24, 36),
+    AUTON_CLIP_COLLECT_COLLECT(-24, 48),
+    AUTON_CLIP_SCORE_APPROACH(0, 50),
+    AUTON_CLIP_SCORE_SCORE(0, 40);
 
     public final Vector2d BluePosition;
     public final Vector2d RedPosition;
