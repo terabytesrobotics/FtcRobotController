@@ -35,6 +35,10 @@ class AppendageControl {
     private ElapsedTime justDunkedTimer;
     private ElapsedTime untuckedTimer;
 
+    private ElapsedTime clipClipDelayTimer = new ElapsedTime();
+    private boolean isClipClipDelayStarted = false;
+
+
     private double wristDynamicTimeoutMs = WRIST_SETTLE_TIME_DEFAULT;
 
     public AppendageControl(AppendageControlState initialState, boolean isAuton) {
@@ -240,7 +244,7 @@ class AppendageControl {
     private void evaluateEndEffector() {
         double armDegreesFromHorizontal = currentArmDegreesAboveHorizontal();
         double tiltLevel = TerabytesIntoTheDeep.TILT_ORIGIN + (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * (90 - armDegreesFromHorizontal));
-        double tiltClipCollect = TerabytesIntoTheDeep.TILT_ORIGIN + (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * (90 + 35 - armDegreesFromHorizontal));
+        double tiltClipCollect = TerabytesIntoTheDeep.TILT_ORIGIN + (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * (90 + 7 - armDegreesFromHorizontal));
         double tiltClipScore = TerabytesIntoTheDeep.TILT_ORIGIN + (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * (90 + 100 - armDegreesFromHorizontal));
         double tiltClipClip = TerabytesIntoTheDeep.TILT_ORIGIN + (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * (90 + 0 - armDegreesFromHorizontal));
         double tiltUp = tiltLevel + (TerabytesIntoTheDeep.TILT_TICKS_PER_DEGREE * 90);
@@ -329,8 +333,8 @@ class AppendageControl {
     }
     private void evaluateClipClip() {
         setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_CLIP_CLIP_ANGLE, 0);
-        target.pincerTarget = TerabytesIntoTheDeep.PINCER_CLOSED;
-        ;
+      openPincer=true;
+      //target.pincerTarget = TerabytesIntoTheDeep.PINCER_OPEN;
         evaluateEndEffector();
     }
     private void evaluatePreHang1(){

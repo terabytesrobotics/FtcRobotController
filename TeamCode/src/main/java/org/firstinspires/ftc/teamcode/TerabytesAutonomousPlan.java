@@ -11,7 +11,7 @@ public enum TerabytesAutonomousPlan {
     START_OBS_WAIT_SCORE_WAIT,
     START_NET_SCORE_COLLECT_SCORE_PARK,
     START_NET_SCORE_COLLECT_SCORE_WAIT,
-    STARTCLIP_CENTER_SCORE_PARK;
+    START_CLIP_CENTER_SCORE_PARK;
 
     private static double OBS_WAIT_DURATION_SECONDS = 15;
 
@@ -20,6 +20,8 @@ public enum TerabytesAutonomousPlan {
 
         Pose2d parkOutOfWayObs = IntoTheDeepPose.PARK_TARGET_OUT_OF_WAY_OBS.getPose(color);
         Pose2d parkOutOfWayNet = IntoTheDeepPose.PARK_TARGET_OUT_OF_WAY_NET.getPose(color);
+
+
 
         switch (this) {
             case START_OBS_WAIT_SCORE_WAIT:
@@ -35,6 +37,8 @@ public enum TerabytesAutonomousPlan {
                 commands.addAll(IntoTheDeepCommand.collectAndDunkBlockSequence(color, IntoTheDeepFieldPosition.AUTON_BLOCK_NEUTRAL_1));
                 commands.addAll(IntoTheDeepCommand.collectAndDunkBlockSequence(color, IntoTheDeepFieldPosition.AUTON_BLOCK_NEUTRAL_2));
                 break;
+            case START_CLIP_CENTER_SCORE_PARK:
+                commands.add(IntoTheDeepCommand.driveDirectToPoseCommand(IntoTheDeepPose.CLIP1_SCORE.RedPose));
         }
 
         Pose2d parkTargetFirst = IntoTheDeepPose.PARK_TARGET_FIRST.getPose(color);

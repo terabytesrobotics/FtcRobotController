@@ -10,6 +10,6 @@ import org.firstinspires.ftc.teamcode.util.AllianceColor;
 public class AutonRedClipCenterPreloadCollect extends TerabytesOpMode  {
 
     public AutonRedClipCenterPreloadCollect() {
-        super(AllianceColor.RED, IntoTheDeepOpModeState.COMMAND_SEQUENCE, TerabytesAutonomousPlan.STARTCLIP_CENTER_SCORE_PARK);
+        super(AllianceColor.RED, IntoTheDeepOpModeState.COMMAND_SEQUENCE, TerabytesAutonomousPlan.START_CLIP_CENTER_SCORE_PARK);
     }
 }

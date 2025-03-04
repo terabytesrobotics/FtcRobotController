@@ -25,6 +25,7 @@ public enum IntoTheDeepPose {
     OBS_WAYPOINT(IntoTheDeepFieldPosition.OBS_WAYPOINT, 0),
     MID_WAYPOINT(IntoTheDeepFieldPosition.MID_WAYPOINT, 0),
     NET_WAYPOINT(IntoTheDeepFieldPosition.NET_WAYPOINT, Math.toRadians(45)),
+    CLIP1_SCORE(IntoTheDeepFieldPosition.CLIP1_SCORE,Math.PI/2.0),
 
     // Teleop poses
     SUBMERSIBLE_APPROACH_ALLIANCE_SIDE(IntoTheDeepFieldPosition.SUBMERSIBLE_APPROACH_ALLIANCE_SIDE, Math.toRadians(90)),

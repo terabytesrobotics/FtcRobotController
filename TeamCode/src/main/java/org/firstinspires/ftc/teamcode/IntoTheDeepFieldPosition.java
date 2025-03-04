@@ -15,6 +15,7 @@ public enum IntoTheDeepFieldPosition {
     NET_PUSH_START_1(36, 0),
     NET_PUSH_START_2(54, 0),
     NET(56, 52),
+    CLIP1_SCORE(0,32),
 
     // Part targets for who's expectd to be first or second to the spot
     PARK_TARGET_FIRST(-60, 50),
