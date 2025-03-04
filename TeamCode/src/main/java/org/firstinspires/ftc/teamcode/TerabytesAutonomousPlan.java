@@ -22,7 +22,7 @@ public enum TerabytesAutonomousPlan {
         switch (this) {
             case START_OBS_SCORE_CLIPS:
                 commands.addAll(IntoTheDeepCommand.clipSequence(color));
-                commands.addAll(IntoTheDeepCommand.collectAndClipSequence(color));
+                //commands.addAll(IntoTheDeepCommand.collectAndClipSequence(color));
                 break;
             case START_OBS_WAIT_SCORE_WAIT:
                 commands.add(IntoTheDeepCommand.driveDirectToPoseCommand(IntoTheDeepPose.PARK_TARGET_OUT_OF_WAY_OBS.getPose(color)));
@@ -55,13 +55,14 @@ public enum TerabytesAutonomousPlan {
                 break;
         }
 
-        commands.add(IntoTheDeepCommand.driveDirectToPoseDefensive(parkPose));
+        commands.add(IntoTheDeepCommand.driveDirectToPoseTucked(parkPose));
 
         return commands;
     }
 
     public Pose2d getStartingPose(AllianceColor allianceColor) {
         switch (this) {
+            case START_OBS_SCORE_CLIPS:
             case START_OBS_WAIT_SCORE_WAIT:
                 return IntoTheDeepPose.START_OBSERVATION_ZONE.getPose(allianceColor);
             case START_NET_SCORE_COLLECT_SCORE_PARK:

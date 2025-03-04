@@ -123,6 +123,16 @@ public class IntoTheDeepAppendageCommand {
                 null);
     }
 
+    public static IntoTheDeepAppendageCommand tucked() {
+        return new IntoTheDeepAppendageCommand(
+                AppendageControlState.TUCKED,
+                false,
+                true,
+                null,
+                null,
+                null);
+    }
+
     public static IntoTheDeepAppendageCommand clipCollect(boolean pincerOpen) {
         return new IntoTheDeepAppendageCommand(
                 AppendageControlState.COLLECT_CLIP,
@@ -133,9 +143,9 @@ public class IntoTheDeepAppendageCommand {
                 null);
     }
 
-    public static IntoTheDeepAppendageCommand clipClip() {
+    public static IntoTheDeepAppendageCommand clipClipping() {
         return new IntoTheDeepAppendageCommand(
-                AppendageControlState.CLIP_CLIP,
+                AppendageControlState.SCORE_CLIP,
                 false,
                 false,
                 null,
@@ -143,9 +153,9 @@ public class IntoTheDeepAppendageCommand {
                 null);
     }
 
-    public static IntoTheDeepAppendageCommand clipScore() {
+    public static IntoTheDeepAppendageCommand clipAfterScore() {
         return new IntoTheDeepAppendageCommand(
-                AppendageControlState.SCORE_CLIP,
+                AppendageControlState.CLIP_CLIP,
                 false,
                 true,
                 null,

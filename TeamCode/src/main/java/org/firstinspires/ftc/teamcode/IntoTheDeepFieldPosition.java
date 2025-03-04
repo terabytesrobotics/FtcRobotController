@@ -6,7 +6,7 @@ import org.firstinspires.ftc.teamcode.util.AllianceColor;
 
 public enum IntoTheDeepFieldPosition {
     // Start locations
-    START_OBSERVATION_ZONE(-12, 62),
+    START_OBSERVATION_ZONE(0, 62),
     START_MID(0, 62),
     START_NET_ZONE(36, 62),
 
@@ -18,8 +18,8 @@ public enum IntoTheDeepFieldPosition {
     CLIP1_SCORE(0,32),
 
     // Part targets for who's expectd to be first or second to the spot
-    PARK_TARGET_FIRST(-60, 50),
-    PARK_TARGET_SECOND(-36, 54),
+    PARK_TARGET_FIRST(-60, 54),
+    PARK_TARGET_SECOND(-42, 54),
     PARK_TARGET_OUT_OF_WAY_OBS(-12, 35),
     PARK_TARGET_OUT_OF_WAY_NET(48, 12),
 
@@ -47,7 +47,7 @@ public enum IntoTheDeepFieldPosition {
     AUTON_CLIP_COLLECT_APPROACH(-24, 36),
     AUTON_CLIP_COLLECT_COLLECT(-24, 48),
     AUTON_CLIP_SCORE_APPROACH(0, 50),
-    AUTON_CLIP_SCORE_SCORE(0, 40);
+    AUTON_CLIP_SCORE_SCORE(0, 34);
 
     public final Vector2d BluePosition;
     public final Vector2d RedPosition;

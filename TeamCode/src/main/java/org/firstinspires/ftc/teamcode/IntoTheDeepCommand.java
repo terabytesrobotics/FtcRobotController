@@ -100,7 +100,16 @@ public class IntoTheDeepCommand {
 
     public static IntoTheDeepCommand clipScoreApproach(AllianceColor allianceColor) {
         return new IntoTheDeepCommand(
-                IntoTheDeepAppendageCommand.clipClip(),
+                IntoTheDeepAppendageCommand.clipClipping(),
+                IntoTheDeepPose.CLIP_SCORE_APPROACH.getPose(allianceColor),
+                MIN_TIME_STANDARD,
+                SETTLE_TIME_STANDARD,
+                SETTLE_RATIO_STANDARD);
+    }
+
+    public static IntoTheDeepCommand clipScoreRetreat(AllianceColor allianceColor) {
+        return new IntoTheDeepCommand(
+                IntoTheDeepAppendageCommand.clipAfterScore(),
                 IntoTheDeepPose.CLIP_SCORE_APPROACH.getPose(allianceColor),
                 MIN_TIME_STANDARD,
                 SETTLE_TIME_STANDARD,
@@ -109,7 +118,7 @@ public class IntoTheDeepCommand {
 
     public static IntoTheDeepCommand clipScoreScore(AllianceColor allianceColor) {
         return new IntoTheDeepCommand(
-                IntoTheDeepAppendageCommand.clipClip(),
+                IntoTheDeepAppendageCommand.clipClipping(),
                 IntoTheDeepPose.CLIP_SCORE_SCORE.getPose(allianceColor),
                 MIN_TIME_STANDARD,
                 SETTLE_TIME_STANDARD,
@@ -118,7 +127,7 @@ public class IntoTheDeepCommand {
 
     public static IntoTheDeepCommand clipScorePostScore(AllianceColor allianceColor) {
         return new IntoTheDeepCommand(
-                IntoTheDeepAppendageCommand.clipScore(),
+                IntoTheDeepAppendageCommand.clipAfterScore(),
                 IntoTheDeepPose.CLIP_SCORE_SCORE.getPose(allianceColor),
                 MIN_TIME_STANDARD,
                 SETTLE_TIME_STANDARD,
@@ -161,6 +170,15 @@ public class IntoTheDeepCommand {
                 SETTLE_RATIO_STANDARD);
     }
 
+    public static IntoTheDeepCommand driveDirectToPoseTucked(Pose2d pose) {
+        return new IntoTheDeepCommand(
+                IntoTheDeepAppendageCommand.tucked(),
+                pose,
+                MIN_TIME_STANDARD,
+                SETTLE_TIME_STANDARD,
+                SETTLE_RATIO_STANDARD);
+    }
+
     public static IntoTheDeepCommand driveDirectToPoseFastCommand(Pose2d pose) {
         return new IntoTheDeepCommand(
                 null,
@@ -194,7 +212,7 @@ public class IntoTheDeepCommand {
         commands.add(IntoTheDeepCommand.clipScoreApproach(allianceColor));
         commands.add(IntoTheDeepCommand.clipScoreScore(allianceColor));
         commands.add(IntoTheDeepCommand.clipScorePostScore(allianceColor));
-        commands.add(IntoTheDeepCommand.clipScoreApproach(allianceColor));
+        commands.add(IntoTheDeepCommand.clipScoreRetreat(allianceColor));
         return commands;
     }
 
@@ -255,6 +273,17 @@ public class IntoTheDeepCommand {
         return new IntoTheDeepCommand(
                 0,
                 IntoTheDeepAppendageCommand.defensive(),
+                null,
+                MIN_TIME_STANDARD,
+                SETTLE_TIME_STANDARD,
+                SETTLE_RATIO_STANDARD
+        );
+    }
+
+    public static IntoTheDeepCommand tucked() {
+        return new IntoTheDeepCommand(
+                0,
+                IntoTheDeepAppendageCommand.tucked(),
                 null,
                 MIN_TIME_STANDARD,
                 SETTLE_TIME_STANDARD,
