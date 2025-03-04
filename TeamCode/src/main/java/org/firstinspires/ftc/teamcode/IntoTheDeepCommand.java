@@ -80,6 +80,51 @@ public class IntoTheDeepCommand {
                 SETTLE_RATIO_STANDARD);
     }
 
+    public static IntoTheDeepCommand clipCollectApproach(AllianceColor allianceColor, boolean pincerOpen) {
+        return new IntoTheDeepCommand(
+                IntoTheDeepAppendageCommand.clipCollect(pincerOpen),
+                IntoTheDeepPose.CLIP_COLLECT_APPROACH.getPose(allianceColor),
+                MIN_TIME_STANDARD,
+                SETTLE_TIME_STANDARD,
+                SETTLE_RATIO_STANDARD);
+    }
+
+    public static IntoTheDeepCommand clipCollectCollect(AllianceColor allianceColor, boolean pincerOpen) {
+        return new IntoTheDeepCommand(
+                IntoTheDeepAppendageCommand.clipCollect(pincerOpen),
+                IntoTheDeepPose.CLIP_COLLECT_COLLECT.getPose(allianceColor),
+                MIN_TIME_STANDARD,
+                SETTLE_TIME_STANDARD,
+                SETTLE_RATIO_STANDARD);
+    }
+
+    public static IntoTheDeepCommand clipScoreApproach(AllianceColor allianceColor) {
+        return new IntoTheDeepCommand(
+                IntoTheDeepAppendageCommand.clipClip(),
+                IntoTheDeepPose.CLIP_SCORE_APPROACH.getPose(allianceColor),
+                MIN_TIME_STANDARD,
+                SETTLE_TIME_STANDARD,
+                SETTLE_RATIO_STANDARD);
+    }
+
+    public static IntoTheDeepCommand clipScoreScore(AllianceColor allianceColor) {
+        return new IntoTheDeepCommand(
+                IntoTheDeepAppendageCommand.clipClip(),
+                IntoTheDeepPose.CLIP_SCORE_SCORE.getPose(allianceColor),
+                MIN_TIME_STANDARD,
+                SETTLE_TIME_STANDARD,
+                SETTLE_RATIO_STANDARD);
+    }
+
+    public static IntoTheDeepCommand clipScorePostScore(AllianceColor allianceColor) {
+        return new IntoTheDeepCommand(
+                IntoTheDeepAppendageCommand.clipScore(),
+                IntoTheDeepPose.CLIP_SCORE_SCORE.getPose(allianceColor),
+                MIN_TIME_STANDARD,
+                SETTLE_TIME_STANDARD,
+                SETTLE_RATIO_STANDARD);
+    }
+
     public static IntoTheDeepCommand dunkAtNetClosed(AllianceColor allianceColor) {
         return new IntoTheDeepCommand(
                 IntoTheDeepAppendageCommand.highBasketDunk(),
@@ -142,6 +187,24 @@ public class IntoTheDeepCommand {
                 waitMillis,
                 SETTLE_TIME_NONE,
                 SETTLE_RATIO_STANDARD);
+    }
+
+    public static List<IntoTheDeepCommand> clipSequence(AllianceColor allianceColor) {
+        List<IntoTheDeepCommand> commands = new ArrayList<>();
+        commands.add(IntoTheDeepCommand.clipScoreApproach(allianceColor));
+        commands.add(IntoTheDeepCommand.clipScoreScore(allianceColor));
+        commands.add(IntoTheDeepCommand.clipScorePostScore(allianceColor));
+        commands.add(IntoTheDeepCommand.clipScoreApproach(allianceColor));
+        return commands;
+    }
+
+    public static List<IntoTheDeepCommand> collectAndClipSequence(AllianceColor allianceColor) {
+        List<IntoTheDeepCommand> commands = new ArrayList<>();
+        commands.add(IntoTheDeepCommand.clipCollectApproach(allianceColor, true));
+        commands.add(IntoTheDeepCommand.clipCollectCollect(allianceColor, true));
+        commands.add(IntoTheDeepCommand.clipCollectCollect(allianceColor, false));
+        commands.addAll(clipSequence(allianceColor));
+        return commands;
     }
 
     public static List<IntoTheDeepCommand> dunkSequence(AllianceColor allianceColor) {

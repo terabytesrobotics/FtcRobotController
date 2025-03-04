@@ -122,4 +122,34 @@ public class IntoTheDeepAppendageCommand {
                 null,
                 null);
     }
+
+    public static IntoTheDeepAppendageCommand clipCollect(boolean pincerOpen) {
+        return new IntoTheDeepAppendageCommand(
+                AppendageControlState.COLLECT_CLIP,
+                false,
+                pincerOpen,
+                null,
+                null,
+                null);
+    }
+
+    public static IntoTheDeepAppendageCommand clipClip() {
+        return new IntoTheDeepAppendageCommand(
+                AppendageControlState.CLIP_CLIP,
+                false,
+                false,
+                null,
+                null,
+                null);
+    }
+
+    public static IntoTheDeepAppendageCommand clipScore() {
+        return new IntoTheDeepAppendageCommand(
+                AppendageControlState.SCORE_CLIP,
+                false,
+                true,
+                null,
+                null,
+                null);
+    }
 }
