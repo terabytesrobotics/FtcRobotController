@@ -23,6 +23,7 @@ public enum TerabytesAutonomousPlan {
             case START_OBS_SCORE_CLIPS:
                 commands.addAll(IntoTheDeepCommand.clipSequence(color, 0));
                 commands.addAll(IntoTheDeepCommand.collectAndClipSequence(color, 1));
+                commands.addAll(IntoTheDeepCommand.observationPushSequence(color));
                 break;
             case START_OBS_WAIT_SCORE_WAIT:
                 commands.add(IntoTheDeepCommand.driveDirectToPoseCommand(IntoTheDeepPose.PARK_TARGET_OUT_OF_WAY_OBS.getPose(color)));

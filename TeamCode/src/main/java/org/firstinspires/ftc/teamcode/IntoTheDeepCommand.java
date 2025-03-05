@@ -201,6 +201,19 @@ public class IntoTheDeepCommand {
                 SETTLE_RATIO_COARSE);
     }
 
+    public static IntoTheDeepCommand driveDirectToPoseFastCommandTucked(Pose2d pose) {
+        return driveDirectToPoseFastCommand(pose, IntoTheDeepAppendageCommand.tucked());
+    }
+
+    public static IntoTheDeepCommand driveDirectToPoseFastCommand(Pose2d pose, IntoTheDeepAppendageCommand appendageCommand) {
+        return new IntoTheDeepCommand(
+                appendageCommand,
+                pose,
+                MIN_TIME_NONE,
+                SETTLE_TIME_NONE,
+                SETTLE_RATIO_COARSE);
+    }
+
     public static IntoTheDeepCommand waitUntil(int millis) {
         return new IntoTheDeepCommand(
                 millis,
@@ -235,6 +248,17 @@ public class IntoTheDeepCommand {
         commands.add(IntoTheDeepCommand.clipCollectCollect(allianceColor, true));
         commands.add(IntoTheDeepCommand.clipCollectCollect(allianceColor, false));
         commands.addAll(clipSequence(allianceColor, index));
+        return commands;
+    }
+
+    public static List<IntoTheDeepCommand> observationPushSequence(AllianceColor allianceColor) {
+        List<IntoTheDeepCommand> commands = new ArrayList<>();
+        commands.add(IntoTheDeepCommand.driveDirectToPoseFastCommandTucked(IntoTheDeepPose.OBS_PUSH_STAGING.getPose(allianceColor)));
+        commands.add(IntoTheDeepCommand.driveDirectToPoseFastCommandTucked(IntoTheDeepPose.OBS_PUSH_START_1.getPose(allianceColor)));
+        commands.add(IntoTheDeepCommand.driveDirectToPoseFastCommandTucked(IntoTheDeepPose.OBS_PUSH_TARGET_1.getPose(allianceColor)));
+        commands.add(IntoTheDeepCommand.driveDirectToPoseFastCommandTucked(IntoTheDeepPose.OBS_PUSH_STAGING.getPose(allianceColor)));
+        commands.add(IntoTheDeepCommand.driveDirectToPoseFastCommandTucked(IntoTheDeepPose.OBS_PUSH_START_2.getPose(allianceColor)));
+        commands.add(IntoTheDeepCommand.driveDirectToPoseFastCommandTucked(IntoTheDeepPose.OBS_PUSH_TARGET_2.getPose(allianceColor)));
         return commands;
     }
 

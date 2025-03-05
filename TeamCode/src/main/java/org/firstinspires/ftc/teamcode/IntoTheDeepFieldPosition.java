@@ -12,9 +12,13 @@ public enum IntoTheDeepFieldPosition {
 
     // Auton strategic points
     NET_PUSH_STAGING(36, 48),
+    OBS_PUSH_STAGING(-36, 36),
+    OBS_PUSH_START_1(-36, 0),
+    OBS_PUSH_START_2(-54, 0),
     NET_PUSH_START_1(36, 0),
     NET_PUSH_START_2(54, 0),
-    NET(56, 52),
+    NET_PUSH_TARGET(56, 52),
+    OBS_PUSH_TARGET(-56, 52),
     CLIP1_SCORE(0,32),
 
     // Part targets for who's expectd to be first or second to the spot

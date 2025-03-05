@@ -214,8 +214,8 @@ public class TerabytesIntoTheDeep {
     private final WebcamName wristCamera;
     private final AprilTagProcessor aprilTagProcessor;
     public final VisionPortal visionPortal;
-    public final DistanceSensor dl;
-    public final DistanceSensor dr;
+//    public final DistanceSensor dl;
+//    public final DistanceSensor dr;
 
     // NEW: Vision processor for sample detection
     private final SampleDetectVisionProcessor sampleDetectVisionProcessor;
@@ -296,8 +296,8 @@ public class TerabytesIntoTheDeep {
         tilt = hardwareMap.get(Servo.class, "tilt");
         pincer = hardwareMap.get(Servo.class, "pincer");
         wrist = hardwareMap.get(Servo.class, "wrist");
-        dl = hardwareMap.get(DistanceSensor.class, "dl");
-        dr = hardwareMap.get(DistanceSensor.class, "dr");
+//        dl = hardwareMap.get(DistanceSensor.class, "dl");
+//        dr = hardwareMap.get(DistanceSensor.class, "dr");
     }
 
     public Pose2d getLatestPoseEstimate() {
@@ -374,8 +374,8 @@ public class TerabytesIntoTheDeep {
         packet.put("VisionProcessorAngle", sampleDetectVisionProcessor.detectedEllipseAngle);
         packet.put("VisionXError", sampleDetectVisionProcessor.detectedExtenderErrorSignal);
         packet.put("VisionYErroqr", sampleDetectVisionProcessor.detectedLateralErrorSignal);
-        packet.put("dl", dl.getDistance(DistanceUnit.INCH));
-        packet.put("dr", dr.getDistance(DistanceUnit.INCH));
+        //packet.put("dl", dl.getDistance(DistanceUnit.INCH));
+        //packet.put("dr", dr.getDistance(DistanceUnit.INCH));
         return packet;
     }
 
@@ -756,13 +756,13 @@ public class TerabytesIntoTheDeep {
 
         driveInput = driveInput.plus(driverHeadlessInput);
 
-        if (gamepad1.dpad_up) {
-            double leftDistance = dl.getDistance(DistanceUnit.INCH);
-            double rightDistance = dr.getDistance(DistanceUnit.INCH);
-            double error = leftDistance - rightDistance;
-            double alignRotation = -error * WALL_ALIGN_KP;
-            driveInput = new Pose2d(driveInput.getX(), driveInput.getY(), driveInput.getHeading() + alignRotation);
-        }
+//        if (gamepad1.dpad_up) {
+//            double leftDistance = dl.getDistance(DistanceUnit.INCH);
+//            double rightDistance = dr.getDistance(DistanceUnit.INCH);
+//            double error = leftDistance - rightDistance;
+//            double alignRotation = -error * WALL_ALIGN_KP;
+//            driveInput = new Pose2d(driveInput.getX(), driveInput.getY(), driveInput.getHeading() + alignRotation);
+//        }
 
         if (fastMode) {
             driveInput = driveInput.div(1.5);
