@@ -225,6 +225,8 @@ public class TerabytesIntoTheDeep {
     private ElapsedTime initStageTimer = new ElapsedTime();
     private AppendageControl appendageControl = null;
 
+    public static final double WALL_ALIGN_KP = 0.05; // constant for rotational alignment (tweak as needed)
+
     public TerabytesIntoTheDeep(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, boolean debugMode) {
         this.allianceColor = allianceColor;
         this.gamepad1 = gamepad1;
@@ -753,6 +755,14 @@ public class TerabytesIntoTheDeep {
         }
 
         driveInput = driveInput.plus(driverHeadlessInput);
+
+        if (gamepad1.dpad_up) {
+            double leftDistance = dl.getDistance(DistanceUnit.INCH);
+            double rightDistance = dr.getDistance(DistanceUnit.INCH);
+            double error = leftDistance - rightDistance;
+            double alignRotation = -error * WALL_ALIGN_KP;
+            driveInput = new Pose2d(driveInput.getX(), driveInput.getY(), driveInput.getHeading() + alignRotation);
+        }
 
         if (fastMode) {
             driveInput = driveInput.div(1.5);
