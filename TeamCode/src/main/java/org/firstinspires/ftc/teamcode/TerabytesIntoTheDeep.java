@@ -19,9 +19,11 @@ import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.acmerobotics.roadrunner.util.Angle;
 import com.arcrobotics.ftclib.controller.PIDController;
+import com.qualcomm.hardware.rev.Rev2mDistanceSensor;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.DistanceSensor;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
@@ -32,6 +34,7 @@ import com.qualcomm.robotcore.util.Range;
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.CameraName;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
 import org.firstinspires.ftc.teamcode.util.OnActivatedEvaluator;
@@ -211,6 +214,8 @@ public class TerabytesIntoTheDeep {
     private final WebcamName wristCamera;
     private final AprilTagProcessor aprilTagProcessor;
     public final VisionPortal visionPortal;
+    public final DistanceSensor dl;
+    public final DistanceSensor dr;
 
     // NEW: Vision processor for sample detection
     private final SampleDetectVisionProcessor sampleDetectVisionProcessor;
@@ -289,6 +294,8 @@ public class TerabytesIntoTheDeep {
         tilt = hardwareMap.get(Servo.class, "tilt");
         pincer = hardwareMap.get(Servo.class, "pincer");
         wrist = hardwareMap.get(Servo.class, "wrist");
+        dl = hardwareMap.get(DistanceSensor.class, "dl");
+        dr = hardwareMap.get(DistanceSensor.class, "dr");
     }
 
     public Pose2d getLatestPoseEstimate() {
@@ -364,7 +371,9 @@ public class TerabytesIntoTheDeep {
         packet.put("DriveInputY", driveInput.getY());
         packet.put("VisionProcessorAngle", sampleDetectVisionProcessor.detectedEllipseAngle);
         packet.put("VisionXError", sampleDetectVisionProcessor.detectedExtenderErrorSignal);
-        packet.put("VisionYError", sampleDetectVisionProcessor.detectedLateralErrorSignal);
+        packet.put("VisionYErroqr", sampleDetectVisionProcessor.detectedLateralErrorSignal);
+        packet.put("dl", dl.getDistance(DistanceUnit.INCH));
+        packet.put("dr", dr.getDistance(DistanceUnit.INCH));
         return packet;
     }
 
@@ -889,7 +898,10 @@ public class TerabytesIntoTheDeep {
 
             double translationVarianceThreshold = 2.0;
             double headingVarianceThreshold = Math.PI / 16;
-            if (variancePose.getX() <= translationVarianceThreshold && variancePose.getY() <= translationVarianceThreshold && variancePose.getHeading() <= headingVarianceThreshold) {
+            if (variancePose.getX() <= translationVarianceThreshold &&
+                    variancePose.getY() <= translationVarianceThreshold &&
+                    variancePose.getHeading() <= headingVarianceThreshold &&
+                    !isAutonomous) {
                 drive.setPoseEstimate(averagePose);
                 lastAprilTagFieldPosition = averagePose;
                 poseQueue.clear();

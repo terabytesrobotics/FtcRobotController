@@ -17,6 +17,7 @@ public class IntoTheDeepCommand {
     private static final double MIN_TIME_STANDARD = 250;
     private static final double MIN_TIME_NONE = 0;
     private static final double SETTLE_TIME_STANDARD = 300;
+    private static final double SETTLE_TIME_LONG = 600;
     private static final double SETTLE_TIME_NONE = 0;
     private static final double PRECISE_SETTLE_RATIO = 0.68d;
     private static final double SETTLE_RATIO_STANDARD = 1d;
@@ -94,41 +95,53 @@ public class IntoTheDeepCommand {
                 IntoTheDeepAppendageCommand.clipCollect(pincerOpen),
                 IntoTheDeepPose.CLIP_COLLECT_COLLECT.getPose(allianceColor),
                 MIN_TIME_STANDARD,
-                SETTLE_TIME_STANDARD,
+                pincerOpen ? SETTLE_TIME_LONG : SETTLE_TIME_STANDARD,
                 SETTLE_RATIO_STANDARD);
     }
 
-    public static IntoTheDeepCommand clipScoreApproach(AllianceColor allianceColor) {
+    public static IntoTheDeepCommand clipScoreApproach(AllianceColor allianceColor, int index) {
+        int sign = allianceColor == AllianceColor.RED ? 1 : -1;
+        Pose2d pose = IntoTheDeepPose.CLIP_SCORE_APPROACH.getPose(allianceColor)
+                .plus(new Pose2d(sign * index * 1.5 /* 1.5 inches per scored block */, 0, 0));
         return new IntoTheDeepCommand(
                 IntoTheDeepAppendageCommand.clipClipping(),
-                IntoTheDeepPose.CLIP_SCORE_APPROACH.getPose(allianceColor),
-                MIN_TIME_STANDARD,
-                SETTLE_TIME_STANDARD,
-                SETTLE_RATIO_STANDARD);
+                pose,
+                MIN_TIME_NONE,
+                SETTLE_TIME_NONE,
+                SETTLE_RATIO_COARSE);
     }
 
-    public static IntoTheDeepCommand clipScoreRetreat(AllianceColor allianceColor) {
+    public static IntoTheDeepCommand clipScoreRetreat(AllianceColor allianceColor, int index) {
+        int sign = allianceColor == AllianceColor.RED ? 1 : -1;
+        Pose2d pose = IntoTheDeepPose.CLIP_SCORE_APPROACH.getPose(allianceColor)
+                .plus(new Pose2d(sign * index * 1.5 /* 1.5 inches per scored block */, 0, 0));
         return new IntoTheDeepCommand(
                 IntoTheDeepAppendageCommand.clipAfterScore(),
-                IntoTheDeepPose.CLIP_SCORE_APPROACH.getPose(allianceColor),
-                MIN_TIME_STANDARD,
-                SETTLE_TIME_STANDARD,
-                SETTLE_RATIO_STANDARD);
+                pose,
+                MIN_TIME_NONE,
+                SETTLE_TIME_NONE,
+                SETTLE_RATIO_COARSE);
     }
 
-    public static IntoTheDeepCommand clipScoreScore(AllianceColor allianceColor) {
+    public static IntoTheDeepCommand clipScoreScore(AllianceColor allianceColor, int index) {
+        int sign = allianceColor == AllianceColor.RED ? 1 : -1;
+        Pose2d pose = IntoTheDeepPose.CLIP_SCORE_SCORE.getPose(allianceColor)
+                .plus(new Pose2d(sign * index * 1.5 /* 1.5 inches per scored block */, 0, 0));
         return new IntoTheDeepCommand(
                 IntoTheDeepAppendageCommand.clipClipping(),
-                IntoTheDeepPose.CLIP_SCORE_SCORE.getPose(allianceColor),
+                pose,
                 MIN_TIME_STANDARD,
                 SETTLE_TIME_STANDARD,
                 SETTLE_RATIO_STANDARD);
     }
 
-    public static IntoTheDeepCommand clipScorePostScore(AllianceColor allianceColor) {
+    public static IntoTheDeepCommand clipScorePostScore(AllianceColor allianceColor, int index) {
+        int sign = allianceColor == AllianceColor.RED ? 1 : -1;
+        Pose2d pose = IntoTheDeepPose.CLIP_SCORE_SCORE.getPose(allianceColor)
+                .plus(new Pose2d(sign * index * 1.5 /* 1.5 inches per scored block */, 0, 0));
         return new IntoTheDeepCommand(
                 IntoTheDeepAppendageCommand.clipAfterScore(),
-                IntoTheDeepPose.CLIP_SCORE_SCORE.getPose(allianceColor),
+                pose,
                 MIN_TIME_STANDARD,
                 SETTLE_TIME_STANDARD,
                 SETTLE_RATIO_STANDARD);
@@ -207,21 +220,21 @@ public class IntoTheDeepCommand {
                 SETTLE_RATIO_STANDARD);
     }
 
-    public static List<IntoTheDeepCommand> clipSequence(AllianceColor allianceColor) {
+    public static List<IntoTheDeepCommand> clipSequence(AllianceColor allianceColor, int index) {
         List<IntoTheDeepCommand> commands = new ArrayList<>();
-        commands.add(IntoTheDeepCommand.clipScoreApproach(allianceColor));
-        commands.add(IntoTheDeepCommand.clipScoreScore(allianceColor));
-        commands.add(IntoTheDeepCommand.clipScorePostScore(allianceColor));
-        commands.add(IntoTheDeepCommand.clipScoreRetreat(allianceColor));
+        commands.add(IntoTheDeepCommand.clipScoreApproach(allianceColor, index));
+        commands.add(IntoTheDeepCommand.clipScoreScore(allianceColor, index));
+        commands.add(IntoTheDeepCommand.clipScorePostScore(allianceColor, index));
+        commands.add(IntoTheDeepCommand.clipScoreRetreat(allianceColor, index));
         return commands;
     }
 
-    public static List<IntoTheDeepCommand> collectAndClipSequence(AllianceColor allianceColor) {
+    public static List<IntoTheDeepCommand> collectAndClipSequence(AllianceColor allianceColor, int index) {
         List<IntoTheDeepCommand> commands = new ArrayList<>();
         commands.add(IntoTheDeepCommand.clipCollectApproach(allianceColor, true));
         commands.add(IntoTheDeepCommand.clipCollectCollect(allianceColor, true));
         commands.add(IntoTheDeepCommand.clipCollectCollect(allianceColor, false));
-        commands.addAll(clipSequence(allianceColor));
+        commands.addAll(clipSequence(allianceColor, index));
         return commands;
     }
 
