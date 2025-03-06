@@ -326,9 +326,7 @@ class AppendageControl {
         evaluateEndEffector();
     }
     private void evaluateScoreClip() {
-        setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_SCORE_CLIP_ANGLE, 0);
-
-
+        setArmAndExtenderSetpoints(TerabytesIntoTheDeep.ARM_SCORE_CLIP_ANGLE, 1);
         evaluateEndEffector();
     }
     private void evaluateClipClip() {

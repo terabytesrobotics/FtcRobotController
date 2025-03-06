@@ -17,7 +17,7 @@ public class IntoTheDeepCommand {
     private static final double MIN_TIME_STANDARD = 250;
     private static final double MIN_TIME_NONE = 0;
     private static final double SETTLE_TIME_STANDARD = 300;
-    private static final double SETTLE_TIME_LONG = 600;
+    private static final double SETTLE_TIME_LONG = 900;
     private static final double SETTLE_TIME_NONE = 0;
     private static final double PRECISE_SETTLE_RATIO = 0.68d;
     private static final double SETTLE_RATIO_STANDARD = 1d;
