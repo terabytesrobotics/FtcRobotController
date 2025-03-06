@@ -11,8 +11,8 @@ public enum IntoTheDeepFieldPosition {
     START_NET_ZONE(36, 62),
 
     // Auton strategic points
-    NET_PUSH_STAGING(36, 48),
-    OBS_PUSH_STAGING(-36, 36),
+    NET_PUSH_STAGING(37, 48),
+    OBS_PUSH_STAGING(-37, 36),
     OBS_PUSH_START_1(-36, 0),
     OBS_PUSH_START_2(-54, 0),
     NET_PUSH_START_1(36, 0),
@@ -48,10 +48,10 @@ public enum IntoTheDeepFieldPosition {
     AUTON_BLOCK_NEUTRAL_2(58, 25.5),
     AUTON_BLOCK_NEUTRAL_3(68, 25.5),
 
-    AUTON_CLIP_COLLECT_APPROACH(-48, 44),
-    AUTON_CLIP_COLLECT_COLLECT(-48, 50),
-    AUTON_CLIP_SCORE_APPROACH(0, 50),
-    AUTON_CLIP_SCORE_SCORE(0, 32);
+    AUTON_CLIP_COLLECT_APPROACH(-48, 42),
+    AUTON_CLIP_COLLECT_COLLECT(-48, 50.5),
+    AUTON_CLIP_SCORE_APPROACH(0, 48),
+    AUTON_CLIP_SCORE_SCORE(0, 31.5);
 
     public final Vector2d BluePosition;
     public final Vector2d RedPosition;
