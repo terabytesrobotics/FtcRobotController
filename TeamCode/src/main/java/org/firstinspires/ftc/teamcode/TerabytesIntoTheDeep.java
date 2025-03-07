@@ -55,7 +55,7 @@ import java.util.EnumSet;
 
 public class TerabytesIntoTheDeep {
 
-    public static final double COLLECT_DISTANCE_ACCUMULATOR_SPEED_PER_MILLI = 1 / 1600.0;
+    public static final double COLLECT_DISTANCE_ACCUMULATOR_SPEED_PER_MILLI = 1 / 2000.0;
     public static final double COLLECT_HEIGHT_ACCUMULATOR_SPEED_PER_MILLI = 1 / 1125.0;
     public static final double WRIST_ACCUMULATOR_SPEED_PER_MILLI = 1 / 500.0;
 
@@ -68,7 +68,7 @@ public class TerabytesIntoTheDeep {
     public static final double ARM_AXLE_OFFSET_FROM_ROBOT_CENTER_INCHES = 5.5; // TODO: Tune this to reality
     public static final double ARM_MIN_COLLECT_HEIGHT_INCHES = 5.75d;
     public static final double ARM_MAX_COLLECT_HEIGHT_INCHES = 13.5d;
-    public static final double ARM_MIN_HEIGHT_WRIST_DETECT_INCHES = 12.5d;
+    public static final double ARM_MIN_HEIGHT_WRIST_DETECT_INCHES = 13.5d;
     public static final double ARM_MAX_HEIGHT_WRIST_DETECT_INCHES = ARM_MAX_COLLECT_HEIGHT_INCHES + 1;
     public static final double ARM_MIN_HEIGHT_EXTENDER_DETECT_INCHES = 12.5d;
     public static final double ARM_MAX_HEIGHT_EXTENDER_DETECT_INCHES = ARM_MAX_COLLECT_HEIGHT_INCHES + 1;
@@ -472,11 +472,6 @@ public class TerabytesIntoTheDeep {
 
         sampleDetectVisionProcessor.collectHeadingDegrees = appendageControl.getCurrentWristHeadingDegrees();
         if (!gamepad2.left_bumper) {
-            double extenderErrorSignal = sampleDetectVisionProcessor.detectedExtenderErrorSignal != null ?
-                    sampleDetectVisionProcessor.detectedExtenderErrorSignal : 0;
-            if (Math.abs(extenderErrorSignal) > 0.15) {
-                appendageControl.updateVisionExtenderAdjustment(extenderErrorSignal * COLLECT_DISTANCE_ACCUMULATOR_SPEED_PER_MILLI * dt);
-            }
             appendageControl.updateVisionWristAdjustment(sampleDetectVisionProcessor.detectedEllipseAngle);
         }
 

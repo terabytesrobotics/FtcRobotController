@@ -31,7 +31,6 @@ public enum TerabytesAutonomousPlan {
                 commands.addAll(IntoTheDeepCommand.observationPushSample1Sequence(color));
                 commands.addAll(IntoTheDeepCommand.collectAndClipSequence(color, 1));
                 commands.addAll(IntoTheDeepCommand.collectAndClipSequence(color, 2));
-
                 break;
             case START_OBS_WAIT_SCORE_WAIT:
                 commands.add(IntoTheDeepCommand.driveDirectToPoseCommand(IntoTheDeepPose.PARK_TARGET_OUT_OF_WAY_OBS.getPose(color)));
@@ -48,6 +47,7 @@ public enum TerabytesAutonomousPlan {
                 break;
             case START_CLIP_CENTER_SCORE_PARK:
                 commands.add(IntoTheDeepCommand.driveDirectToPoseCommand(IntoTheDeepPose.CLIP1_SCORE.RedPose));
+                break;
         }
 
         Pose2d parkPose = IntoTheDeepPose.PARK_TARGET_SECOND.getPose(color);
