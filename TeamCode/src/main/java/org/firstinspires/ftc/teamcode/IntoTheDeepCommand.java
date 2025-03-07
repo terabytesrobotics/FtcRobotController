@@ -143,8 +143,8 @@ public class IntoTheDeepCommand {
                 IntoTheDeepAppendageCommand.clipAfterScore(),
                 pose,
                 MIN_TIME_STANDARD,
-                SETTLE_TIME_STANDARD,
-                SETTLE_RATIO_STANDARD);
+                SETTLE_TIME_LONG / 2,
+                SETTLE_RATIO_COARSE);
     }
 
     public static IntoTheDeepCommand dunkAtNetClosed(AllianceColor allianceColor) {

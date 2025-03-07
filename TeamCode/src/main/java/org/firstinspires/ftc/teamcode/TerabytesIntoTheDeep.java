@@ -19,11 +19,9 @@ import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.acmerobotics.roadrunner.util.Angle;
 import com.arcrobotics.ftclib.controller.PIDController;
-import com.qualcomm.hardware.rev.Rev2mDistanceSensor;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
-import com.qualcomm.robotcore.hardware.DistanceSensor;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
@@ -34,7 +32,6 @@ import com.qualcomm.robotcore.util.Range;
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.CameraName;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
-import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
 import org.firstinspires.ftc.teamcode.util.OnActivatedEvaluator;
@@ -115,7 +112,7 @@ public class TerabytesIntoTheDeep {
     public static final double WRIST_DEGREES_HEADING_MAX = WRIST_RANGE * WRIST_DEGREES_TOTAL_RANGE;
     public static final double WRIST_DEGREES_HEADING_MIN = -WRIST_DEGREES_HEADING_MAX;
 
-    public static final double PINCER_OPEN = 0.4;
+    public static final double TELEOP_PINCER_OPEN = 0.4375;
 
     public static final double AUTON_PINCER_OPEN = 0.25;
 
@@ -123,7 +120,7 @@ public class TerabytesIntoTheDeep {
 
     // We don't yet support collecting at multiple distances in auton.
     public static final double AUTON_PRE_COLLECT_HEIGHT_SIGNAL = 0.4;
-    public static final double AUTON_COLLECT_HEIGHT_SIGNAL = 0.05;
+    public static final double AUTON_COLLECT_HEIGHT_SIGNAL = 0.075;
     public static final double AUTON_COLLECT_DISTANCE_SIGNAL = 0.25;
     public static final double AUTON_COLLECT_X_OFFSET_DISTANCE = 13.85;
     public static final double AUTON_COLLECT_Y_OFFSET_DISTANCE = 1.55;
@@ -133,22 +130,22 @@ public class TerabytesIntoTheDeep {
     // !! Must be run with arm up to be safe.  Helps calibrate servo positions for 10 seconds upon init. !!
     public final EndEffectorInitStage[] SERVO_INIT_STAGES_DEBUG = {
             new EndEffectorInitStage(TILT_ORIGIN, WRIST_ORIGIN, PINCER_CLOSED, 10000),
-            new EndEffectorInitStage(TILT_TUCKED, WRIST_TUCKED, PINCER_OPEN, 3750),
+            new EndEffectorInitStage(TILT_TUCKED, WRIST_TUCKED, TELEOP_PINCER_OPEN, 3750),
             new EndEffectorInitStage(TILT_TUCKED, WRIST_TUCKED, PINCER_CLOSED, 1000),
-            new EndEffectorInitStage(TILT_TUCKED, WRIST_TUCKED, PINCER_OPEN,3750),
+            new EndEffectorInitStage(TILT_TUCKED, WRIST_TUCKED, TELEOP_PINCER_OPEN,3750),
             new EndEffectorInitStage(TILT_TUCKED, WRIST_TUCKED, PINCER_CLOSED, 1000)
     };
 
     public final EndEffectorInitStage[] SERVO_INIT_STAGES_AUTON = {
-            new EndEffectorInitStage(TILT_TUCKED, WRIST_TUCKED, PINCER_OPEN, 3750),
+            new EndEffectorInitStage(TILT_TUCKED, WRIST_TUCKED, TELEOP_PINCER_OPEN, 3750),
             new EndEffectorInitStage(TILT_TUCKED, WRIST_TUCKED, PINCER_CLOSED, 1000),
-            new EndEffectorInitStage(TILT_TUCKED, WRIST_TUCKED, PINCER_OPEN,3750),
+            new EndEffectorInitStage(TILT_TUCKED, WRIST_TUCKED, TELEOP_PINCER_OPEN,3750),
             new EndEffectorInitStage(TILT_TUCKED, WRIST_TUCKED, PINCER_CLOSED, 1000)
     };
 
     // Optimized for speed
     public final EndEffectorInitStage[] SERVO_INIT_STAGES_TELEOP = {
-            new EndEffectorInitStage(TILT_TUCKED, WRIST_TUCKED, PINCER_OPEN,1000)
+            new EndEffectorInitStage(TILT_TUCKED, WRIST_TUCKED, TELEOP_PINCER_OPEN,1000)
     };
 
     private final AprilTagLibrary APRIL_TAG_LIBRARY = AprilTagGameDatabase.getIntoTheDeepTagLibrary();
@@ -1001,7 +998,7 @@ public class TerabytesIntoTheDeep {
         boolean yErrEliminated = Math.abs(yErr) < 0.75;
         boolean thetaErrEliminated = Math.abs(error.getHeading()) < (Math.PI / 15);
 
-        double minPower = 0.233625;
+        double minPower = 0.24530625;
         double minRotation = 0.63;
         double xMin = xErrEliminated ? 0 : Math.signum(xErr) * minPower;
         double yMin = yErrEliminated ? 0 : Math.signum(yErr) * minPower;
