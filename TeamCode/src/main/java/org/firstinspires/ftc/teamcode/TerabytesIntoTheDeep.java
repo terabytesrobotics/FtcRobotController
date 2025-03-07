@@ -123,7 +123,7 @@ public class TerabytesIntoTheDeep {
 
     // We don't yet support collecting at multiple distances in auton.
     public static final double AUTON_PRE_COLLECT_HEIGHT_SIGNAL = 0.4;
-    public static final double AUTON_COLLECT_HEIGHT_SIGNAL = 0.02;
+    public static final double AUTON_COLLECT_HEIGHT_SIGNAL = 0.05;
     public static final double AUTON_COLLECT_DISTANCE_SIGNAL = 0.25;
     public static final double AUTON_COLLECT_X_OFFSET_DISTANCE = 13.85;
     public static final double AUTON_COLLECT_Y_OFFSET_DISTANCE = 1.55;

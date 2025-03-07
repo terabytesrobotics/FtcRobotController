@@ -51,7 +51,7 @@ public enum IntoTheDeepFieldPosition {
     AUTON_CLIP_COLLECT_APPROACH(-48, 42),
     AUTON_CLIP_COLLECT_COLLECT(-48, 51),
     AUTON_CLIP_SCORE_APPROACH(0, 48),
-    AUTON_CLIP_SCORE_SCORE(0, 31.75);
+    AUTON_CLIP_SCORE_SCORE(0, 28.75);
 
     public final Vector2d BluePosition;
     public final Vector2d RedPosition;

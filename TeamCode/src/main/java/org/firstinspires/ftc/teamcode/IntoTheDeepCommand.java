@@ -131,8 +131,8 @@ public class IntoTheDeepCommand {
                 IntoTheDeepAppendageCommand.clipClipping(),
                 pose,
                 MIN_TIME_STANDARD,
-                SETTLE_TIME_STANDARD,
-                SETTLE_RATIO_STANDARD);
+                SETTLE_TIME_NONE,
+                SETTLE_RATIO_COARSE);
     }
 
     public static IntoTheDeepCommand clipScorePostScore(AllianceColor allianceColor, int index) {
