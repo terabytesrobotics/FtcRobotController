@@ -234,7 +234,6 @@ class AppendageControl {
 
     private void holdSafe() {
         target.wristTarget = TerabytesIntoTheDeep.WRIST_TUCKED;
-        //target.tiltTarget = TerabytesIntoTheDeep.TILT_TUCKED; invert servo below
         target.tiltTarget = TerabytesIntoTheDeepConstants.INVERT_TILT_SERVO ? (1.0 - TerabytesIntoTheDeep.TILT_TUCKED) : TerabytesIntoTheDeep.TILT_TUCKED;
         target.pincerTarget = TerabytesIntoTheDeep.PINCER_OPEN;
         target.armTickTarget = TerabytesIntoTheDeep.ARM_LEVEL_TICKS;
@@ -262,7 +261,7 @@ class AppendageControl {
         tiltActualSetpoint = Math.max(0, Math.min(1, tiltActualSetpoint));
         double wristActualSetpoint = Math.max(-1, Math.min(1, wristSignal));
         target.wristTarget = isCollecting ? TerabytesIntoTheDeep.WRIST_ORIGIN + (TerabytesIntoTheDeep.WRIST_RANGE * wristActualSetpoint) : TerabytesIntoTheDeep.WRIST_ORIGIN;
-        target.tiltTarget = levelTilt ? tiltLevel : tiltActualSetpoint;
+        target.tiltTarget = (levelTilt ? tiltLevel : tiltActualSetpoint) + TerabytesIntoTheDeep.TILT_SPLINE_OFFSET_TICKS;
         target.pincerTarget = openPincer ? TerabytesIntoTheDeep.PINCER_OPEN : TerabytesIntoTheDeep.PINCER_CLOSED;
     }
 

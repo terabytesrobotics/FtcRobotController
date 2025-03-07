@@ -55,7 +55,7 @@ import java.util.EnumSet;
 
 public class TerabytesIntoTheDeep {
 
-    public static final double COLLECT_DISTANCE_ACCUMULATOR_SPEED_PER_MILLI = 1 / 1450.0;
+    public static final double COLLECT_DISTANCE_ACCUMULATOR_SPEED_PER_MILLI = 1 / 1600.0;
     public static final double COLLECT_HEIGHT_ACCUMULATOR_SPEED_PER_MILLI = 1 / 1125.0;
     public static final double WRIST_ACCUMULATOR_SPEED_PER_MILLI = 1 / 500.0;
 
@@ -94,8 +94,10 @@ public class TerabytesIntoTheDeep {
     public static final double EXTENDER_HANG = EXTENDER_MAX_EXTENSION_INCHES * 0.5;
 
 
-    public static final double TILT_ORIGIN = 0.0;
+    public static final double TILT_ORIGIN = 0.025;
     public static final double TILT_TICKS_PER_DEGREE = 1.0 / 270.0;
+    public static final double TILT_SPLINE_OFFSET_DEGREES = 2;
+    public static final double TILT_SPLINE_OFFSET_TICKS = TILT_SPLINE_OFFSET_DEGREES * TILT_TICKS_PER_DEGREE;
     public static final double TILT_STRAIGHT = TILT_ORIGIN + (90 * TILT_TICKS_PER_DEGREE);
     public static final double TILT_RANGE_DEGREES = 30.0;
     public static final double TILT_DOWN_RANGE = 40;
@@ -475,9 +477,21 @@ public class TerabytesIntoTheDeep {
         controlArmMotor(reversedTickTarget - armRTicksAtInit, rightArmControl, armRight);
         extender.setTargetPosition(((int) controlTarget.extenderTickTarget) - extenderTicksAtInit);
        // tilt.setPosition(controlTarget.tiltTarget); //Old code replaced by below to allow for invert servo
-        tilt.setPosition(TerabytesIntoTheDeepConstants.INVERT_TILT_SERVO ? (1.0 - controlTarget.tiltTarget) : controlTarget.tiltTarget);
-        wrist.setPosition(controlTarget.wristTarget);
-        pincer.setPosition(controlTarget.pincerTarget);
+        tilt.setPosition(
+                Math.max(0,
+                        Math.min(1,
+                            TerabytesIntoTheDeepConstants.INVERT_TILT_SERVO ? (1.0 - controlTarget.tiltTarget) : controlTarget.tiltTarget)
+                ));
+        wrist.setPosition(
+                Math.max(0,
+                        Math.min(1,
+                                controlTarget.wristTarget)
+                ));
+        pincer.setPosition(
+                Math.max(0,
+                        Math.min(1,
+                                controlTarget.pincerTarget)
+                ));
     }
 
     private void evaluateSwitchCamera() {
@@ -709,7 +723,7 @@ public class TerabytesIntoTheDeep {
 
 
                 double collectHeightSignal = -gamepad2.left_stick_y;
-                double collectDistanceSignal = (gamepad1.right_trigger - gamepad1.left_trigger);
+                double collectDistanceSignal = (gamepad1.right_trigger - gamepad1.left_trigger) + (-gamepad2.right_stick_y);
                 int collectDistanceIncrements = y1ActivatedEvaluator.evaluate() ? 1 : a1ActivatedEvaluator.evaluate() ? -1 : 0;
 
                 if (Math.abs(collectHeightSignal) > 0.025) {
