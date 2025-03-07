@@ -18,6 +18,10 @@ public enum IntoTheDeepPose {
     NET_PUSH_START_2(IntoTheDeepFieldPosition.NET_PUSH_START_2, Math.PI / 2.0),
     NET_PUSH_TARGET_1(IntoTheDeepFieldPosition.NET_PUSH_TARGET, Math.toRadians(90 - 18.43)),
     NET_PUSH_TARGET_2(IntoTheDeepFieldPosition.NET_PUSH_TARGET, Math.toRadians(90)),
+    NET_PUSH_START_3_1(IntoTheDeepFieldPosition.NET_PUSH_START_3_1, Math.toRadians(90)),
+    NET_PUSH_START_3_2(IntoTheDeepFieldPosition.NET_PUSH_START_3_2, Math.toRadians(90)),
+    NET_PUSH_TARGET_3(IntoTheDeepFieldPosition.NET_PUSH_TARGET_3, Math.toRadians(90)),
+
     OBS_PUSH_STAGING(IntoTheDeepFieldPosition.OBS_PUSH_STAGING, Math.PI / 2.0),
     OBS_PUSH_START_1(IntoTheDeepFieldPosition.OBS_PUSH_START_1, Math.PI / 2.0),
     OBS_PUSH_START_2(IntoTheDeepFieldPosition.OBS_PUSH_START_2, Math.PI / 2.0),

@@ -44,6 +44,7 @@ public enum TerabytesAutonomousPlan {
                 commands.addAll(IntoTheDeepCommand.dunkSequence(color));
                 commands.addAll(IntoTheDeepCommand.collectAndDunkBlockSequence(color, IntoTheDeepFieldPosition.AUTON_BLOCK_NEUTRAL_1));
                 commands.addAll(IntoTheDeepCommand.collectAndDunkBlockSequence(color, IntoTheDeepFieldPosition.AUTON_BLOCK_NEUTRAL_2));
+                commands.addAll(IntoTheDeepCommand.netPushLastSequence(color));
                 break;
             case START_CLIP_CENTER_SCORE_PARK:
                 commands.add(IntoTheDeepCommand.driveDirectToPoseCommand(IntoTheDeepPose.CLIP1_SCORE.RedPose));

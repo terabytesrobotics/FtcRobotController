@@ -251,6 +251,14 @@ public class IntoTheDeepCommand {
         return commands;
     }
 
+    public static List<IntoTheDeepCommand> netPushLastSequence(AllianceColor allianceColor) {
+        List<IntoTheDeepCommand> commands = new ArrayList<>();
+        commands.add(IntoTheDeepCommand.driveDirectToPoseFastCommandTucked(IntoTheDeepPose.NET_PUSH_START_3_1.getPose(allianceColor)));
+        commands.add(IntoTheDeepCommand.driveDirectToPoseFastCommandTucked(IntoTheDeepPose.NET_PUSH_START_3_2.getPose(allianceColor)));
+        commands.add(IntoTheDeepCommand.driveDirectToPoseFastCommandTucked(IntoTheDeepPose.NET_PUSH_TARGET_3.getPose(allianceColor)));
+        return commands;
+    }
+
     public static List<IntoTheDeepCommand> observationPushSequence(AllianceColor allianceColor) {
         List<IntoTheDeepCommand> commands = new ArrayList<>();
         commands.add(IntoTheDeepCommand.driveDirectToPoseFastCommandTucked(IntoTheDeepPose.OBS_PUSH_STAGING.getPose(allianceColor)));
@@ -277,7 +285,7 @@ public class IntoTheDeepCommand {
         commands.add(IntoTheDeepCommand.driveToNet(allianceColor));
         commands.add(IntoTheDeepCommand.dunkAtNetClosed(allianceColor));
         commands.add(IntoTheDeepCommand.dunkAtNetOpen(allianceColor));
-        commands.add(IntoTheDeepCommand.defensive());
+        //commands.add(IntoTheDeepCommand.defensive());
         return commands;
     }
 
@@ -291,26 +299,26 @@ public class IntoTheDeepCommand {
     }
 
     public static List<IntoTheDeepCommand> collectAndDunkBlockSequence(AllianceColor allianceColor, IntoTheDeepFieldPosition block) {
-        boolean isRed = allianceColor == AllianceColor.RED;
-        int ifRedSign = isRed ? -1 : 1;
-        double alignedHeading = Math.toRadians(90 * ifRedSign);
-        double acrossHeading = Math.toRadians(90 + (90 * ifRedSign));
+//        boolean isRed = allianceColor == AllianceColor.RED;
+//        int ifRedSign = isRed ? -1 : 1;
+//        double alignedHeading = Math.toRadians(90 * ifRedSign);
+//        double acrossHeading = Math.toRadians(90 + (90 * ifRedSign));
 
-        Vector2d block1Pos = IntoTheDeepFieldPosition.AUTON_PREP_BLOCK_NEUTRAL_1.getPosition(allianceColor);
-        Vector2d block2Pos = IntoTheDeepFieldPosition.AUTON_PREP_BLOCK_NEUTRAL_2.getPosition(allianceColor);
-        Vector2d block3Pos = IntoTheDeepFieldPosition.AUTON_PREP_BLOCK_NEUTRAL_3.getPosition(allianceColor);
-        Pose2d block1PrepPose = new Pose2d(block1Pos.getX(), block1Pos.getY(), alignedHeading);
-        Pose2d block2PrepPose = new Pose2d(block2Pos.getX(), block2Pos.getY(), alignedHeading);
-        Pose2d block3PrepPose = new Pose2d(block3Pos.getX(), block3Pos.getY(), acrossHeading);
+//        Vector2d block1Pos = IntoTheDeepFieldPosition.AUTON_PREP_BLOCK_NEUTRAL_1.getPosition(allianceColor);
+//        Vector2d block2Pos = IntoTheDeepFieldPosition.AUTON_PREP_BLOCK_NEUTRAL_2.getPosition(allianceColor);
+//        Vector2d block3Pos = IntoTheDeepFieldPosition.AUTON_PREP_BLOCK_NEUTRAL_3.getPosition(allianceColor);
+//        Pose2d block1PrepPose = new Pose2d(block1Pos.getX(), block1Pos.getY(), alignedHeading);
+//        Pose2d block2PrepPose = new Pose2d(block2Pos.getX(), block2Pos.getY(), alignedHeading);
+//        Pose2d block3PrepPose = new Pose2d(block3Pos.getX(), block3Pos.getY(), acrossHeading);
 
         List<IntoTheDeepCommand> commands = new ArrayList<>();
-        if (block == IntoTheDeepFieldPosition.AUTON_BLOCK_NEUTRAL_1) {
-            commands.add(driveDirectToPoseCommand(block1PrepPose));
-        } else if (block == IntoTheDeepFieldPosition.AUTON_BLOCK_NEUTRAL_2) {
-            commands.add(driveDirectToPoseCommand(block2PrepPose));
-        } else if (block == IntoTheDeepFieldPosition.AUTON_BLOCK_NEUTRAL_3) {
-            commands.add(driveDirectToPoseCommand(block3PrepPose));
-        }
+//        if (block == IntoTheDeepFieldPosition.AUTON_BLOCK_NEUTRAL_1) {
+//            commands.add(driveDirectToPoseCommand(block1PrepPose));
+//        } else if (block == IntoTheDeepFieldPosition.AUTON_BLOCK_NEUTRAL_2) {
+//            commands.add(driveDirectToPoseCommand(block2PrepPose));
+//        } else if (block == IntoTheDeepFieldPosition.AUTON_BLOCK_NEUTRAL_3) {
+//            commands.add(driveDirectToPoseCommand(block3PrepPose));
+//        }
         commands.addAll(collectBlockSequence(allianceColor, block));
         commands.addAll(dunkSequence(allianceColor));
         return commands;
