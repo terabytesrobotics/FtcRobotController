@@ -1001,8 +1001,8 @@ public class TerabytesIntoTheDeep {
         boolean yErrEliminated = Math.abs(yErr) < 0.75;
         boolean thetaErrEliminated = Math.abs(error.getHeading()) < (Math.PI / 15);
 
-        double minPower = 0.2225;
-        double minRotation = 0.6;
+        double minPower = 0.233625;
+        double minRotation = 0.63;
         double xMin = xErrEliminated ? 0 : Math.signum(xErr) * minPower;
         double yMin = yErrEliminated ? 0 : Math.signum(yErr) * minPower;
         double thetaMin = thetaErrEliminated ? 0 : Math.signum(error.getHeading()) * minRotation;
