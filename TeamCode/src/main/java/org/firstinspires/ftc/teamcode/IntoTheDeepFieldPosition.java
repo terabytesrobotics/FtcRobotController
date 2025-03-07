@@ -38,7 +38,7 @@ public enum IntoTheDeepFieldPosition {
     SUBMERSIBLE_APPROACH_AUDIENCE_SIDE(-48, 0),
 
     BASKET_APPROACH_FAST(48, 48),
-    HIGH_BASKET_SCORING_APPROACH(56.5, 56.5),
+    HIGH_BASKET_SCORING_APPROACH(57.25, 57.25),
 
     AUTON_PREP_BLOCK_NEUTRAL_1(48, 58),
     AUTON_PREP_BLOCK_NEUTRAL_2(58, 58),
@@ -51,7 +51,7 @@ public enum IntoTheDeepFieldPosition {
     AUTON_CLIP_COLLECT_APPROACH(-48, 42),
     AUTON_CLIP_COLLECT_COLLECT(-48, 51),
     AUTON_CLIP_SCORE_APPROACH(0, 48),
-    AUTON_CLIP_SCORE_SCORE(0, 33);
+    AUTON_CLIP_SCORE_SCORE(0, 31.75);
 
     public final Vector2d BluePosition;
     public final Vector2d RedPosition;
