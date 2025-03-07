@@ -262,6 +262,16 @@ public class IntoTheDeepCommand {
         return commands;
     }
 
+    public static List<IntoTheDeepCommand> observationPushSample1Sequence(AllianceColor allianceColor) {
+        List<IntoTheDeepCommand> commands = new ArrayList<>();
+        commands.add(IntoTheDeepCommand.driveDirectToPoseFastCommandTucked(IntoTheDeepPose.OBS_PUSH_STAGING.getPose(allianceColor)));
+        commands.add(IntoTheDeepCommand.driveDirectToPoseFastCommandTucked(IntoTheDeepPose.OBS_PUSH_START_1.getPose(allianceColor)));
+        commands.add(IntoTheDeepCommand.driveDirectToPoseFastCommandTucked(IntoTheDeepPose.OBS_PUSH_TARGET_1.getPose(allianceColor)));
+        return commands;
+    }
+
+
+
     public static List<IntoTheDeepCommand> dunkSequence(AllianceColor allianceColor) {
         List<IntoTheDeepCommand> commands = new ArrayList<>();
         commands.add(IntoTheDeepCommand.driveToNet(allianceColor));

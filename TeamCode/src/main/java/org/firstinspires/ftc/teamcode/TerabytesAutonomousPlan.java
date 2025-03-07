@@ -9,6 +9,7 @@ import java.util.List;
 
 public enum TerabytesAutonomousPlan {
     START_OBS_SCORE_CLIPS,
+    START_OBS_SCORE_3CLIPS,
     START_OBS_WAIT_SCORE_WAIT,
     START_NET_SCORE_COLLECT_SCORE_PARK,
     START_NET_SCORE_COLLECT_SCORE_WAIT,
@@ -24,6 +25,13 @@ public enum TerabytesAutonomousPlan {
                 commands.addAll(IntoTheDeepCommand.clipSequence(color, 0));
                 commands.addAll(IntoTheDeepCommand.collectAndClipSequence(color, 1));
                 commands.addAll(IntoTheDeepCommand.observationPushSequence(color));
+                break;
+            case START_OBS_SCORE_3CLIPS:
+                commands.addAll(IntoTheDeepCommand.clipSequence(color, 0));
+                commands.addAll(IntoTheDeepCommand.observationPushSample1Sequence(color));
+                commands.addAll(IntoTheDeepCommand.collectAndClipSequence(color, 1));
+                commands.addAll(IntoTheDeepCommand.collectAndClipSequence(color, 2));
+
                 break;
             case START_OBS_WAIT_SCORE_WAIT:
                 commands.add(IntoTheDeepCommand.driveDirectToPoseCommand(IntoTheDeepPose.PARK_TARGET_OUT_OF_WAY_OBS.getPose(color)));
@@ -63,6 +71,7 @@ public enum TerabytesAutonomousPlan {
 
     public Pose2d getStartingPose(AllianceColor allianceColor) {
         switch (this) {
+            case START_OBS_SCORE_3CLIPS:
             case START_OBS_SCORE_CLIPS:
             case START_OBS_WAIT_SCORE_WAIT:
                 return IntoTheDeepPose.START_OBSERVATION_ZONE.getPose(allianceColor);

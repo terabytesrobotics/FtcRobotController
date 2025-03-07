@@ -227,6 +227,19 @@ public class TerabytesIntoTheDeep {
     private ElapsedTime initStageTimer = new ElapsedTime();
     private AppendageControl appendageControl = null;
 
+    private double cachedLeftDistance = 0;
+    private double cachedRightDistance = 0;
+    private ElapsedTime distanceSensorUpdateTimer = new ElapsedTime();
+
+  // Only read distance every 100mSec
+ /*     private void updateSensors() {
+        if (distanceSensorUpdateTimer.milliseconds() > 100) { // Read every 100ms instead of every loop
+            cachedLeftDistance = dl.getDistance(DistanceUnit.INCH);
+            cachedRightDistance = dr.getDistance(DistanceUnit.INCH);
+            distanceSensorUpdateTimer.reset();
+        }
+    }*/
+
     public static final double WALL_ALIGN_KP = 0.05; // constant for rotational alignment (tweak as needed)
 
     public TerabytesIntoTheDeep(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, boolean debugMode) {
@@ -298,8 +311,9 @@ public class TerabytesIntoTheDeep {
         tilt = hardwareMap.get(Servo.class, "tilt");
         pincer = hardwareMap.get(Servo.class, "pincer");
         wrist = hardwareMap.get(Servo.class, "wrist");
-//        dl = hardwareMap.get(DistanceSensor.class, "dl");
-//        dr = hardwareMap.get(DistanceSensor.class, "dr");
+
+ //       dl = hardwareMap.get(DistanceSensor.class, "dl");
+ //       dr = hardwareMap.get(DistanceSensor.class, "dr");
     }
 
     public Pose2d getLatestPoseEstimate() {
@@ -376,6 +390,8 @@ public class TerabytesIntoTheDeep {
         packet.put("VisionProcessorAngle", sampleDetectVisionProcessor.detectedEllipseAngle);
         packet.put("VisionXError", sampleDetectVisionProcessor.detectedExtenderErrorSignal);
         packet.put("VisionYErroqr", sampleDetectVisionProcessor.detectedLateralErrorSignal);
+        //packet.put("dlcached", cachedLeftDistance);
+        //packet.put("drcached", cachedRightDistance);
         //packet.put("dl", dl.getDistance(DistanceUnit.INCH));
         //packet.put("dr", dr.getDistance(DistanceUnit.INCH));
         return packet;
@@ -519,7 +535,8 @@ public class TerabytesIntoTheDeep {
     public boolean evaluate() {
         double dt = loopTime.milliseconds();
         loopTime.reset();
-
+// cached distance update
+//        updateSensors();
         drive.update();
         latestPoseEstimate = drive.getPoseEstimate();
         evaluateSwitchCamera();
@@ -770,9 +787,16 @@ public class TerabytesIntoTheDeep {
 
         driveInput = driveInput.plus(driverHeadlessInput);
 
-//        if (gamepad1.dpad_up) {
+ //       if (gamepad1.dpad_up) {
 //            double leftDistance = dl.getDistance(DistanceUnit.INCH);
 //            double rightDistance = dr.getDistance(DistanceUnit.INCH);
+/*            double leftDistance = cachedLeftDistance;
+            double rightDistance = cachedRightDistance;
+            if (cachedLeftDistance < 30 && cachedRightDistance < 30) {
+                double error = cachedLeftDistance - cachedRightDistance;
+                double alignRotation = -error * WALL_ALIGN_KP;
+                driveInput = new Pose2d(driveInput.getX(), driveInput.getY(), driveInput.getHeading() + alignRotation);
+            }*/
 //            double error = leftDistance - rightDistance;
 //            double alignRotation = -error * WALL_ALIGN_KP;
 //            driveInput = new Pose2d(driveInput.getX(), driveInput.getY(), driveInput.getHeading() + alignRotation);
