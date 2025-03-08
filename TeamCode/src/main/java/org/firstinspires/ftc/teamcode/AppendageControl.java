@@ -262,7 +262,7 @@ class AppendageControl {
         double wristActualSetpoint = Math.max(-1, Math.min(1, wristSignal));
         target.wristTarget = isCollecting ? TerabytesIntoTheDeep.WRIST_ORIGIN + (TerabytesIntoTheDeep.WRIST_RANGE * wristActualSetpoint) : TerabytesIntoTheDeep.WRIST_ORIGIN;
         target.tiltTarget = (levelTilt ? tiltLevel : tiltActualSetpoint) + TerabytesIntoTheDeep.TILT_SPLINE_OFFSET_TICKS;
-        target.pincerTarget = openPincer ? (isAuton ? TerabytesIntoTheDeep.AUTON_PINCER_OPEN : TerabytesIntoTheDeep.TELEOP_PINCER_OPEN) : TerabytesIntoTheDeep.PINCER_CLOSED;
+        target.pincerTarget = openPincer ? ((isAuton || isClipCollect) ? TerabytesIntoTheDeep.AUTON_PINCER_OPEN : TerabytesIntoTheDeep.TELEOP_PINCER_OPEN) : TerabytesIntoTheDeep.PINCER_CLOSED;
     }
 
     private void setArmAndExtenderSetpoints(double angleAboveHorizontal, double inchesExtension) {

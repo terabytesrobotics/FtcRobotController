@@ -85,7 +85,7 @@ public class IntoTheDeepCommand {
         return new IntoTheDeepCommand(
                 IntoTheDeepAppendageCommand.clipCollect(pincerOpen),
                 IntoTheDeepPose.CLIP_COLLECT_APPROACH.getPose(allianceColor),
-                pincerOpen ? MIN_TIME_STANDARD : MIN_TIME_STANDARD * 2,
+                MIN_TIME_STANDARD,
                 SETTLE_TIME_STANDARD / 2,
                 SETTLE_RATIO_STANDARD);
     }
@@ -143,7 +143,7 @@ public class IntoTheDeepCommand {
                 IntoTheDeepAppendageCommand.clipAfterScore(),
                 pose,
                 MIN_TIME_STANDARD,
-                SETTLE_TIME_LONG / 2,
+                SETTLE_TIME_STANDARD / 2,
                 SETTLE_RATIO_COARSE);
     }
 
