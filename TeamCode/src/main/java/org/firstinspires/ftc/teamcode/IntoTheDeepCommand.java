@@ -209,7 +209,7 @@ public class IntoTheDeepCommand {
         return new IntoTheDeepCommand(
                 appendageCommand,
                 pose,
-                MIN_TIME_NONE,
+                MIN_TIME_STANDARD,
                 SETTLE_TIME_NONE,
                 SETTLE_RATIO_COARSE);
     }
