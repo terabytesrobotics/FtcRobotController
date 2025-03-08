@@ -30,6 +30,21 @@ public class TerabytesHelpers {
         return new Vector2d(robotX, robotY);
     }
 
+    public static Vector2d headlessABButtonFieldDirection(Gamepad gamepad, double operatorAngleOffset, double robotHeading) {
+        double magnitude = 1.0;
+        double operatorRelativeHeading;
+        if (gamepad.y && !gamepad.a) {
+            operatorRelativeHeading = 0;
+        } else if (gamepad.a && !gamepad.y) {
+            operatorRelativeHeading = Math.PI;
+        } else {
+            return new Vector2d(0, 0);
+        }
+        double operatorFieldHeading = Angle.norm(operatorRelativeHeading + operatorAngleOffset);
+        double robotRelativeHeading = Angle.norm(operatorFieldHeading - robotHeading);
+        return new Vector2d(magnitude * Math.cos(robotRelativeHeading), magnitude * Math.sin(robotRelativeHeading));
+    }
+
     public static Pose2d robotPoseForDesiredAppendagePose(Pose2d desiredAppendagePose, double appendageXLength, double appendageYLength, double appendageRobotHeadingOffset) {
         double appendageHeading = desiredAppendagePose.getHeading();
         double appendageLength = Math.hypot(appendageXLength, appendageYLength);

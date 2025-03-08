@@ -77,7 +77,7 @@ public class TerabytesIntoTheDeep {
     public static final double ARM_CLIP_CLIP_ANGLE = ARM_SCORE_CLIP_ANGLE - 25;
     */
     //down clip settings 20, +15
-    public static final double ARM_SCORE_CLIP_ANGLE = 5.5;
+    public static final double ARM_SCORE_CLIP_ANGLE = 5;
     public static final double ARM_CLIP_CLIP_ANGLE = ARM_SCORE_CLIP_ANGLE + 0;
     public static final double ARM_PRE_HANG_ANGLE = 110;
     public static final double ARM_HANG_ANGLE = 20;
@@ -756,20 +756,7 @@ public class TerabytesIntoTheDeep {
         boolean wasScoring = appendageControl != null && (appendageControl.previousState == AppendageControlState.HIGH_BASKET || appendageControl.previousState == AppendageControlState.LOW_BASKET);
         boolean isDefensive = appendageControl != null && appendageControl.currentState == AppendageControlState.DEFENSIVE;
 
-        double collectSideIsFront = isScoring ? -1d : 1d;
-        Pose2d driverHeadlessInput = getScaledHeadlessDriverInput(gamepad1);
-
-        if (gamepad1.dpad_right) {
-            driveInput = new Pose2d(
-                    0,
-                    collectSideIsFront,
-                    -gamepad1.right_stick_x);
-        } else if (gamepad1.dpad_left) {
-            driveInput = new Pose2d(
-                    0,
-                    -collectSideIsFront,
-                    -gamepad1.right_stick_x);
-        } else if (hasPositionEstimate && gamepad1.left_stick_button) {
+        if (hasPositionEstimate && gamepad1.left_stick_button) {
             if (isScoring || (isDefensive && !wasScoring)) {
                 driveInput = getAutoDriveToNetInput(isDefensive);
             } else {
@@ -777,7 +764,9 @@ public class TerabytesIntoTheDeep {
             }
         }
 
-        driveInput = driveInput.plus(driverHeadlessInput);
+        driveInput = driveInput
+                .plus(getScaledHeadlessDriverInput(gamepad1, allianceColor.OperatorHeadingOffset))
+                .plus(getScaledHeadlessDriverABInput(gamepad1, allianceColor.OperatorHeadingOffset));
 
  //       if (gamepad1.dpad_up) {
 //            double leftDistance = dl.getDistance(DistanceUnit.INCH);
@@ -839,8 +828,12 @@ public class TerabytesIntoTheDeep {
         return new Pose2d(scaledRobotX, scaledRobotY, scaledRotation);
     }
 
-    private Pose2d getScaledHeadlessDriverInput(Gamepad gamepad) {
-        return getScaledHeadlessDriverInput(gamepad, allianceColor.OperatorHeadingOffset);
+    private Pose2d getScaledHeadlessDriverABInput(Gamepad gamepad, double operatorHeadingOffset) {
+        Vector2d inputFieldDirection = TerabytesHelpers.headlessABButtonFieldDirection(gamepad, operatorHeadingOffset, latestPoseEstimate.getHeading());
+        double scaledRobotX = inputFieldDirection.getX();
+        double scaledRobotY = inputFieldDirection.getY();
+        double scaledRotation = -gamepad.right_stick_x;
+        return new Pose2d(scaledRobotX, scaledRobotY, scaledRotation);
     }
 
     private IntoTheDeepOpModeState evaluateCommandSequence() {
