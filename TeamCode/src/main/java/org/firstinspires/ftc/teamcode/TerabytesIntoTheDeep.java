@@ -85,7 +85,8 @@ public class TerabytesIntoTheDeep {
     public static final double EXTENDER_GEAR_RATIO = 5.2d;
     public static final double EXTENDER_TICKS_PER_INCH = (EXTENDER_GEAR_RATIO * 28 / 0.8 / 2) * 2.54;
     public static final double EXTENDER_MAX_EXTENSION_INCHES = 13.25d;
-    public static final double EXTENDER_MAX_TOTAL_LENGTH = EXTENDER_MIN_LENGTH_INCHES + EXTENDER_MAX_EXTENSION_INCHES;
+    public static final double EXTENDER_MAX_COLLECT_LESS_THAN_MAX_EXTENSION = 1.25;
+    public static final double EXTENDER_MAX_TOTAL_COLLECT_LENGTH = EXTENDER_MIN_LENGTH_INCHES + EXTENDER_MAX_EXTENSION_INCHES - EXTENDER_MAX_COLLECT_LESS_THAN_MAX_EXTENSION;
     public static final double EXTENDER_MAX_LENGTH_TICKS = EXTENDER_MAX_EXTENSION_INCHES * EXTENDER_TICKS_PER_INCH; //
     public static final double EXTENDER_DEFLECTION_RATIO = 1d / 12; // One inch per foot of extension
     public static final double EXTENDER_HANG = EXTENDER_MAX_EXTENSION_INCHES * 0.5;

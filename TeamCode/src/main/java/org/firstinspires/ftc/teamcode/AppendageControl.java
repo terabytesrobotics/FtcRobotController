@@ -289,7 +289,7 @@ class AppendageControl {
         double desiredCollectDepth = TerabytesIntoTheDeep.ARM_AXLE_HEIGHT_INCHES - desiredCollectHeight;
         double clampedCollectDistanceSignal = Math.max(0, Math.min(1, collectDistanceSignal));
         double minimumAchievableDistanceInches = Math.sqrt((TerabytesIntoTheDeep.EXTENDER_MIN_LENGTH_INCHES * TerabytesIntoTheDeep.EXTENDER_MIN_LENGTH_INCHES) - (desiredCollectDepth * desiredCollectDepth));
-        double maximumAchievableDistanceInches = Math.sqrt((TerabytesIntoTheDeep.EXTENDER_MAX_TOTAL_LENGTH * TerabytesIntoTheDeep.EXTENDER_MAX_TOTAL_LENGTH) - (desiredCollectDepth * desiredCollectDepth));
+        double maximumAchievableDistanceInches = Math.sqrt((TerabytesIntoTheDeep.EXTENDER_MAX_TOTAL_COLLECT_LENGTH * TerabytesIntoTheDeep.EXTENDER_MAX_TOTAL_COLLECT_LENGTH) - (desiredCollectDepth * desiredCollectDepth));
         double desiredDistance = minimumAchievableDistanceInches + (clampedCollectDistanceSignal * (maximumAchievableDistanceInches - minimumAchievableDistanceInches));
         double desiredArmAngle = -Math.toDegrees(Math.atan2(desiredCollectDepth, desiredDistance));
         double desiredTotalLength = Math.sqrt((desiredCollectDepth * desiredCollectDepth) + (desiredDistance * desiredDistance));
