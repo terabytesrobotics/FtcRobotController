@@ -65,7 +65,7 @@ public class TerabytesIntoTheDeep {
     public static final double ARM_AXLE_OFFSET_FROM_ROBOT_CENTER_INCHES = 5.5; // TODO: Tune this to reality
     public static final double ARM_MIN_COLLECT_HEIGHT_INCHES = 5.75d;
     public static final double ARM_MAX_COLLECT_HEIGHT_INCHES = 13.5d;
-    public static final double ARM_MIN_HEIGHT_WRIST_DETECT_INCHES = 13.5d;
+    public static final double ARM_MIN_HEIGHT_WRIST_DETECT_INCHES = 12.75d;
     public static final double ARM_MAX_HEIGHT_WRIST_DETECT_INCHES = ARM_MAX_COLLECT_HEIGHT_INCHES + 1;
     public static final double ARM_MIN_HEIGHT_EXTENDER_DETECT_INCHES = 12.5d;
     public static final double ARM_MAX_HEIGHT_EXTENDER_DETECT_INCHES = ARM_MAX_COLLECT_HEIGHT_INCHES + 1;

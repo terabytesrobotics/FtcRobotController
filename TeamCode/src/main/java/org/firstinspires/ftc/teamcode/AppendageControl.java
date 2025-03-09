@@ -111,8 +111,7 @@ class AppendageControl {
         Double endEffectorHeight = getCurrentEndEffectorHeight();
         return isCollectingCameraDown &&
                 endEffectorHeight != null &&
-                (endEffectorHeight < TerabytesIntoTheDeep.ARM_MAX_HEIGHT_WRIST_DETECT_INCHES &&
-                        endEffectorHeight > TerabytesIntoTheDeep.ARM_MIN_HEIGHT_WRIST_DETECT_INCHES);
+                (endEffectorHeight > TerabytesIntoTheDeep.ARM_MIN_HEIGHT_WRIST_DETECT_INCHES);
     }
 
     private boolean shouldUpdateExtenderBasedOnVisionError() {
