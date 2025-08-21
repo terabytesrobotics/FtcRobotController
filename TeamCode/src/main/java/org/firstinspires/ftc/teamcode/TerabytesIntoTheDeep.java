@@ -825,7 +825,8 @@ public class TerabytesIntoTheDeep {
         Vector2d inputFieldDirection = TerabytesHelpers.headlessLeftStickFieldDirection(gamepad, operatorHeadingOffset, latestPoseEstimate.getHeading());
         double scaledRobotX = inputFieldDirection.getX();
         double scaledRobotY = inputFieldDirection.getY();
-        double scaledRotation = -gamepad.right_stick_x;
+        double signRotation = -Math.signum(gamepad.right_stick_x);
+        double scaledRotation = signRotation * (gamepad.right_stick_x * gamepad.right_stick_x);
         return new Pose2d(scaledRobotX, scaledRobotY, scaledRotation);
     }
 
