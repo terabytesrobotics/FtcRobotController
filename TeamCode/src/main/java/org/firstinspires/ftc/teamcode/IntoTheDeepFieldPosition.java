@@ -6,7 +6,7 @@ import org.firstinspires.ftc.teamcode.util.AllianceColor;
 
 public enum IntoTheDeepFieldPosition {
     // Start locations
-    START_OBSERVATION_ZONE(0, 62),
+    START_OBSERVATION_ZONE(0, 50),
     START_MID(0, 62),
     START_NET_ZONE(36, 62),
 
