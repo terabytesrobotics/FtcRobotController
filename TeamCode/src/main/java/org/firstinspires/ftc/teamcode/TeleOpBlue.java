@@ -7,9 +7,9 @@ import org.firstinspires.ftc.teamcode.util.AllianceColor;
 
 @Config
 @TeleOp(name="BLUE")
-public class TerabytesTeleOpBlue extends TerabytesOpMode {
+public class TeleOpBlue extends DecodeOpMode {
 
-    public TerabytesTeleOpBlue() {
-        super(AllianceColor.BLUE, IntoTheDeepOpModeState.MANUAL_CONTROL);
+    public TeleOpBlue() {
+        super(AllianceColor.BLUE, OpModeState.MANUAL_CONTROL);
     }
 }

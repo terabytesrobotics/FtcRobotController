@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.dashboard.FtcDashboard;
-import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.util.ReadWriteFile;
@@ -18,7 +17,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-public abstract class TerabytesOpMode extends LinearOpMode {
+public abstract class DecodeOpMode extends LinearOpMode {
 
     private static final long EXPIRY_INTERVAL_MS = 150000; // 2.5 minutes
     private static final long SAVE_INTERVAL_MS = 125;
@@ -92,23 +91,23 @@ public abstract class TerabytesOpMode extends LinearOpMode {
 
     private boolean debugMode = false;
     private final AllianceColor allianceColor;
-    private final IntoTheDeepOpModeState startupState;
-    private TerabytesAutonomousPlan autonomousPlan = null;
+    private final OpModeState startupState;
+    private AutonomousPlan autonomousPlan = null;
 
-    public TerabytesOpMode(AllianceColor allianceColor, IntoTheDeepOpModeState startupState) {
+    public DecodeOpMode(AllianceColor allianceColor, OpModeState startupState) {
         super();
         this.allianceColor = allianceColor;
         this.startupState = startupState;
     }
 
-    public TerabytesOpMode(AllianceColor allianceColor, IntoTheDeepOpModeState startupState, TerabytesAutonomousPlan autonomousPlan) {
+    public DecodeOpMode(AllianceColor allianceColor, OpModeState startupState, AutonomousPlan autonomousPlan) {
         super();
         this.allianceColor = allianceColor;
         this.startupState = startupState;
         this.autonomousPlan = autonomousPlan;
     }
 
-    public TerabytesOpMode(AllianceColor allianceColor, IntoTheDeepOpModeState startupState, boolean debugMode) {
+    public DecodeOpMode(AllianceColor allianceColor, OpModeState startupState, boolean debugMode) {
         super();
         this.allianceColor = allianceColor;
         this.startupState = startupState;
@@ -128,10 +127,6 @@ public abstract class TerabytesOpMode extends LinearOpMode {
 
     private static class PersistedData {
         public Pose2d pose;
-        public int appendageStateOrdinal;
-        public int armLTicks;
-        public int armRTicks;
-        public int extenderTicks;
         public long timestamp;
     }
 
@@ -153,10 +148,6 @@ public abstract class TerabytesOpMode extends LinearOpMode {
                     Pose2d pose = new Pose2d(x, y, heading);
                     persistedData = new PersistedData();
                     persistedData.pose = pose;
-                    persistedData.appendageStateOrdinal = appendageStateOrdinal;
-                    persistedData.armLTicks = armLTicks;
-                    persistedData.armRTicks = armRTicks;
-                    persistedData.extenderTicks = extenderTicks;
                     persistedData.timestamp = timestamp;
                 }
                 boolean cleanedUp = poseFile.delete();
@@ -170,7 +161,7 @@ public abstract class TerabytesOpMode extends LinearOpMode {
     public void runOpMode() {
         // Hooks up telemetry data to the dashboard
         FtcDashboard dashboard = FtcDashboard.getInstance();
-        TerabytesIntoTheDeep terabytes = new TerabytesIntoTheDeep(
+        DecodeRobotControl terabytes = new DecodeRobotControl(
                 allianceColor,
                 gamepad1,
                 gamepad2,
@@ -183,9 +174,7 @@ public abstract class TerabytesOpMode extends LinearOpMode {
             PersistedData persistedData = readAndDeleteLastPersistedData();
             long initTime = System.currentTimeMillis();
             boolean persistedDataIsValid = persistedData != null &&
-                    initTime - persistedData.timestamp < EXPIRY_INTERVAL_MS &&
-                    persistedData.appendageStateOrdinal != -1 &&
-                    persistedData.appendageStateOrdinal < AppendageControlState.values().length;
+                    initTime - persistedData.timestamp < EXPIRY_INTERVAL_MS;
             if (debugMode || !persistedDataIsValid) {
                 terabytes.teleopInit(new Pose2d(0, 0, Math.toRadians(180) + allianceColor.OperatorHeadingOffset));
             } else {
@@ -206,12 +195,7 @@ public abstract class TerabytesOpMode extends LinearOpMode {
         while (!isStopRequested() && terabytes.evaluate()) {
             long currentTime = System.currentTimeMillis();
             if (currentTime - lastSaveTime >= SAVE_INTERVAL_MS && opModeIsActive()) {
-                savePersistedData(
-                        terabytes.getLatestPoseEstimate(),
-                        terabytes.getAppendageControlStateInteger(),
-                        terabytes.getArmLTickPosition(),
-                        terabytes.getArmRTickPosition(),
-                        terabytes.getExtenderTickPosition());
+                // Save data?
                 lastSaveTime = currentTime;
             }
             appendTelemetryLine(terabytes.getLogData());

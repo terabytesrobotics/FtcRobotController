@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode;
 
-public class TerabytesIntoTheDeepConstants {
+public class Constants {
 
     static final double TURN_ERROR_THRESHOLD = Math.PI / 24;
     static final double SPEED_GAIN = 1d / 36;

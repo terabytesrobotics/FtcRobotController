@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode;
 
-public enum IntoTheDeepOpModeState {
+public enum OpModeState {
     MANUAL_CONTROL,
     COMMAND_SEQUENCE,
     STOPPED_UNTIL_END,

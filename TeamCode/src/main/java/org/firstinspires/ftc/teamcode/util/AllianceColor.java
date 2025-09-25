@@ -4,11 +4,6 @@ import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.qualcomm.hardware.rev.RevBlinkinLedDriver;
 
-import org.firstinspires.ftc.teamcode.CenterStageAprilTags;
-import org.firstinspires.ftc.teamcode.CenterStageBackdropPosition;
-import org.firstinspires.ftc.teamcode.NibusApproach;
-import org.firstinspires.ftc.teamcode.TerabytesAutonomousPlan;
-
 public enum AllianceColor {
     BLUE(Math.toRadians(270)),
     RED(Math.toRadians(90));
@@ -25,17 +20,6 @@ public enum AllianceColor {
 
     public double intoTheDeepNetApproachHeadingY() {
         return this == RED ? Math.toRadians(270) : Math.toRadians(90);
-    }
-
-    public Pose2d getAbsoluteFieldPose(UpstageBackstageStart alliancePose) {
-        switch (this) {
-            case RED:
-                return alliancePose.RedPose;
-            case BLUE:
-                return alliancePose.BluePose;
-            default:
-                return new Pose2d();
-        }
     }
 
     public Vector2d getMiddleLaneAudienceWaypoint() {
@@ -110,72 +94,6 @@ public enum AllianceColor {
             case BLUE:
             default:
                 return new Pose2d(PointOfInterest.BLUE_BACKDROP_APPROACH.X, PointOfInterest.BLUE_BACKDROP_APPROACH.Y, 0);
-        }
-    }
-
-    public NibusApproach getScoringApproach() {
-        switch (this) {
-            case RED:
-                return NibusApproach.RED_SCORING_APPROACH;
-            case BLUE:
-            default:
-                return NibusApproach.BLUE_SCORING_APPROACH;
-        }
-    }
-
-    public NibusApproach getMainCollectApproach() {
-        switch (this) {
-            case RED:
-                return NibusApproach.RED_COLLECT_APPROACH;
-            case BLUE:
-            default:
-                return NibusApproach.BLUE_COLLECT_APPROACH;
-        }
-    }
-
-    public int getAprilTagId(AlliancePropPosition alliancePropPosition) {
-        switch (this) {
-            case RED:
-                return alliancePropPosition.RedAprilTagId;
-            case BLUE:
-            default:
-                return alliancePropPosition.BlueAprilTagId;
-        }
-    }
-
-    public CenterStageAprilTags getAprilTagForScoringPosition(CenterStageBackdropPosition position) {
-        switch (this) {
-            case BLUE:
-                switch (position) {
-                    case LEFT:
-                        return CenterStageAprilTags.BLUE_BACKDROP_LEFT;
-                    case CENTER:
-                        return CenterStageAprilTags.BLUE_BACKDROP_CENTER;
-                    case RIGHT:
-                    default:
-                        return CenterStageAprilTags.BLUE_BACKDROP_RIGHT;
-                }
-            case RED:
-            default:
-                switch (position) {
-                    case LEFT:
-                        return CenterStageAprilTags.RED_BACKDROP_LEFT;
-                    case CENTER:
-                        return CenterStageAprilTags.RED_BACKDROP_CENTER;
-                    case RIGHT:
-                    default:
-                        return CenterStageAprilTags.RED_BACKDROP_RIGHT;
-                }
-        }
-    }
-
-    public CenterStageAprilTags getAprilTagForBackdropApproach() {
-        switch (this) {
-            case BLUE:
-                return CenterStageAprilTags.BLUE_BACKDROP_CENTER;
-            case RED:
-            default:
-                return CenterStageAprilTags.RED_BACKDROP_CENTER;
         }
     }
 }
