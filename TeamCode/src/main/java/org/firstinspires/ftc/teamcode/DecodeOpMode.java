@@ -167,7 +167,7 @@ public abstract class DecodeOpMode extends LinearOpMode {
                 gamepad2,
                 hardwareMap,
                 debugMode);
-        dashboard.startCameraStream(terabytes.visionPortal, 15);
+        //dashboard.startCameraStream(terabytes.visionPortal, 15);
         if (autonomousPlan != null) {
             terabytes.autonomousInit(autonomousPlan);
         } else {

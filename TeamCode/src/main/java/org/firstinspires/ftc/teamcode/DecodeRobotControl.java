@@ -174,10 +174,10 @@ public class DecodeRobotControl {
     private final OnActivatedEvaluator dpd1ActivatedEvaluator;
 
     // Sensing
-    private final WebcamName frontCamera;
-    private final WebcamName wristCamera;
+    //private final WebcamName frontCamera;
+    //private final WebcamName wristCamera;
     private final AprilTagProcessor aprilTagProcessor;
-    public final VisionPortal visionPortal;
+    //public final VisionPortal visionPortal;
 
     // NEW: Vision processor for sample detection
     private final SampleDetectVisionProcessor sampleDetectVisionProcessor;
@@ -208,11 +208,11 @@ public class DecodeRobotControl {
         this.state = OpModeState.MANUAL_CONTROL;
         this.debugMode = debugMode;
 
-        frontCamera = hardwareMap.get(WebcamName.class, "Webcam 1");
-        wristCamera = hardwareMap.get(WebcamName.class, "Webcam 2");
-        CameraName switchableCamera = ClassFactory.getInstance()
-                .getCameraManager()
-                .nameForSwitchableCamera(frontCamera, wristCamera);
+        //frontCamera = hardwareMap.get(WebcamName.class, "Webcam 1");
+        //wristCamera = hardwareMap.get(WebcamName.class, "Webcam 2");
+        //CameraName switchableCamera = ClassFactory.getInstance()
+        //        .getCameraManager()
+        //        .nameForSwitchableCamera(frontCamera, wristCamera);
 
         aprilTagProcessor = new AprilTagProcessor.Builder().build();
 
@@ -237,11 +237,11 @@ public class DecodeRobotControl {
 
         sampleDetectVisionProcessor = new SampleDetectVisionProcessor(colorsToDetect);
 
-        visionPortal = new VisionPortal.Builder()
-                .setCamera(switchableCamera)
-                .addProcessor(aprilTagProcessor)
-                .addProcessor(sampleDetectVisionProcessor)
-                .build();
+        //visionPortal = new VisionPortal.Builder()
+        //        //.setCamera(switchableCamera)
+        //        .addProcessor(aprilTagProcessor)
+        //        .addProcessor(sampleDetectVisionProcessor)
+        //        .build();
 
         drive = new SampleMecanumDrive(hardwareMap);
         drive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
@@ -327,9 +327,9 @@ public class DecodeRobotControl {
 
     private void evaluateSwitchCamera() {
         // One camera only
-        visionPortal.setActiveCamera(frontCamera);
-        visionPortal.setProcessorEnabled(sampleDetectVisionProcessor, false);
-        visionPortal.setProcessorEnabled(aprilTagProcessor, true);
+        //visionPortal.setActiveCamera(frontCamera);
+        //visionPortal.setProcessorEnabled(sampleDetectVisionProcessor, false);
+        //visionPortal.setProcessorEnabled(aprilTagProcessor, true);
     }
 
     public boolean evaluate() {
@@ -632,7 +632,7 @@ public class DecodeRobotControl {
     public void shutDown() {
         drive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         setDrivePower(new Pose2d());
-        visionPortal.close();
+        //visionPortal.close();
     }
 
     public void setDrivePower(Pose2d drivePower) {
