@@ -25,14 +25,13 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
 
-import org.firstinspires.ftc.robotcore.external.ClassFactory;
-import org.firstinspires.ftc.robotcore.external.hardware.camera.CameraName;
-import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
+
+
 import org.firstinspires.ftc.teamcode.Processors.SampleDetectVisionProcessor;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
 import org.firstinspires.ftc.teamcode.util.OnActivatedEvaluator;
-import org.firstinspires.ftc.vision.VisionPortal;
+
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagGameDatabase;
 import org.firstinspires.ftc.vision.apriltag.AprilTagLibrary;
@@ -48,80 +47,9 @@ import java.util.Queue;
 
 public class DecodeRobotControl {
 
-    public static final double COLLECT_DISTANCE_ACCUMULATOR_SPEED_PER_MILLI = 1 / 2000.0;
-    public static final double COLLECT_HEIGHT_ACCUMULATOR_SPEED_PER_MILLI = 1 / 1125.0;
-    public static final double WRIST_ACCUMULATOR_SPEED_PER_MILLI = 1 / 500.0;
-
-    public static final double GEAR_RATIO = 13.7d;
-    public static final double WORM_RATIO = 28.0d;
-    public static final double ARM_TICKS_PER_DEGREE = WORM_RATIO * 28.0d * GEAR_RATIO / 360.0d;
-    public static final double ARM_LEVEL_DEGREES_ABOVE_ZERO = 60;
-    public static final double ARM_LEVEL_TICKS = ARM_LEVEL_DEGREES_ABOVE_ZERO * ARM_TICKS_PER_DEGREE;
-    public static final double ARM_AXLE_HEIGHT_INCHES = 15.5d;
-    public static final double ARM_AXLE_OFFSET_FROM_ROBOT_CENTER_INCHES = 5.5; // TODO: Tune this to reality
-    public static final double ARM_MIN_COLLECT_HEIGHT_INCHES = 5.75d;
-    public static final double ARM_MAX_COLLECT_HEIGHT_INCHES = 13.5d;
-    public static final double ARM_MIN_HEIGHT_WRIST_DETECT_INCHES = 12.75d;
-    public static final double ARM_MAX_HEIGHT_WRIST_DETECT_INCHES = ARM_MAX_COLLECT_HEIGHT_INCHES + 1;
-    public static final double ARM_MIN_HEIGHT_EXTENDER_DETECT_INCHES = 12.5d;
-    public static final double ARM_MAX_HEIGHT_EXTENDER_DETECT_INCHES = ARM_MAX_COLLECT_HEIGHT_INCHES + 1;
-    public static final double ARM_DEFENSIVE_ANGLE = 55.6;
-    public static final double ARM_BASKET_ANGLE = 92;
-    public static final double ARM_COLLECT_CLIP_ANGLE = -23.5;
-    //up clip settings
-    /*public static final double ARM_SCORE_CLIP_ANGLE = 28;
-    public static final double ARM_CLIP_CLIP_ANGLE = ARM_SCORE_CLIP_ANGLE - 25;
-    */
-    //down clip settings 20, +15
-    public static final double ARM_SCORE_CLIP_ANGLE = 5;
-    public static final double ARM_CLIP_CLIP_ANGLE = ARM_SCORE_CLIP_ANGLE + 0;
-    public static final double ARM_PRE_HANG_ANGLE = 110;
-    public static final double ARM_HANG_ANGLE = 20;
-    public static final double EXTENDER_MIN_LENGTH_INCHES = 16d;
-    public static final double EXTENDER_GEAR_RATIO = 5.2d;
-    public static final double EXTENDER_TICKS_PER_INCH = (EXTENDER_GEAR_RATIO * 28 / 0.8 / 2) * 2.54;
-    public static final double EXTENDER_MAX_EXTENSION_INCHES = 13.25d;
-    public static final double EXTENDER_MAX_COLLECT_LESS_THAN_MAX_EXTENSION = 1.25;
-    public static final double EXTENDER_MAX_TOTAL_COLLECT_LENGTH = EXTENDER_MIN_LENGTH_INCHES + EXTENDER_MAX_EXTENSION_INCHES - EXTENDER_MAX_COLLECT_LESS_THAN_MAX_EXTENSION;
-    public static final double EXTENDER_MAX_LENGTH_TICKS = EXTENDER_MAX_EXTENSION_INCHES * EXTENDER_TICKS_PER_INCH; //
-    public static final double EXTENDER_DEFLECTION_RATIO = 1d / 12; // One inch per foot of extension
-    public static final double EXTENDER_HANG = EXTENDER_MAX_EXTENSION_INCHES * 0.5;
 
 
-    public static final double TILT_ORIGIN = 0.025;
-    public static final double TILT_TICKS_PER_DEGREE = 1.0 / 270.0;
-    public static final double TILT_SPLINE_OFFSET_DEGREES = 2;
-    public static final double TILT_SPLINE_OFFSET_TICKS = TILT_SPLINE_OFFSET_DEGREES * TILT_TICKS_PER_DEGREE;
-    public static final double TILT_STRAIGHT = TILT_ORIGIN + (90 * TILT_TICKS_PER_DEGREE);
-    public static final double TILT_RANGE_DEGREES = 30.0;
-    public static final double TILT_DOWN_RANGE = 40;
-    public static final double TILT_RANGE = TILT_TICKS_PER_DEGREE * TILT_RANGE_DEGREES;
-    public static final double TILT_TUCKED =1.0;
-    public static final double TILT_DUNK_RANGE = -0.285;
-    public static final double TILT_LOW_PROFILE = TILT_STRAIGHT;
-    public static final double TILT_PREGRAB = TILT_STRAIGHT / 2;
 
-    public static final double WRIST_ORIGIN = 0.5;
-    public static final double WRIST_RANGE = 0.35;
-    public static final double WRIST_TUCKED = WRIST_ORIGIN;
-    public static final double WRIST_DEGREES_TOTAL_RANGE = 300;
-    public static final double WRIST_DEGREES_ALLOWABLE_HALF_RANGE = WRIST_RANGE * WRIST_DEGREES_TOTAL_RANGE;
-    public static final double WRIST_DEGREES_HEADING_MAX = WRIST_RANGE * WRIST_DEGREES_TOTAL_RANGE;
-    public static final double WRIST_DEGREES_HEADING_MIN = -WRIST_DEGREES_HEADING_MAX;
-
-    public static final double TELEOP_PINCER_OPEN = 0.4375;
-
-    public static final double AUTON_PINCER_OPEN = 0.25;
-
-    public static final double PINCER_CLOSED = 0.75;
-
-    // We don't yet support collecting at multiple distances in auton.
-    public static final double AUTON_PRE_COLLECT_HEIGHT_SIGNAL = 0.4;
-    public static final double AUTON_COLLECT_HEIGHT_SIGNAL = 0.1;
-    public static final double AUTON_COLLECT_DISTANCE_SIGNAL = 0.25;
-    public static final double AUTON_COLLECT_X_OFFSET_DISTANCE = 13.85;
-    public static final double AUTON_COLLECT_Y_OFFSET_DISTANCE = 1.55;
-    public static final double AUTON_COLLECT_WRIST_SIGNAL_ALIGNED = 0;
 
 
     private final AprilTagLibrary APRIL_TAG_LIBRARY = AprilTagGameDatabase.getIntoTheDeepTagLibrary();
@@ -135,30 +63,18 @@ public class DecodeRobotControl {
     private ElapsedTime timeSinceStart = new ElapsedTime();
     private ElapsedTime timeInState = new ElapsedTime();
     private Pose2d latestPoseEstimate = null;
-
-    // Actuation starting state
     private int armLTicksAtInit = 0;
     private int armRTicksAtInit = 0;
     private int extenderTicksAtInit = 0;
-
-    // Basic gameplay state
     private final AllianceColor allianceColor;
-
-    // April tag state
     private Pose2d lastAprilTagFieldPosition = null;
     private final Queue<Pose2d> poseQueue = new LinkedList<>();
-
-    // Command sequence state
     private final ArrayList<OpModeCommand> commandSequence = new ArrayList<>();
     private OpModeCommand currentCommand = null;
     private final ElapsedTime currentCommandTime = new ElapsedTime();
     private final ElapsedTime currentCommandSettledTime = new ElapsedTime();
     private OpModeState continuationState = null;
-
-    // Actuation
     private final SampleMecanumDrive drive;
-
-    // Controller
     private final Gamepad gamepad1;
     private final Gamepad gamepad2;
     private final OnActivatedEvaluator rb1ActivatedEvaluator;
@@ -175,33 +91,11 @@ public class DecodeRobotControl {
     private final OnActivatedEvaluator dpd1ActivatedEvaluator;
     private final Servo servo1;
 
-    // Sensing
-    //private final WebcamName frontCamera;
-    //private final WebcamName wristCamera;
     private final AprilTagProcessor aprilTagProcessor;
-    //public final VisionPortal visionPortal;
 
-    // NEW: Vision processor for sample detection
     private final SampleDetectVisionProcessor sampleDetectVisionProcessor;
 
-    // Appendage state
-    private int servoInitStageIndex = 0;
-    private ElapsedTime initStageTimer = new ElapsedTime();
 
-    private double cachedLeftDistance = 0;
-    private double cachedRightDistance = 0;
-    private ElapsedTime distanceSensorUpdateTimer = new ElapsedTime();
-
-  // Only read distance every 100mSec
- /*     private void updateSensors() {
-        if (distanceSensorUpdateTimer.milliseconds() > 100) { // Read every 100ms instead of every loop
-            cachedLeftDistance = dl.getDistance(DistanceUnit.INCH);
-            cachedRightDistance = dr.getDistance(DistanceUnit.INCH);
-            distanceSensorUpdateTimer.reset();
-        }
-    }*/
-
-    public static final double WALL_ALIGN_KP = 0.05; // constant for rotational alignment (tweak as needed)
 
     public DecodeRobotControl(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, boolean debugMode) {
         this.allianceColor = allianceColor;
@@ -211,10 +105,6 @@ public class DecodeRobotControl {
         this.debugMode = debugMode;
 
         servo1 = hardwareMap.get(Servo.class, "Servo 1");
-        //wristCamera = hardwareMap.get(WebcamName.class, "Webcam 2");
-        //CameraName switchableCamera = ClassFactory.getInstance()
-        //        .getCameraManager()
-        //        .nameForSwitchableCamera(frontCamera, wristCamera);
 
         aprilTagProcessor = new AprilTagProcessor.Builder().build();
 
@@ -239,11 +129,7 @@ public class DecodeRobotControl {
 
         sampleDetectVisionProcessor = new SampleDetectVisionProcessor(colorsToDetect);
 
-        //visionPortal = new VisionPortal.Builder()
-        //        //.setCamera(switchableCamera)
-        //        .addProcessor(aprilTagProcessor)
-        //        .addProcessor(sampleDetectVisionProcessor)
-        //        .build();
+
 
         drive = new SampleMecanumDrive(hardwareMap);
         drive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
@@ -261,11 +147,6 @@ public class DecodeRobotControl {
         dpu1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.dpad_up);
         dpd1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.dpad_down);
         lb1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.left_bumper);
-    }
-
-    public Pose2d getLatestPoseEstimate() {
-        Pose2d latest = latestPoseEstimate;
-        return latest == null ? new Pose2d() : latest;
     }
 
     private Map<String, String> logData = new ArrayMap<>();
@@ -317,7 +198,6 @@ public class DecodeRobotControl {
     }
 
     public void initializeMechanicalBlocking() {
-        // !!Do not touch controllers during mech init!!
         state = OpModeState.MANUAL_CONTROL;
     }
 
@@ -384,20 +264,6 @@ public class DecodeRobotControl {
                 .plus(getScaledHeadlessDriverInput(gamepad1, allianceColor.OperatorHeadingOffset))
                 .plus(getScaledHeadlessDriverABInput(gamepad1, allianceColor.OperatorHeadingOffset));
 
- //       if (gamepad1.dpad_up) {
-//            double leftDistance = dl.getDistance(DistanceUnit.INCH);
-//            double rightDistance = dr.getDistance(DistanceUnit.INCH);
-/*            double leftDistance = cachedLeftDistance;
-            double rightDistance = cachedRightDistance;
-            if (cachedLeftDistance < 30 && cachedRightDistance < 30) {
-                double error = cachedLeftDistance - cachedRightDistance;
-                double alignRotation = -error * WALL_ALIGN_KP;
-                driveInput = new Pose2d(driveInput.getX(), driveInput.getY(), driveInput.getHeading() + alignRotation);
-            }*/
-//            double error = leftDistance - rightDistance;
-//            double alignRotation = -error * WALL_ALIGN_KP;
-//            driveInput = new Pose2d(driveInput.getX(), driveInput.getY(), driveInput.getHeading() + alignRotation);
-//        }
 
         if (fastMode) {
             driveInput = driveInput.div(1.5);
