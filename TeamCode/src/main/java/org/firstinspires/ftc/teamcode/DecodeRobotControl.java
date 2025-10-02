@@ -21,6 +21,7 @@ import com.acmerobotics.roadrunner.util.Angle;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
 
@@ -172,6 +173,7 @@ public class DecodeRobotControl {
     private final OnActivatedEvaluator y2ActivatedEvaluator;
     private final OnActivatedEvaluator dpu1ActivatedEvaluator;
     private final OnActivatedEvaluator dpd1ActivatedEvaluator;
+    private final Servo servo1;
 
     // Sensing
     //private final WebcamName frontCamera;
@@ -208,7 +210,7 @@ public class DecodeRobotControl {
         this.state = OpModeState.MANUAL_CONTROL;
         this.debugMode = debugMode;
 
-        //frontCamera = hardwareMap.get(WebcamName.class, "Webcam 1");
+        servo1 = hardwareMap.get(Servo.class, "Servo 1");
         //wristCamera = hardwareMap.get(WebcamName.class, "Webcam 2");
         //CameraName switchableCamera = ClassFactory.getInstance()
         //        .getCameraManager()
@@ -373,7 +375,7 @@ public class DecodeRobotControl {
     }
 
     private OpModeState evaluateManualControl(double dtMillis) {
-
+        servo1.setPosition(gamepad1.right_stick_x);
 
         boolean fastMode = gamepad1.left_bumper;
         boolean hasPositionEstimate = hasPositionEstimate();
