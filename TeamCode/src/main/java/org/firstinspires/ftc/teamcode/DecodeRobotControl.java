@@ -19,13 +19,13 @@ import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.acmerobotics.roadrunner.util.Angle;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
-
-
 
 import org.firstinspires.ftc.teamcode.Processors.SampleDetectVisionProcessor;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
@@ -47,14 +47,7 @@ import java.util.Queue;
 
 public class DecodeRobotControl {
 
-
-
-
-
-
     private final AprilTagLibrary APRIL_TAG_LIBRARY = AprilTagGameDatabase.getIntoTheDeepTagLibrary();
-
-    // Basic state
     private final boolean debugMode;
     private boolean isAutonomous = false;
     private OpModeState state;
@@ -62,10 +55,7 @@ public class DecodeRobotControl {
     private ElapsedTime timeSinceInit = new ElapsedTime();
     private ElapsedTime timeSinceStart = new ElapsedTime();
     private ElapsedTime timeInState = new ElapsedTime();
-    private Pose2d latestPoseEstimate = null;
-    private int armLTicksAtInit = 0;
-    private int armRTicksAtInit = 0;
-    private int extenderTicksAtInit = 0;
+    private Pose2d latestPoseEstimate = new Pose2d(); // Null could be a good choice for unset
     private final AllianceColor allianceColor;
     private Pose2d lastAprilTagFieldPosition = null;
     private final Queue<Pose2d> poseQueue = new LinkedList<>();
@@ -74,7 +64,7 @@ public class DecodeRobotControl {
     private final ElapsedTime currentCommandTime = new ElapsedTime();
     private final ElapsedTime currentCommandSettledTime = new ElapsedTime();
     private OpModeState continuationState = null;
-    private final SampleMecanumDrive drive;
+    //private final SampleMecanumDrive drive;
     private final Gamepad gamepad1;
     private final Gamepad gamepad2;
     private final OnActivatedEvaluator rb1ActivatedEvaluator;
@@ -89,13 +79,9 @@ public class DecodeRobotControl {
     private final OnActivatedEvaluator y2ActivatedEvaluator;
     private final OnActivatedEvaluator dpu1ActivatedEvaluator;
     private final OnActivatedEvaluator dpd1ActivatedEvaluator;
-    private final Servo servo1;
-
+    private final DcMotorEx crank;
     private final AprilTagProcessor aprilTagProcessor;
-
     private final SampleDetectVisionProcessor sampleDetectVisionProcessor;
-
-
 
     public DecodeRobotControl(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, boolean debugMode) {
         this.allianceColor = allianceColor;
@@ -104,10 +90,9 @@ public class DecodeRobotControl {
         this.state = OpModeState.MANUAL_CONTROL;
         this.debugMode = debugMode;
 
-        servo1 = hardwareMap.get(Servo.class, "Servo 1");
+        crank = hardwareMap.get(DcMotorEx.class, "crank");
 
         aprilTagProcessor = new AprilTagProcessor.Builder().build();
-
 
         EnumSet<SampleDetectVisionProcessor.DetectableColor> colorsToDetect;
         switch (allianceColor) {
@@ -129,11 +114,9 @@ public class DecodeRobotControl {
 
         sampleDetectVisionProcessor = new SampleDetectVisionProcessor(colorsToDetect);
 
-
-
-        drive = new SampleMecanumDrive(hardwareMap);
-        drive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        drive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        //drive = new SampleMecanumDrive(hardwareMap);
+        //drive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        //drive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
         rb1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.right_bumper);
         a1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.a);
@@ -172,10 +155,6 @@ public class DecodeRobotControl {
             packet.put("etimate-heading", lastAprilTagFieldPosition.getHeading());
         }
 
-        packet.put("armLTicksAtInit", armLTicksAtInit);
-        packet.put("armRTicksAtInit", armRTicksAtInit);
-        packet.put("extenderTicksAtInit", extenderTicksAtInit);
-
         packet.put("DriveInputX", driveInput.getX());
         packet.put("DriveInputY", driveInput.getY());
         packet.put("VisionProcessorAngle", sampleDetectVisionProcessor.detectedEllipseAngle);
@@ -187,13 +166,13 @@ public class DecodeRobotControl {
     public void autonomousInit(AutonomousPlan autonomousPlan) {
         timeSinceInit.reset();
         isAutonomous = true;
-        drive.setPoseEstimate(new Pose2d());
+        //drive.setPoseEstimate(new Pose2d());
         setCommandSequence(new ArrayList());
     }
 
     public void teleopInit(Pose2d startPose) {
         timeSinceInit.reset();
-        drive.setPoseEstimate(startPose);
+        //drive.setPoseEstimate(startPose);
         lastAprilTagFieldPosition = startPose;
     }
 
@@ -217,8 +196,8 @@ public class DecodeRobotControl {
     public boolean evaluate() {
         double dt = loopTime.milliseconds();
         loopTime.reset();
-        drive.update();
-        latestPoseEstimate = drive.getPoseEstimate();
+        //drive.update();
+        //latestPoseEstimate = drive.getPoseEstimate();
         evaluateSwitchCamera();
         evaluatePositioningSystems();
 
@@ -255,23 +234,25 @@ public class DecodeRobotControl {
     }
 
     private OpModeState evaluateManualControl(double dtMillis) {
-        servo1.setPosition(gamepad1.right_stick_x);
+        crank.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        crank.setDirection(DcMotorSimple.Direction.FORWARD);
+        crank.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        crank.setPower(gamepad1.right_stick_x);
 
         boolean fastMode = gamepad1.left_bumper;
         boolean hasPositionEstimate = hasPositionEstimate();
 
-        driveInput = driveInput
-                .plus(getScaledHeadlessDriverInput(gamepad1, allianceColor.OperatorHeadingOffset))
-                .plus(getScaledHeadlessDriverABInput(gamepad1, allianceColor.OperatorHeadingOffset));
+        //driveInput = driveInput
+        //        .plus(getScaledHeadlessDriverInput(gamepad1, allianceColor.OperatorHeadingOffset))
+        //        .plus(getScaledHeadlessDriverABInput(gamepad1, allianceColor.OperatorHeadingOffset));
 
+        //if (fastMode) {
+        //    driveInput = driveInput.div(1.5);
+        //} else {
+        //    driveInput = driveInput.div(2.25);
+        //}
 
-        if (fastMode) {
-            driveInput = driveInput.div(1.5);
-        } else {
-            driveInput = driveInput.div(2.25);
-        }
-
-        setDrivePower(driveInput);
+        //setDrivePower(driveInput);
         return OpModeState.MANUAL_CONTROL;
     }
 
@@ -371,7 +352,7 @@ public class DecodeRobotControl {
                     variancePose.getY() <= translationVarianceThreshold &&
                     variancePose.getHeading() <= headingVarianceThreshold &&
                     !isAutonomous) {
-                drive.setPoseEstimate(averagePose);
+                //drive.setPoseEstimate(averagePose);
                 lastAprilTagFieldPosition = averagePose;
                 poseQueue.clear();
             }
@@ -498,7 +479,7 @@ public class DecodeRobotControl {
     }
 
     public void shutDown() {
-        drive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        //drive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         setDrivePower(new Pose2d());
         //visionPortal.close();
     }
@@ -518,10 +499,10 @@ public class DecodeRobotControl {
             ).div(denom);
         }
 
-        drive.setDrivePower(new Pose2d(
-                Math.abs(normalized.getX()) < 0.005 ? 0 : normalized.getX(),
-                Math.abs(normalized.getY()) < 0.005 ? 0 : normalized.getY(),
-                Math.abs(normalized.getHeading()) < 0.005 * Math.PI ? 0 : normalized.getHeading()
-        ));
+        //drive.setDrivePower(new Pose2d(
+        //        Math.abs(normalized.getX()) < 0.005 ? 0 : normalized.getX(),
+        //        Math.abs(normalized.getY()) < 0.005 ? 0 : normalized.getY(),
+        //        Math.abs(normalized.getHeading()) < 0.005 * Math.PI ? 0 : normalized.getHeading()
+        //));
     }
 }
