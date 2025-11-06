@@ -82,6 +82,8 @@ public class DecodeRobotControl {
     private final DcMotorEx crank;
     private final AprilTagProcessor aprilTagProcessor;
     private final SampleDetectVisionProcessor sampleDetectVisionProcessor;
+    private final SampleMecanumDrive drive;
+    private final Servo lift;
 
     public DecodeRobotControl(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, boolean debugMode) {
         this.allianceColor = allianceColor;
@@ -130,6 +132,11 @@ public class DecodeRobotControl {
         dpu1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.dpad_up);
         dpd1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.dpad_down);
         lb1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.left_bumper);
+
+        drive = new SampleMecanumDrive(hardwareMap);
+        drive.setPoseEstimate(new Pose2d()); // TODO: Initialize more smartly
+
+        lift = hardwareMap.get(Servo.class, "lift");
     }
 
     private Map<String, String> logData = new ArrayMap<>();
@@ -233,26 +240,34 @@ public class DecodeRobotControl {
         return Math.hypot(a.getX() - b.getX(), a.getY() - b.getY());
     }
 
+    private boolean lifted = false;
+
     private OpModeState evaluateManualControl(double dtMillis) {
         crank.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         crank.setDirection(DcMotorSimple.Direction.FORWARD);
         crank.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-        crank.setPower(gamepad1.right_stick_x);
+        crank.setPower(gamepad2.right_stick_x);
 
         boolean fastMode = gamepad1.left_bumper;
         boolean hasPositionEstimate = hasPositionEstimate();
 
-        //driveInput = driveInput
-        //        .plus(getScaledHeadlessDriverInput(gamepad1, allianceColor.OperatorHeadingOffset))
-        //        .plus(getScaledHeadlessDriverABInput(gamepad1, allianceColor.OperatorHeadingOffset));
+        if (a1ActivatedEvaluator.evaluate()) {
+            lifted = !lifted;
+        }
 
-        //if (fastMode) {
-        //    driveInput = driveInput.div(1.5);
-        //} else {
-        //    driveInput = driveInput.div(2.25);
-        //}
+        lift.setPosition(lifted ? 0.0 : 1.0);
 
-        //setDrivePower(driveInput);
+        driveInput = driveInput
+                .plus(getScaledHeadlessDriverInput(gamepad1, allianceColor.OperatorHeadingOffset))
+                .plus(getScaledHeadlessDriverABInput(gamepad1, allianceColor.OperatorHeadingOffset));
+
+        if (fastMode) {
+            driveInput = driveInput.div(1.5);
+        } else {
+            driveInput = driveInput.div(2.25);
+        }
+
+        setDrivePower(driveInput);
         return OpModeState.MANUAL_CONTROL;
     }
 
@@ -499,10 +514,10 @@ public class DecodeRobotControl {
             ).div(denom);
         }
 
-        //drive.setDrivePower(new Pose2d(
-        //        Math.abs(normalized.getX()) < 0.005 ? 0 : normalized.getX(),
-        //        Math.abs(normalized.getY()) < 0.005 ? 0 : normalized.getY(),
-        //        Math.abs(normalized.getHeading()) < 0.005 * Math.PI ? 0 : normalized.getHeading()
-        //));
+        drive.setDrivePower(new Pose2d(
+                Math.abs(normalized.getX()) < 0.005 ? 0 : normalized.getX(),
+                Math.abs(normalized.getY()) < 0.005 ? 0 : normalized.getY(),
+                Math.abs(normalized.getHeading()) < 0.005 * Math.PI ? 0 : normalized.getHeading()
+        ));
     }
 }
