@@ -27,11 +27,14 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
 
+import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
+import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.teamcode.Processors.SampleDetectVisionProcessor;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
 import org.firstinspires.ftc.teamcode.util.OnActivatedEvaluator;
 
+import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagGameDatabase;
 import org.firstinspires.ftc.vision.apriltag.AprilTagLibrary;
@@ -47,7 +50,7 @@ import java.util.Queue;
 
 public class DecodeRobotControl {
 
-    private final AprilTagLibrary APRIL_TAG_LIBRARY = AprilTagGameDatabase.getIntoTheDeepTagLibrary();
+    private final AprilTagLibrary APRIL_TAG_LIBRARY = AprilTagGameDatabase.getDecodeTagLibrary();
     private final boolean debugMode;
     private boolean isAutonomous = false;
     private OpModeState state;
@@ -80,10 +83,11 @@ public class DecodeRobotControl {
     private final OnActivatedEvaluator dpu1ActivatedEvaluator;
     private final OnActivatedEvaluator dpd1ActivatedEvaluator;
     private final DcMotorEx crank;
-    private final AprilTagProcessor aprilTagProcessor;
-    private final SampleDetectVisionProcessor sampleDetectVisionProcessor;
     private final SampleMecanumDrive drive;
     private final Servo lift;
+    private final WebcamName camera;
+    private final AprilTagProcessor aprilTagProcessor;
+    public final VisionPortal visionPortal;
 
     public DecodeRobotControl(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, boolean debugMode) {
         this.allianceColor = allianceColor;
@@ -92,6 +96,7 @@ public class DecodeRobotControl {
         this.state = OpModeState.MANUAL_CONTROL;
         this.debugMode = debugMode;
 
+        camera = hardwareMap.get(WebcamName.class, "Webcam 1");
         crank = hardwareMap.get(DcMotorEx.class, "crank");
 
         aprilTagProcessor = new AprilTagProcessor.Builder().build();
@@ -114,7 +119,10 @@ public class DecodeRobotControl {
                 break;
         }
 
-        sampleDetectVisionProcessor = new SampleDetectVisionProcessor(colorsToDetect);
+        visionPortal = new VisionPortal.Builder()
+                .setCamera(camera)
+                .addProcessor(aprilTagProcessor)
+                .build();
 
         //drive = new SampleMecanumDrive(hardwareMap);
         //drive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
@@ -149,37 +157,52 @@ public class DecodeRobotControl {
     private Pose2d driveInput = new Pose2d();
     public TelemetryPacket getTelemetryPacket() {
         TelemetryPacket packet = new TelemetryPacket();
+
+        double x = latestPoseEstimate == null ? 0.0 : latestPoseEstimate.getX();
+        double y = latestPoseEstimate == null ? 0.0 : latestPoseEstimate.getY();
+        double heading = latestPoseEstimate == null ? 0.0 : latestPoseEstimate.getHeading();
+
+        double len = 12; // projection length
+        double x2 = x + len * Math.cos(heading);
+        double y2 = y + len * Math.sin(heading);
+
+        packet.fieldOverlay()
+                .fillCircle(x, y, 5)
+                .strokeLine(x, y, x2, y2);
+
         packet.put("loopTime", loopTime.milliseconds());
-        packet.put("x", latestPoseEstimate.getX());
-        packet.put("y", latestPoseEstimate.getY());
-        packet.put("heading", latestPoseEstimate.getHeading());
+        packet.put("x", x);
+        packet.put("y", y);
+        packet.put("heading", heading);
 
         // TODO: Get this reported into telemetry
         packet.put("currentState", state.toString());
         if (lastAprilTagFieldPosition != null) {
             packet.put("estimate-x", lastAprilTagFieldPosition.getX());
             packet.put("estimate-y", lastAprilTagFieldPosition.getY());
-            packet.put("etimate-heading", lastAprilTagFieldPosition.getHeading());
+            packet.put("estimate-heading", lastAprilTagFieldPosition.getHeading());
         }
 
+        packet.put("lastDetectionYaw", lastDetectionYaw);
+        packet.put("lastDetectionBearing", lastDetectionBearing);
+        packet.put("lastDetectionRange", lastDetectionRange);
+
+        packet.put("CrankCurrent", crank.getCurrent(CurrentUnit.MILLIAMPS));
         packet.put("DriveInputX", driveInput.getX());
         packet.put("DriveInputY", driveInput.getY());
-        packet.put("VisionProcessorAngle", sampleDetectVisionProcessor.detectedEllipseAngle);
-        packet.put("VisionXError", sampleDetectVisionProcessor.detectedExtenderErrorSignal);
-        packet.put("VisionYErroqr", sampleDetectVisionProcessor.detectedLateralErrorSignal);
         return packet;
     }
 
     public void autonomousInit(AutonomousPlan autonomousPlan) {
         timeSinceInit.reset();
         isAutonomous = true;
-        //drive.setPoseEstimate(new Pose2d());
+        drive.setPoseEstimate(new Pose2d());
         setCommandSequence(new ArrayList());
     }
 
     public void teleopInit(Pose2d startPose) {
         timeSinceInit.reset();
-        //drive.setPoseEstimate(startPose);
+        drive.setPoseEstimate(startPose);
         lastAprilTagFieldPosition = startPose;
     }
 
@@ -195,16 +218,14 @@ public class DecodeRobotControl {
 
     private void evaluateSwitchCamera() {
         // One camera only
-        //visionPortal.setActiveCamera(frontCamera);
-        //visionPortal.setProcessorEnabled(sampleDetectVisionProcessor, false);
-        //visionPortal.setProcessorEnabled(aprilTagProcessor, true);
+        visionPortal.setProcessorEnabled(aprilTagProcessor, true);
     }
 
     public boolean evaluate() {
         double dt = loopTime.milliseconds();
         loopTime.reset();
-        //drive.update();
-        //latestPoseEstimate = drive.getPoseEstimate();
+        drive.update();
+        latestPoseEstimate = drive.getPoseEstimate();
         evaluateSwitchCamera();
         evaluatePositioningSystems();
 
@@ -367,7 +388,7 @@ public class DecodeRobotControl {
                     variancePose.getY() <= translationVarianceThreshold &&
                     variancePose.getHeading() <= headingVarianceThreshold &&
                     !isAutonomous) {
-                //drive.setPoseEstimate(averagePose);
+                drive.setPoseEstimate(averagePose);
                 lastAprilTagFieldPosition = averagePose;
                 poseQueue.clear();
             }
@@ -440,6 +461,10 @@ public class DecodeRobotControl {
         return new Pose2d(xPower, yPower, hPower);
     }
 
+    double lastDetectionYaw = 0.0;
+    double lastDetectionBearing = 0.0;
+    double lastDetectionRange = 0.0;
+
     private Pose2d calculateRobotPose(AprilTagDetection detection, double cameraRobotOffset, double cameraRobotHeadingOffset) {
         AprilTagMetadata tag = APRIL_TAG_LIBRARY.lookupTag(detection.id);
         if (tag == null) return null;
@@ -447,6 +472,9 @@ public class DecodeRobotControl {
         double yaw = Math.toRadians(detection.ftcPose.yaw);
         double bearing = Math.toRadians(detection.ftcPose.bearing);
         double range = detection.ftcPose.range;
+        lastDetectionYaw = yaw;
+        lastDetectionBearing = bearing;
+        lastDetectionRange = range;
 
         double tagFieldHeading = getTagFieldHeading(detection.id);
 
@@ -474,6 +502,10 @@ public class DecodeRobotControl {
                 return Math.PI;
             case 15:
                 return Math.PI / 2;
+            case 20:
+                return 0.942;
+            case 24:
+                return -0.942;
             default:
                 return 0;
         }
@@ -496,7 +528,7 @@ public class DecodeRobotControl {
     public void shutDown() {
         //drive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         setDrivePower(new Pose2d());
-        //visionPortal.close();
+        visionPortal.close();
     }
 
     public void setDrivePower(Pose2d drivePower) {

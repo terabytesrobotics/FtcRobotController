@@ -5,12 +5,9 @@ public class Constants {
     static final double TURN_ERROR_THRESHOLD = Math.PI / 24;
     static final double SPEED_GAIN = 1d / 36;
     static final double TURN_GAIN =  1d / (5 * Math.PI / 8);
-    public static final int FRONT_CAMERA_OFFSET_INCHES = 7;
-    public static final int BACK_CAMERA_OFFSET_INCHES = 0;
+    public static final int FRONT_CAMERA_OFFSET_INCHES = 0;
     public static final double DRIVE_TO_POSE_THRESHOLD = 1.5f;
-    public static final int POSITION_ACQUIRED_INDICATE_MILLIS = 1000;
-    public static final int POSITION_ACQUIRED_PULSE_MILLIS = 100;
-    public static double APRIL_TAG_RECOGNITION_MAX_RANGE = 42;
+    public static double APRIL_TAG_RECOGNITION_MAX_RANGE = 144;
     public static double APRIL_TAG_RECOGNITION_MIN_RANGE = 5;
     public static double APRIL_TAG_RECOGNITION_YAW_THRESHOLD = Math.PI / 6;
     public static double APRIL_TAG_RECOGNITION_BEARING_THRESHOLD = Math.PI / 6;

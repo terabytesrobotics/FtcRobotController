@@ -141,10 +141,6 @@ public abstract class DecodeOpMode extends LinearOpMode {
                     double x = Double.parseDouble(lines[1]);
                     double y = Double.parseDouble(lines[2]);
                     double heading = Double.parseDouble(lines[3]);
-                    int appendageStateOrdinal = Integer.parseInt(lines[4]);
-                    int armLTicks = Integer.parseInt(lines[5]);
-                    int armRTicks = Integer.parseInt(lines[6]);
-                    int extenderTicks = Integer.parseInt(lines[7]);
                     Pose2d pose = new Pose2d(x, y, heading);
                     persistedData = new PersistedData();
                     persistedData.pose = pose;
@@ -167,7 +163,7 @@ public abstract class DecodeOpMode extends LinearOpMode {
                 gamepad2,
                 hardwareMap,
                 debugMode);
-        //dashboard.startCameraStream(terabytes.visionPortal, 15);
+        dashboard.startCameraStream(terabytes.visionPortal, 15);
         if (autonomousPlan != null) {
             terabytes.autonomousInit(autonomousPlan);
         } else {
