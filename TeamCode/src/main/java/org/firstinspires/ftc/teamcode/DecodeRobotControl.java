@@ -18,6 +18,7 @@ import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.acmerobotics.roadrunner.util.Angle;
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
@@ -28,7 +29,11 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
 
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+import org.firstinspires.ftc.robotcore.external.navigation.UnnormalizedAngleUnit;
 import org.firstinspires.ftc.teamcode.Processors.SampleDetectVisionProcessor;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
@@ -87,6 +92,7 @@ public class DecodeRobotControl {
     private final Servo lift;
     private final WebcamName camera;
     private final AprilTagProcessor aprilTagProcessor;
+    private final GoBildaPinpointDriver pinpoint;
     public final VisionPortal visionPortal;
 
     public DecodeRobotControl(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, boolean debugMode) {
@@ -96,6 +102,7 @@ public class DecodeRobotControl {
         this.state = OpModeState.MANUAL_CONTROL;
         this.debugMode = debugMode;
 
+        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
         camera = hardwareMap.get(WebcamName.class, "Webcam 1");
         crank = hardwareMap.get(DcMotorEx.class, "crank");
 
@@ -145,6 +152,10 @@ public class DecodeRobotControl {
         drive.setPoseEstimate(new Pose2d()); // TODO: Initialize more smartly
 
         lift = hardwareMap.get(Servo.class, "lift");
+
+        configurePinpoint();
+
+        pinpoint.setPosition(new Pose2D(DistanceUnit.INCH, 0, 0, AngleUnit.RADIANS, 0));
     }
 
     private Map<String, String> logData = new ArrayMap<>();
@@ -190,6 +201,11 @@ public class DecodeRobotControl {
         packet.put("CrankCurrent", crank.getCurrent(CurrentUnit.MILLIAMPS));
         packet.put("DriveInputX", driveInput.getX());
         packet.put("DriveInputY", driveInput.getY());
+
+        packet.put("PinpointHeading", pinpoint.getHeading(UnnormalizedAngleUnit.RADIANS));
+        packet.put("PinpointX", pinpoint.getEncoderX());
+        packet.put("PinpointY", pinpoint.getEncoderY());
+
         return packet;
     }
 
@@ -224,6 +240,7 @@ public class DecodeRobotControl {
     public boolean evaluate() {
         double dt = loopTime.milliseconds();
         loopTime.reset();
+        pinpoint.update();
         drive.update();
         latestPoseEstimate = drive.getPoseEstimate();
         evaluateSwitchCamera();
@@ -551,5 +568,45 @@ public class DecodeRobotControl {
                 Math.abs(normalized.getY()) < 0.005 ? 0 : normalized.getY(),
                 Math.abs(normalized.getHeading()) < 0.005 * Math.PI ? 0 : normalized.getHeading()
         ));
+    }
+
+    public void configurePinpoint(){
+        /*
+         *  Set the odometry pod positions relative to the point that you want the position to be measured from.
+         *
+         *  The X pod offset refers to how far sideways from the tracking point the X (forward) odometry pod is.
+         *  Left of the center is a positive number, right of center is a negative number.
+         *
+         *  The Y pod offset refers to how far forwards from the tracking point the Y (strafe) odometry pod is.
+         *  Forward of center is a positive number, backwards is a negative number.
+         */
+        pinpoint.setOffsets(0, (3 * 24), DistanceUnit.MM); //these are tuned for 3110-0002-0001 Product Insight #1
+
+        /*
+         * Set the kind of pods used by your robot. If you're using goBILDA odometry pods, select either
+         * the goBILDA_SWINGARM_POD, or the goBILDA_4_BAR_POD.
+         * If you're using another kind of odometry pod, uncomment setEncoderResolution and input the
+         * number of ticks per unit of your odometry pod.  For example:
+         *     pinpoint.setEncoderResolution(13.26291192, DistanceUnit.MM);
+         */
+        pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
+
+        /*
+         * Set the direction that each of the two odometry pods count. The X (forward) pod should
+         * increase when you move the robot forward. And the Y (strafe) pod should increase when
+         * you move the robot to the left.
+         */
+        pinpoint.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.FORWARD,
+                GoBildaPinpointDriver.EncoderDirection.REVERSED);
+
+        /*
+         * Before running the robot, recalibrate the IMU. This needs to happen when the robot is stationary
+         * The IMU will automatically calibrate when first powered on, but recalibrating before running
+         * the robot is a good idea to ensure that the calibration is "good".
+         * resetPosAndIMU will reset the position to 0,0,0 and also recalibrate the IMU.
+         * This is recommended before you run your autonomous, as a bad initial calibration can cause
+         * an incorrect starting value for x, y, and heading.
+         */
+        pinpoint.resetPosAndIMU();
     }
 }
