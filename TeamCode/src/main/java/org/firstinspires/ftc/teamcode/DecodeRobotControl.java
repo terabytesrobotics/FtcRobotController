@@ -87,7 +87,7 @@ public class DecodeRobotControl {
     private final OnActivatedEvaluator y2ActivatedEvaluator;
     private final OnActivatedEvaluator dpu1ActivatedEvaluator;
     private final OnActivatedEvaluator dpd1ActivatedEvaluator;
-    private final DcMotorEx crank;
+    private final DcMotorEx wheel;
     private final SampleMecanumDrive drive;
     private final Servo lift;
     private final WebcamName camera;
@@ -104,7 +104,11 @@ public class DecodeRobotControl {
 
         pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
         camera = hardwareMap.get(WebcamName.class, "Webcam 1");
-        crank = hardwareMap.get(DcMotorEx.class, "crank");
+        wheel = hardwareMap.get(DcMotorEx.class, "wheel");
+        wheel.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        wheel.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        wheel.setDirection(DcMotorSimple.Direction.REVERSE);
+        wheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
         aprilTagProcessor = new AprilTagProcessor.Builder().build();
 
@@ -198,7 +202,10 @@ public class DecodeRobotControl {
         packet.put("lastDetectionBearing", lastDetectionBearing);
         packet.put("lastDetectionRange", lastDetectionRange);
 
-        packet.put("CrankCurrent", crank.getCurrent(CurrentUnit.MILLIAMPS));
+        packet.put("G2_RSX", gamepad2.right_stick_x);
+        packet.put("WheelCurrent", wheel.getCurrent(CurrentUnit.MILLIAMPS));
+        packet.put("WheelVelocity", wheel.getVelocity());
+        packet.put("WheelEncoder", wheel.getCurrentPosition());
         packet.put("DriveInputX", driveInput.getX());
         packet.put("DriveInputY", driveInput.getY());
 
@@ -281,10 +288,9 @@ public class DecodeRobotControl {
     private boolean lifted = false;
 
     private OpModeState evaluateManualControl(double dtMillis) {
-        crank.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        crank.setDirection(DcMotorSimple.Direction.FORWARD);
-        crank.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-        crank.setPower(gamepad2.right_stick_x);
+
+        //wheel.setVelocity(-1000);
+        wheel.setPower(gamepad2.right_stick_x / 10);
 
         boolean fastMode = gamepad1.left_bumper;
         boolean hasPositionEstimate = hasPositionEstimate();
