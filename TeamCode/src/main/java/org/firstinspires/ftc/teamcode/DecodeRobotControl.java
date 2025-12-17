@@ -24,6 +24,7 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
@@ -54,6 +55,14 @@ import java.util.Map;
 import java.util.Queue;
 
 public class DecodeRobotControl {
+
+    private static final double BALL_RADIUS_INCHES = 2.75;
+    private static final double BALL_DIAMETER_INCHES = BALL_RADIUS_INCHES * 2;
+    private static final double SHOOTER_WHEEL_RADIUS_INCHES = 2.0;
+    private static final double SHOOTER_WHEEL_AXLE_HEIGHT_INCHES = 6.75;
+    private static final double SHOOTER_WHEEL_COMPRESSION_INCHES = BALL_DIAMETER_INCHES + SHOOTER_WHEEL_RADIUS_INCHES - SHOOTER_WHEEL_AXLE_HEIGHT_INCHES;
+
+    private static final double WHEEL_PPR = ((1+(46.0/17)) * 28);
 
     private final AprilTagLibrary APRIL_TAG_LIBRARY = AprilTagGameDatabase.getDecodeTagLibrary();
     private final boolean debugMode;
@@ -107,7 +116,7 @@ public class DecodeRobotControl {
         wheel = hardwareMap.get(DcMotorEx.class, "wheel");
         wheel.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         wheel.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        wheel.setDirection(DcMotorSimple.Direction.REVERSE);
+        wheel.setDirection(DcMotorSimple.Direction.FORWARD);
         wheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
         aprilTagProcessor = new AprilTagProcessor.Builder().build();
@@ -290,7 +299,9 @@ public class DecodeRobotControl {
     private OpModeState evaluateManualControl(double dtMillis) {
 
         //wheel.setVelocity(-1000);
-        wheel.setPower(gamepad2.right_stick_x / 10);
+        // 16.25 cm
+        //wheel.setPower(gamepad2.right_stick_x);
+        wheel.setVelocity(gamepad2.right_stick_x * WHEEL_PPR * 10);
 
         boolean fastMode = gamepad1.left_bumper;
         boolean hasPositionEstimate = hasPositionEstimate();
