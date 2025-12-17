@@ -59,8 +59,12 @@ public class DecodeRobotControl {
     private static final double BALL_RADIUS_INCHES = 2.75;
     private static final double BALL_DIAMETER_INCHES = BALL_RADIUS_INCHES * 2;
     private static final double SHOOTER_WHEEL_RADIUS_INCHES = 2.0;
+    private static final double SHOOTER_WHEEL_DIAMETER_INCHES = SHOOTER_WHEEL_RADIUS_INCHES * 2;
+
+    private static final double SHOOTER_WHEEL_CIRCUMFERENCE_INCHES = Math.PI * SHOOTER_WHEEL_DIAMETER_INCHES;
     private static final double SHOOTER_WHEEL_AXLE_HEIGHT_INCHES = 6.75;
     private static final double SHOOTER_WHEEL_COMPRESSION_INCHES = BALL_DIAMETER_INCHES + SHOOTER_WHEEL_RADIUS_INCHES - SHOOTER_WHEEL_AXLE_HEIGHT_INCHES;
+    private static final double DESIRED_INCHES_PER_SECOND = 450.0;
 
     private static final double WHEEL_PPR = ((1+(46.0/17)) * 28);
 
@@ -214,6 +218,9 @@ public class DecodeRobotControl {
         packet.put("G2_RSX", gamepad2.right_stick_x);
         packet.put("WheelCurrent", wheel.getCurrent(CurrentUnit.MILLIAMPS));
         packet.put("WheelVelocity", wheel.getVelocity());
+        packet.put("WheelVelocityInchesPerSecond", (wheel.getVelocity() / WHEEL_PPR) * SHOOTER_WHEEL_CIRCUMFERENCE_INCHES);
+        packet.put("WheelDesiredRevPerSecond", (DESIRED_INCHES_PER_SECOND * gamepad2.right_stick_x) / SHOOTER_WHEEL_CIRCUMFERENCE_INCHES);
+        packet.put("WheelDesiredTickPerSecond", ((DESIRED_INCHES_PER_SECOND * gamepad2.right_stick_x) / SHOOTER_WHEEL_CIRCUMFERENCE_INCHES) * WHEEL_PPR);
         packet.put("WheelEncoder", wheel.getCurrentPosition());
         packet.put("DriveInputX", driveInput.getX());
         packet.put("DriveInputY", driveInput.getY());
@@ -301,7 +308,9 @@ public class DecodeRobotControl {
         //wheel.setVelocity(-1000);
         // 16.25 cm
         //wheel.setPower(gamepad2.right_stick_x);
-        wheel.setVelocity(gamepad2.right_stick_x * WHEEL_PPR * 10);
+        double desiredRevolutionsPerSecond = (DESIRED_INCHES_PER_SECOND * gamepad2.right_stick_x) / SHOOTER_WHEEL_CIRCUMFERENCE_INCHES;
+        double desiredTicksPerSecond = desiredRevolutionsPerSecond * WHEEL_PPR;
+        wheel.setVelocity(desiredTicksPerSecond);
 
         boolean fastMode = gamepad1.left_bumper;
         boolean hasPositionEstimate = hasPositionEstimate();
