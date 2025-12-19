@@ -143,6 +143,7 @@ public class DecodeRobotControl {
     private final GoBildaPinpointDriver pinpoint;
     private final RevColorSensorV3 color1;
     public final VisionPortal visionPortal;
+    public final Servo spin;
 
     public DecodeRobotControl(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, boolean debugMode) {
         this.allianceColor = allianceColor;
@@ -154,6 +155,7 @@ public class DecodeRobotControl {
         pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
         camera = hardwareMap.get(WebcamName.class, "Webcam 1");
         color1 = hardwareMap.get(RevColorSensorV3.class, "color1");
+        spin = hardwareMap.get(Servo.class, "spin");
         wheel = hardwareMap.get(DcMotorEx.class, "wheel");
         wheel.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         wheel.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
