@@ -19,11 +19,13 @@ import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.acmerobotics.roadrunner.util.Angle;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+import com.qualcomm.hardware.rev.RevColorSensorV3;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.NormalizedRGBA;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
@@ -65,8 +67,41 @@ public class DecodeRobotControl {
     private static final double SHOOTER_WHEEL_AXLE_HEIGHT_INCHES = 6.75;
     private static final double SHOOTER_WHEEL_COMPRESSION_INCHES = BALL_DIAMETER_INCHES + SHOOTER_WHEEL_RADIUS_INCHES - SHOOTER_WHEEL_AXLE_HEIGHT_INCHES;
     private static final double DESIRED_INCHES_PER_SECOND = 450.0;
-
     private static final double WHEEL_PPR = ((1+(46.0/17)) * 28);
+    private static final double PRESENCE_PROXIMITY_THRESHOLD_INCHES = 1.85;
+    private static final double GREEN_MATCH_THRESHOLD = 0.63;
+    private static final double PURPLE_MATCH_THRESHOLD = 0.5;
+
+    private static final double GREEN_PRESENCE_THRESHOLD = 0.15;
+    private static final double PURPLE_PRESENCE_THRESHOLD = 0.15;
+
+    static double clamp01(double v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
+
+    static double smoothstep(double edge0, double edge1, double x) {
+        double t = clamp01((x - edge0) / (edge1 - edge0));
+        return t * t * (3 - 2 * t);
+    }
+
+    static double belowThreshold(double x, double thresh, double softness) {
+        return 1.0 - smoothstep(thresh, thresh + softness, x);
+    }
+
+    static double aboveThreshold(double x, double thresh, double softness) {
+        return smoothstep(thresh, thresh + softness, x);
+    }
+
+    static double colorPresence(
+            double proximityInches,
+            double match,
+            double proxThreshIn,
+            double matchThresh,
+            double proxSoftnessIn,
+            double matchSoftness
+    ) {
+        double p = belowThreshold(proximityInches, proxThreshIn, proxSoftnessIn);
+        double m = aboveThreshold(match, matchThresh, matchSoftness);
+        return clamp01(p * m);
+    }
 
     private final AprilTagLibrary APRIL_TAG_LIBRARY = AprilTagGameDatabase.getDecodeTagLibrary();
     private final boolean debugMode;
@@ -106,6 +141,7 @@ public class DecodeRobotControl {
     private final WebcamName camera;
     private final AprilTagProcessor aprilTagProcessor;
     private final GoBildaPinpointDriver pinpoint;
+    private final RevColorSensorV3 color1;
     public final VisionPortal visionPortal;
 
     public DecodeRobotControl(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, boolean debugMode) {
@@ -117,6 +153,7 @@ public class DecodeRobotControl {
 
         pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
         camera = hardwareMap.get(WebcamName.class, "Webcam 1");
+        color1 = hardwareMap.get(RevColorSensorV3.class, "color1");
         wheel = hardwareMap.get(DcMotorEx.class, "wheel");
         wheel.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         wheel.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
@@ -182,6 +219,18 @@ public class DecodeRobotControl {
         return logData;
     }
 
+    static double greenResonance(double r, double g, double b) {
+        double eps = 1e-12;
+        double ratio = g / (0.5*(r + b) + eps);     // >1 means green-dominant
+        return ratio / (ratio + 1.0);               // maps (0..inf) -> (0..1)
+    }
+
+    static double purpleResonance(double r, double g, double b) {
+        double eps = 1e-12;
+        double ratio = (0.5*(r + b)) / (g + eps);    // >1 means magenta/purple-dominant
+        return ratio / (ratio + 1.0);
+    }
+
     private Pose2d driveInput = new Pose2d();
     public TelemetryPacket getTelemetryPacket() {
         TelemetryPacket packet = new TelemetryPacket();
@@ -193,6 +242,43 @@ public class DecodeRobotControl {
         double len = 12; // projection length
         double x2 = x + len * Math.cos(heading);
         double y2 = y + len * Math.sin(heading);
+
+        int colorReadingMaxInt = 2 << 11;
+        double red = (double) color1.red() / colorReadingMaxInt;
+        double green = (double) color1.green() / colorReadingMaxInt;
+        double blue = (double) color1.blue() / colorReadingMaxInt;
+        double alpha = (double) color1.alpha() / colorReadingMaxInt;
+        double color1ProximityInches = color1.getDistance(DistanceUnit.INCH);
+        double greenMatch = greenResonance(
+                red, green, blue);
+        double purpleMatch = purpleResonance(
+                red, green, blue);
+        packet.put("Color1GreenMatch", greenMatch);
+        packet.put("Color1PurpleMatch", purpleMatch);
+        packet.put("Color1Red", red);
+        packet.put("Color1Green", green);
+        packet.put("Color1Blue", blue);
+        packet.put("Color1Alpha", alpha);
+        packet.put("Color1ProximityFootNormalized", Math.max(0, Math.min(1, color1ProximityInches / 12)));
+        packet.put("Color1ProximityInches", color1.getDistance(DistanceUnit.INCH));
+
+        double proxSoft = 0.5;   // inches past threshold to fade out
+        double matchSoft = 0.15; // match past threshold to fade in
+
+        double greenPresence = colorPresence(
+                color1ProximityInches, greenMatch,
+                PRESENCE_PROXIMITY_THRESHOLD_INCHES, GREEN_MATCH_THRESHOLD,
+                proxSoft, matchSoft
+        );
+
+        double purplePresence = colorPresence(
+                color1ProximityInches, purpleMatch,
+                PRESENCE_PROXIMITY_THRESHOLD_INCHES, PURPLE_MATCH_THRESHOLD,
+                proxSoft, matchSoft
+        );
+
+        packet.put("Color1GreenPresence", greenPresence);
+        packet.put("Color1PurplePresence", purplePresence);
 
         packet.fieldOverlay()
                 .fillCircle(x, y, 5)
