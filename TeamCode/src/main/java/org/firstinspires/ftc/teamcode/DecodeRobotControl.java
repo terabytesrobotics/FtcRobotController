@@ -64,9 +64,15 @@ public class DecodeRobotControl {
     private static final double SHOOTER_WHEEL_DIAMETER_INCHES = SHOOTER_WHEEL_RADIUS_INCHES * 2;
 
     private static final double SHOOTER_WHEEL_CIRCUMFERENCE_INCHES = Math.PI * SHOOTER_WHEEL_DIAMETER_INCHES;
+    private static final double SHOOTER_CONTACT_ANGLE_RADIANS = Math.toRadians(135);
+    // Arc length where the ball and wheel stay engaged; helps reason about acceleration distance.
+    private static final double SHOOTER_CONTACT_ARC_LENGTH_INCHES = SHOOTER_WHEEL_RADIUS_INCHES * SHOOTER_CONTACT_ANGLE_RADIANS;
+    // Efficiency factor: exit velocity tends to trail the wheel surface speed because of slip/compression.
+    private static final double SHOOTER_EXIT_VELOCITY_TRANSFER_RATIO = 0.9;
+    private static final double SHOOTER_MIN_EXIT_VELOCITY_INCHES_PER_SECOND = 180.0;
+    private static final double SHOOTER_MAX_EXIT_VELOCITY_INCHES_PER_SECOND = 450.0;
     private static final double SHOOTER_WHEEL_AXLE_HEIGHT_INCHES = 6.75;
     private static final double SHOOTER_WHEEL_COMPRESSION_INCHES = BALL_DIAMETER_INCHES + SHOOTER_WHEEL_RADIUS_INCHES - SHOOTER_WHEEL_AXLE_HEIGHT_INCHES;
-    private static final double DESIRED_INCHES_PER_SECOND = 450.0;
     private static final double WHEEL_PPR = ((1+(46.0/17)) * 28);
     private static final double PRESENCE_PROXIMITY_THRESHOLD_INCHES = 1.85;
     private static final double GREEN_MATCH_THRESHOLD = 0.63;
@@ -161,6 +167,9 @@ public class DecodeRobotControl {
     private double spindexerTargetPosition = SPIN_BASE_POSITION_COLLECT;
     private double spindexerCommandPosition = SPIN_BASE_POSITION_COLLECT;
     private boolean spindexerShootMode = false;
+    private boolean shooterEnabled = false;
+    private double shooterDesiredExitVelocityIps = 0.0;
+    private double shooterDesiredWheelTicksPerSecond = 0.0;
 
     public DecodeRobotControl(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, boolean debugMode) {
         this.allianceColor = allianceColor;
@@ -329,8 +338,10 @@ public class DecodeRobotControl {
         packet.put("WheelCurrent", wheel.getCurrent(CurrentUnit.MILLIAMPS));
         packet.put("WheelVelocity", wheel.getVelocity());
         packet.put("WheelVelocityInchesPerSecond", (wheel.getVelocity() / WHEEL_PPR) * SHOOTER_WHEEL_CIRCUMFERENCE_INCHES);
-        packet.put("WheelDesiredRevPerSecond", (DESIRED_INCHES_PER_SECOND * gamepad2.right_trigger) / SHOOTER_WHEEL_CIRCUMFERENCE_INCHES);
-        packet.put("WheelDesiredTickPerSecond", ((DESIRED_INCHES_PER_SECOND * gamepad2.right_trigger) / SHOOTER_WHEEL_CIRCUMFERENCE_INCHES) * WHEEL_PPR);
+        packet.put("ShooterEnabled", shooterEnabled);
+        packet.put("ShooterDesiredExitVelocityIps", shooterDesiredExitVelocityIps);
+        packet.put("WheelDesiredRevPerSecond", shooterDesiredWheelTicksPerSecond / WHEEL_PPR);
+        packet.put("WheelDesiredTickPerSecond", shooterDesiredWheelTicksPerSecond);
         packet.put("WheelEncoder", wheel.getCurrentPosition());
         packet.put("IntakeCurrent", intakeMotor.getCurrent(CurrentUnit.MILLIAMPS));
         packet.put("IntakePower", intakeMotor.getPower());
@@ -420,10 +431,38 @@ public class DecodeRobotControl {
 
     private boolean lifted = false;
 
+    private double getDesiredExitVelocityIps() {
+        double trigger = Range.clip(gamepad2.right_trigger, 0.0, 1.0);
+        double scaledExitVelocity = Range.scale(
+                trigger,
+                0.0, 1.0,
+                SHOOTER_MIN_EXIT_VELOCITY_INCHES_PER_SECOND,
+                SHOOTER_MAX_EXIT_VELOCITY_INCHES_PER_SECOND);
+        return Range.clip(
+                scaledExitVelocity,
+                SHOOTER_MIN_EXIT_VELOCITY_INCHES_PER_SECOND,
+                SHOOTER_MAX_EXIT_VELOCITY_INCHES_PER_SECOND);
+    }
+
+    private double exitVelocityToWheelTicksPerSecond(double exitVelocityIps) {
+        double tangentialSpeedIps = exitVelocityIps / SHOOTER_EXIT_VELOCITY_TRANSFER_RATIO;
+        return (tangentialSpeedIps / SHOOTER_WHEEL_CIRCUMFERENCE_INCHES) * WHEEL_PPR;
+    }
+
     private OpModeState evaluateManualControl(double dtMillis) {
-        double desiredRevolutionsPerSecond = (DESIRED_INCHES_PER_SECOND * gamepad2.right_trigger) / SHOOTER_WHEEL_CIRCUMFERENCE_INCHES;
-        double desiredTicksPerSecond = desiredRevolutionsPerSecond * WHEEL_PPR;
-        wheel.setVelocity(desiredTicksPerSecond);
+        if (rb2ActivatedEvaluator.evaluate()) {
+            shooterEnabled = !shooterEnabled;
+        }
+
+        if (shooterEnabled) {
+            shooterDesiredExitVelocityIps = getDesiredExitVelocityIps();
+            shooterDesiredWheelTicksPerSecond = exitVelocityToWheelTicksPerSecond(shooterDesiredExitVelocityIps);
+            wheel.setVelocity(shooterDesiredWheelTicksPerSecond);
+        } else {
+            shooterDesiredExitVelocityIps = 0.0;
+            shooterDesiredWheelTicksPerSecond = 0.0;
+            wheel.setPower(0.0);
+        }
         double intakePower = gamepad1.y ? INTAKE_MOTOR_POWER : 0.0;
         intakeMotor.setPower(intakePower);
 
