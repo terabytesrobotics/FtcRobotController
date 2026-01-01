@@ -177,7 +177,7 @@ public class DecodeRobotControl {
         wheel = hardwareMap.get(DcMotorEx.class, "wheel");
         wheel.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         wheel.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        wheel.setDirection(DcMotorSimple.Direction.FORWARD);
+        wheel.setDirection(DcMotorSimple.Direction.REVERSE);
         wheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         intakeMotor = hardwareMap.get(DcMotorEx.class, INTAKE_MOTOR_NAME);
         intakeMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
@@ -421,11 +421,7 @@ public class DecodeRobotControl {
     private boolean lifted = false;
 
     private OpModeState evaluateManualControl(double dtMillis) {
-
-        //wheel.setVelocity(-1000);
-        // 16.25 cm
-        //wheel.setPower(gamepad2.right_stick_x);
-        double desiredRevolutionsPerSecond = (DESIRED_INCHES_PER_SECOND * gamepad2.right_stick_x) / SHOOTER_WHEEL_CIRCUMFERENCE_INCHES;
+        double desiredRevolutionsPerSecond = (DESIRED_INCHES_PER_SECOND * gamepad2.right_trigger) / SHOOTER_WHEEL_CIRCUMFERENCE_INCHES;
         double desiredTicksPerSecond = desiredRevolutionsPerSecond * WHEEL_PPR;
         wheel.setVelocity(desiredTicksPerSecond);
         double intakePower = gamepad1.y ? INTAKE_MOTOR_POWER : 0.0;
