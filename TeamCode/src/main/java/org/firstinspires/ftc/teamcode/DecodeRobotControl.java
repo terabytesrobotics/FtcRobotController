@@ -74,6 +74,19 @@ public class DecodeRobotControl {
 
     private static final double GREEN_PRESENCE_THRESHOLD = 0.15;
     private static final double PURPLE_PRESENCE_THRESHOLD = 0.15;
+    private static final String INTAKE_MOTOR_NAME = "intake";
+    private static final double INTAKE_MOTOR_POWER = 0.6;
+    private static final int SPINDEXER_SLOT_COUNT = 3;
+    // 5-turn servo: 0-1 range maps to 0-1800 degrees (0-5 full rotations).
+    // Three slots are 120 degrees apart -> 120/1800 = 1/15 position increment.
+    private static final double SPIN_POSITION_INCREMENT = 1.0 / 15.0;
+    // Tune this to align slot 0 with the collect pocket; leave at 0 to start.
+    private static final double SPIN_BASE_POSITION_COLLECT = 0.0;
+    // Offset from collect to shoot mode (in servo position units: 1.0 = 5 full turns = 1800 deg).
+    // Example: 60 degrees offset would be 60/1800 = 0.0333.
+    private static final double SPIN_MODE_OFFSET_SHOOT = 0.0;
+    private static final double SPIN_MAX_DEG_PER_SEC = 5.0;
+    private static final double SPIN_MAX_POS_PER_SEC = SPIN_MAX_DEG_PER_SEC / 1800.0; // 1.0 = 1800 deg
 
     static double clamp01(double v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
 
@@ -127,7 +140,6 @@ public class DecodeRobotControl {
     private final OnActivatedEvaluator lb1ActivatedEvaluator;
     private final OnActivatedEvaluator a1ActivatedEvaluator;
     private final OnActivatedEvaluator b1ActivatedEvaluator;
-    private final OnActivatedEvaluator y1ActivatedEvaluator;
     private final OnActivatedEvaluator x1ActivatedEvaluator;
     private final OnActivatedEvaluator a2ActivatedEvaluator;
     private final OnActivatedEvaluator rb2ActivatedEvaluator;
@@ -136,6 +148,7 @@ public class DecodeRobotControl {
     private final OnActivatedEvaluator dpu1ActivatedEvaluator;
     private final OnActivatedEvaluator dpd1ActivatedEvaluator;
     private final DcMotorEx wheel;
+    private final DcMotorEx intakeMotor;
     private final SampleMecanumDrive drive;
     private final Servo lift;
     private final WebcamName camera;
@@ -144,6 +157,10 @@ public class DecodeRobotControl {
     private final RevColorSensorV3 color1;
     public final VisionPortal visionPortal;
     public final Servo spin;
+    private int spindexerStep = 0;
+    private double spindexerTargetPosition = SPIN_BASE_POSITION_COLLECT;
+    private double spindexerCommandPosition = SPIN_BASE_POSITION_COLLECT;
+    private boolean spindexerShootMode = false;
 
     public DecodeRobotControl(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, boolean debugMode) {
         this.allianceColor = allianceColor;
@@ -156,11 +173,17 @@ public class DecodeRobotControl {
         camera = hardwareMap.get(WebcamName.class, "Webcam 1");
         color1 = hardwareMap.get(RevColorSensorV3.class, "color1");
         spin = hardwareMap.get(Servo.class, "spin");
+        updateSpindexerPosition();
         wheel = hardwareMap.get(DcMotorEx.class, "wheel");
         wheel.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         wheel.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         wheel.setDirection(DcMotorSimple.Direction.FORWARD);
         wheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        intakeMotor = hardwareMap.get(DcMotorEx.class, INTAKE_MOTOR_NAME);
+        intakeMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        intakeMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        intakeMotor.setDirection(DcMotorSimple.Direction.FORWARD);
+        intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         aprilTagProcessor = new AprilTagProcessor.Builder().build();
 
@@ -194,7 +217,6 @@ public class DecodeRobotControl {
         rb1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.right_bumper);
         a1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.a);
         b1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.b);
-        y1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.y);
         x1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.x);
         rb2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_bumper);
         a2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.a);
@@ -307,11 +329,18 @@ public class DecodeRobotControl {
         packet.put("WheelCurrent", wheel.getCurrent(CurrentUnit.MILLIAMPS));
         packet.put("WheelVelocity", wheel.getVelocity());
         packet.put("WheelVelocityInchesPerSecond", (wheel.getVelocity() / WHEEL_PPR) * SHOOTER_WHEEL_CIRCUMFERENCE_INCHES);
-        packet.put("WheelDesiredRevPerSecond", (DESIRED_INCHES_PER_SECOND * gamepad2.right_stick_x) / SHOOTER_WHEEL_CIRCUMFERENCE_INCHES);
-        packet.put("WheelDesiredTickPerSecond", ((DESIRED_INCHES_PER_SECOND * gamepad2.right_stick_x) / SHOOTER_WHEEL_CIRCUMFERENCE_INCHES) * WHEEL_PPR);
+        packet.put("WheelDesiredRevPerSecond", (DESIRED_INCHES_PER_SECOND * gamepad2.right_trigger) / SHOOTER_WHEEL_CIRCUMFERENCE_INCHES);
+        packet.put("WheelDesiredTickPerSecond", ((DESIRED_INCHES_PER_SECOND * gamepad2.right_trigger) / SHOOTER_WHEEL_CIRCUMFERENCE_INCHES) * WHEEL_PPR);
         packet.put("WheelEncoder", wheel.getCurrentPosition());
+        packet.put("IntakeCurrent", intakeMotor.getCurrent(CurrentUnit.MILLIAMPS));
+        packet.put("IntakePower", intakeMotor.getPower());
         packet.put("DriveInputX", driveInput.getX());
         packet.put("DriveInputY", driveInput.getY());
+        packet.put("SpindexerSlot", Math.floorMod(spindexerStep, SPINDEXER_SLOT_COUNT));
+        packet.put("SpindexerTargetPosition", spindexerTargetPosition);
+        packet.put("SpindexerCommandPosition", spindexerCommandPosition);
+        packet.put("SpindexerServoPosition", spin.getPosition());
+        packet.put("SpindexerMode", spindexerShootMode ? "SHOOT" : "COLLECT");
 
         packet.put("PinpointHeading", pinpoint.getHeading(UnnormalizedAngleUnit.RADIANS));
         packet.put("PinpointX", pinpoint.getEncoderX());
@@ -399,9 +428,31 @@ public class DecodeRobotControl {
         double desiredRevolutionsPerSecond = (DESIRED_INCHES_PER_SECOND * gamepad2.right_stick_x) / SHOOTER_WHEEL_CIRCUMFERENCE_INCHES;
         double desiredTicksPerSecond = desiredRevolutionsPerSecond * WHEEL_PPR;
         wheel.setVelocity(desiredTicksPerSecond);
+        double intakePower = gamepad1.y ? INTAKE_MOTOR_POWER : 0.0;
+        intakeMotor.setPower(intakePower);
 
         boolean fastMode = gamepad1.left_bumper;
         boolean hasPositionEstimate = hasPositionEstimate();
+
+        if (x1ActivatedEvaluator.evaluate()) {
+            spindexerStep += 1;
+            spindexerTargetPosition += SPIN_POSITION_INCREMENT;
+        } else if (b1ActivatedEvaluator.evaluate()) {
+            spindexerStep -= 1;
+            spindexerTargetPosition -= SPIN_POSITION_INCREMENT;
+        }
+        if (dpu1ActivatedEvaluator.evaluate()) {
+            if (!spindexerShootMode) {
+                spindexerShootMode = true;
+                spindexerTargetPosition += SPIN_MODE_OFFSET_SHOOT;
+            }
+        } else if (dpd1ActivatedEvaluator.evaluate()) {
+            if (spindexerShootMode) {
+                spindexerShootMode = false;
+                spindexerTargetPosition -= SPIN_MODE_OFFSET_SHOOT;
+            }
+        }
+        updateSpindexerPosition(dtMillis / 1000.0);
 
         if (a1ActivatedEvaluator.evaluate()) {
             lifted = !lifted;
@@ -410,8 +461,7 @@ public class DecodeRobotControl {
         lift.setPosition(lifted ? 0.0 : 1.0);
 
         driveInput = driveInput
-                .plus(getScaledHeadlessDriverInput(gamepad1, allianceColor.OperatorHeadingOffset))
-                .plus(getScaledHeadlessDriverABInput(gamepad1, allianceColor.OperatorHeadingOffset));
+                .plus(getScaledHeadlessDriverInput(gamepad1, allianceColor.OperatorHeadingOffset));
 
         if (fastMode) {
             driveInput = driveInput.div(1.5);
@@ -438,6 +488,21 @@ public class DecodeRobotControl {
         double scaledRobotY = inputFieldDirection.getY();
         double scaledRotation = -gamepad.right_stick_x;
         return new Pose2d(scaledRobotX, scaledRobotY, scaledRotation);
+    }
+
+    private void updateSpindexerPosition(double dtSeconds) {
+        spindexerTargetPosition = Range.clip(spindexerTargetPosition, 0.0, 1.0);
+        double maxStep = SPIN_MAX_POS_PER_SEC * dtSeconds;
+        double error = spindexerTargetPosition - spindexerCommandPosition;
+        double step = Range.clip(error, -maxStep, maxStep);
+        spindexerCommandPosition = Range.clip(spindexerCommandPosition + step, 0.0, 1.0);
+        spin.setPosition(spindexerCommandPosition);
+    }
+
+    private void updateSpindexerPosition() {
+        spindexerTargetPosition = Range.clip(spindexerTargetPosition, 0.0, 1.0);
+        spindexerCommandPosition = spindexerTargetPosition;
+        spin.setPosition(spindexerCommandPosition);
     }
 
     private OpModeState evaluateCommandSequence() {
