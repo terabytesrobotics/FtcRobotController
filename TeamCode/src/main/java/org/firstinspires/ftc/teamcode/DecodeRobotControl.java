@@ -83,6 +83,12 @@ public class DecodeRobotControl {
     private static final String INTAKE_MOTOR_NAME = "intake";
     private static final double INTAKE_MOTOR_POWER = 0.6;
     private static final int SPINDEXER_SLOT_COUNT = 3;
+    private static final double KICKER_SERVO_RANGE_DEGREES = 270.0;
+    private static final double KICKER_KICK_RANGE_DEGREES = 100.0; // expected travel for a full kick
+    private static final double KICKER_KICK_RANGE = KICKER_KICK_RANGE_DEGREES / KICKER_SERVO_RANGE_DEGREES;
+    // Start conservative; both positions are meant to be tuned on a real robot.
+    private static final double KICKER_UNKICKED_POSITION = 0.2;
+    private static final double KICKER_KICKED_POSITION = KICKER_UNKICKED_POSITION + KICKER_KICK_RANGE;
     // Rated 5-turn servo: 0-1 range maps to ~0-1800 degrees (tunable if real range differs).
     private static final double SPIN_SERVO_RANGE_DEGREES = (4.5 * 360) + 10;
     private static final double SPIN_SERVO_RANGE_TURNS = SPIN_SERVO_RANGE_DEGREES / 360.0;
@@ -154,6 +160,7 @@ public class DecodeRobotControl {
     private final OnActivatedEvaluator x2ActivatedEvaluator;
     private final OnActivatedEvaluator a2ActivatedEvaluator;
     private final OnActivatedEvaluator rb2ActivatedEvaluator;
+    private final OnActivatedEvaluator lb2ActivatedEvaluator;
     private final OnActivatedEvaluator y2ActivatedEvaluator;
     private final OnActivatedEvaluator dpu2ActivatedEvaluator;
     private final OnActivatedEvaluator dpd2ActivatedEvaluator;
@@ -167,6 +174,7 @@ public class DecodeRobotControl {
     private final RevColorSensorV3 color1;
     public final VisionPortal visionPortal;
     public final Servo spin;
+    private final Servo kicker;
     private int spindexerSlot = 0; // 0-based physical pocket index
     private SpindexerMode spindexerMode = SpindexerMode.COLLECT;
     private double spindexerCanonicalTargetPosition = SPIN_BASE_POSITION_COLLECT;
@@ -175,6 +183,7 @@ public class DecodeRobotControl {
     private boolean shooterEnabled = false;
     private double shooterDesiredExitVelocityIps = 0.0;
     private double shooterDesiredWheelTicksPerSecond = 0.0;
+    private boolean kickerKicked = false;
 
     public DecodeRobotControl(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, boolean debugMode) {
         this.allianceColor = allianceColor;
@@ -187,6 +196,8 @@ public class DecodeRobotControl {
         camera = hardwareMap.get(WebcamName.class, "Webcam 1");
         color1 = hardwareMap.get(RevColorSensorV3.class, "color1");
         spin = hardwareMap.get(Servo.class, "spin");
+        kicker = hardwareMap.get(Servo.class, "kicker");
+        kicker.setPosition(Range.clip(KICKER_UNKICKED_POSITION, 0.0, 1.0));
         initializeSpindexerToMidrange();
         wheel = hardwareMap.get(DcMotorEx.class, "wheel");
         wheel.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
@@ -234,6 +245,7 @@ public class DecodeRobotControl {
         x2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.x);
         rb2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_bumper);
         a2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.a);
+        lb2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.left_bumper);
         y2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.y);
         dpu2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.dpad_up);
         dpd2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.dpad_down);
@@ -358,6 +370,8 @@ public class DecodeRobotControl {
         packet.put("SpindexerCommandPosition", spindexerCommandPosition);
         packet.put("SpindexerServoPosition", spin.getPosition());
         packet.put("SpindexerDelta", spindexerTargetPosition - spindexerCommandPosition);
+        packet.put("KickerTargetPosition", kickerKicked ? KICKER_KICKED_POSITION : KICKER_UNKICKED_POSITION);
+        packet.put("KickerServoPosition", kicker.getPosition());
 
         packet.put("PinpointHeading", pinpoint.getHeading(UnnormalizedAngleUnit.RADIANS));
         packet.put("PinpointX", pinpoint.getEncoderX());
@@ -488,6 +502,7 @@ public class DecodeRobotControl {
         } else if (dpd2ActivatedEvaluator.evaluate()) {
             spindexerMode = SpindexerMode.COLLECT;
             retargetSpindexer();
+            kickerKicked = false; // default to safe position when not shooting
         }
         updateSpindexerPosition(dtMillis / 1000.0);
 
@@ -496,6 +511,15 @@ public class DecodeRobotControl {
         }
 
         lift.setPosition(lifted ? 0.0 : 1.0);
+
+        if (lb2ActivatedEvaluator.evaluate()) {
+            kickerKicked = !kickerKicked;
+        }
+
+        double kickerTarget = (spindexerMode == SpindexerMode.SHOOT && kickerKicked)
+                ? KICKER_KICKED_POSITION
+                : KICKER_UNKICKED_POSITION;
+        kicker.setPosition(Range.clip(kickerTarget, 0.0, 1.0));
 
         driveInput = driveInput
                 .plus(getScaledHeadlessDriverInput(gamepad1, allianceColor.OperatorHeadingOffset));
