@@ -83,16 +83,21 @@ public class DecodeRobotControl {
     private static final String INTAKE_MOTOR_NAME = "intake";
     private static final double INTAKE_MOTOR_POWER = 0.6;
     private static final int SPINDEXER_SLOT_COUNT = 3;
-    // 5-turn servo: 0-1 range maps to 0-1800 degrees (0-5 full rotations).
-    // Three slots are 120 degrees apart -> 120/1800 = 1/15 position increment.
-    private static final double SPIN_POSITION_INCREMENT = 1.0 / 15.0;
+    // Rated 5-turn servo: 0-1 range maps to ~0-1800 degrees (tunable if real range differs).
+    private static final double SPIN_SERVO_RANGE_DEGREES = (4.5 * 360) + 10;
+    private static final double SPIN_SERVO_RANGE_TURNS = SPIN_SERVO_RANGE_DEGREES / 360.0;
+    private static final double SPIN_SERVO_FULL_TURN = 1.0 / SPIN_SERVO_RANGE_TURNS;
+    private static final double SPIN_SLOT_SPACING_DEGREES = 120.0;
+    // Three slots 120 degrees apart -> converts degrees to servo position based on measured turn range.
+    private static final double SPIN_SLOT_SPACING = (SPIN_SLOT_SPACING_DEGREES / 360.0) * SPIN_SERVO_FULL_TURN;
     // Tune this to align slot 0 with the collect pocket; leave at 0 to start.
     private static final double SPIN_BASE_POSITION_COLLECT = 0.0;
     // Offset from collect to shoot mode (in servo position units: 1.0 = 5 full turns = 1800 deg).
-    // Example: 60 degrees offset would be 60/1800 = 0.0333.
-    private static final double SPIN_MODE_OFFSET_SHOOT = 0.0;
-    private static final double SPIN_MAX_DEG_PER_SEC = 5.0;
-    private static final double SPIN_MAX_POS_PER_SEC = SPIN_MAX_DEG_PER_SEC / 1800.0; // 1.0 = 1800 deg
+    // Approximately 2/5 of a turn between collect and shoot -> 144 degrees (applied in opposite direction).
+    private static final double SPIN_MODE_OFFSET_DEGREES = 92.5;
+    private static final double SPIN_MODE_OFFSET_SHOOT = (SPIN_MODE_OFFSET_DEGREES / 360.0) * SPIN_SERVO_FULL_TURN;
+    private static final double SPIN_MAX_DEG_PER_SEC = 240.0;
+    private static final double SPIN_MAX_POS_PER_SEC = (SPIN_MAX_DEG_PER_SEC / 360.0) * SPIN_SERVO_FULL_TURN; // 1.0 = full servo range
 
     static double clamp01(double v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
 
@@ -145,14 +150,13 @@ public class DecodeRobotControl {
     private final OnActivatedEvaluator rb1ActivatedEvaluator;
     private final OnActivatedEvaluator lb1ActivatedEvaluator;
     private final OnActivatedEvaluator a1ActivatedEvaluator;
-    private final OnActivatedEvaluator b1ActivatedEvaluator;
-    private final OnActivatedEvaluator x1ActivatedEvaluator;
+    private final OnActivatedEvaluator b2ActivatedEvaluator;
+    private final OnActivatedEvaluator x2ActivatedEvaluator;
     private final OnActivatedEvaluator a2ActivatedEvaluator;
     private final OnActivatedEvaluator rb2ActivatedEvaluator;
-    private final OnActivatedEvaluator x2ActivatedEvaluator;
     private final OnActivatedEvaluator y2ActivatedEvaluator;
-    private final OnActivatedEvaluator dpu1ActivatedEvaluator;
-    private final OnActivatedEvaluator dpd1ActivatedEvaluator;
+    private final OnActivatedEvaluator dpu2ActivatedEvaluator;
+    private final OnActivatedEvaluator dpd2ActivatedEvaluator;
     private final DcMotorEx wheel;
     private final DcMotorEx intakeMotor;
     private final SampleMecanumDrive drive;
@@ -163,10 +167,11 @@ public class DecodeRobotControl {
     private final RevColorSensorV3 color1;
     public final VisionPortal visionPortal;
     public final Servo spin;
-    private int spindexerStep = 0;
+    private int spindexerSlot = 0; // 0-based physical pocket index
+    private SpindexerMode spindexerMode = SpindexerMode.COLLECT;
+    private double spindexerCanonicalTargetPosition = SPIN_BASE_POSITION_COLLECT;
     private double spindexerTargetPosition = SPIN_BASE_POSITION_COLLECT;
     private double spindexerCommandPosition = SPIN_BASE_POSITION_COLLECT;
-    private boolean spindexerShootMode = false;
     private boolean shooterEnabled = false;
     private double shooterDesiredExitVelocityIps = 0.0;
     private double shooterDesiredWheelTicksPerSecond = 0.0;
@@ -182,7 +187,7 @@ public class DecodeRobotControl {
         camera = hardwareMap.get(WebcamName.class, "Webcam 1");
         color1 = hardwareMap.get(RevColorSensorV3.class, "color1");
         spin = hardwareMap.get(Servo.class, "spin");
-        updateSpindexerPosition();
+        initializeSpindexerToMidrange();
         wheel = hardwareMap.get(DcMotorEx.class, "wheel");
         wheel.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         wheel.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
@@ -225,14 +230,13 @@ public class DecodeRobotControl {
 
         rb1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.right_bumper);
         a1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.a);
-        b1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.b);
-        x1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.x);
+        b2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.b);
+        x2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.x);
         rb2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_bumper);
         a2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.a);
         y2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.y);
-        x2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.x);
-        dpu1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.dpad_up);
-        dpd1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.dpad_down);
+        dpu2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.dpad_up);
+        dpd2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.dpad_down);
         lb1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.left_bumper);
 
         drive = new SampleMecanumDrive(hardwareMap);
@@ -347,11 +351,13 @@ public class DecodeRobotControl {
         packet.put("IntakePower", intakeMotor.getPower());
         packet.put("DriveInputX", driveInput.getX());
         packet.put("DriveInputY", driveInput.getY());
-        packet.put("SpindexerSlot", Math.floorMod(spindexerStep, SPINDEXER_SLOT_COUNT));
+        packet.put("SpindexerSlot", Math.floorMod(spindexerSlot, SPINDEXER_SLOT_COUNT) + 1); // human-friendly 1-based
+        packet.put("SpindexerMode", spindexerMode == SpindexerMode.SHOOT ? "SHOOT" : "COLLECT");
+        packet.put("SpindexerCanonicalTarget", spindexerCanonicalTargetPosition);
         packet.put("SpindexerTargetPosition", spindexerTargetPosition);
         packet.put("SpindexerCommandPosition", spindexerCommandPosition);
         packet.put("SpindexerServoPosition", spin.getPosition());
-        packet.put("SpindexerMode", spindexerShootMode ? "SHOOT" : "COLLECT");
+        packet.put("SpindexerDelta", spindexerTargetPosition - spindexerCommandPosition);
 
         packet.put("PinpointHeading", pinpoint.getHeading(UnnormalizedAngleUnit.RADIANS));
         packet.put("PinpointX", pinpoint.getEncoderX());
@@ -469,23 +475,19 @@ public class DecodeRobotControl {
         boolean fastMode = gamepad1.left_bumper;
         boolean hasPositionEstimate = hasPositionEstimate();
 
-        if (x1ActivatedEvaluator.evaluate()) {
-            spindexerStep += 1;
-            spindexerTargetPosition += SPIN_POSITION_INCREMENT;
-        } else if (b1ActivatedEvaluator.evaluate()) {
-            spindexerStep -= 1;
-            spindexerTargetPosition -= SPIN_POSITION_INCREMENT;
+        if (x2ActivatedEvaluator.evaluate()) {
+            spindexerSlot = Math.floorMod(spindexerSlot + 1, SPINDEXER_SLOT_COUNT);
+            retargetSpindexer();
+        } else if (b2ActivatedEvaluator.evaluate()) {
+            spindexerSlot = Math.floorMod(spindexerSlot - 1, SPINDEXER_SLOT_COUNT);
+            retargetSpindexer();
         }
-        if (dpu1ActivatedEvaluator.evaluate()) {
-            if (!spindexerShootMode) {
-                spindexerShootMode = true;
-                spindexerTargetPosition += SPIN_MODE_OFFSET_SHOOT;
-            }
-        } else if (dpd1ActivatedEvaluator.evaluate()) {
-            if (spindexerShootMode) {
-                spindexerShootMode = false;
-                spindexerTargetPosition -= SPIN_MODE_OFFSET_SHOOT;
-            }
+        if (dpu2ActivatedEvaluator.evaluate()) {
+            spindexerMode = SpindexerMode.SHOOT;
+            retargetSpindexer();
+        } else if (dpd2ActivatedEvaluator.evaluate()) {
+            spindexerMode = SpindexerMode.COLLECT;
+            retargetSpindexer();
         }
         updateSpindexerPosition(dtMillis / 1000.0);
 
@@ -525,6 +527,48 @@ public class DecodeRobotControl {
         return new Pose2d(scaledRobotX, scaledRobotY, scaledRotation);
     }
 
+    private double computeCanonicalSpindexerPosition(int slot, SpindexerMode mode) {
+        double canonical = SPIN_BASE_POSITION_COLLECT + (slot * SPIN_SLOT_SPACING);
+        if (mode == SpindexerMode.SHOOT) {
+            canonical -= SPIN_MODE_OFFSET_SHOOT;
+        }
+        return canonical;
+    }
+
+    // Choose the nearest in-range position to minimize travel on a multi-turn servo.
+    private double findNearestTargetInRange(double canonicalTarget, double currentPosition) {
+        double bestTarget = Range.clip(canonicalTarget, 0.0, 1.0);
+        double bestDistance = Math.abs(bestTarget - currentPosition);
+        int maxTurns = (int) Math.ceil(1.0 / SPIN_SERVO_FULL_TURN);
+        for (int k = -maxTurns; k <= maxTurns; k++) {
+            double candidate = canonicalTarget + (k * SPIN_SERVO_FULL_TURN);
+            if (candidate < 0.0 || candidate > 1.0) {
+                continue;
+            }
+            double distance = Math.abs(candidate - currentPosition);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                bestTarget = candidate;
+            }
+        }
+        return bestTarget;
+    }
+
+    private void retargetSpindexer() {
+        spindexerCanonicalTargetPosition = computeCanonicalSpindexerPosition(spindexerSlot, spindexerMode);
+        spindexerTargetPosition = findNearestTargetInRange(spindexerCanonicalTargetPosition, spindexerCommandPosition);
+    }
+
+    private void initializeSpindexerToMidrange() {
+        spindexerMode = SpindexerMode.COLLECT;
+        spindexerSlot = 0;
+        spindexerCanonicalTargetPosition = computeCanonicalSpindexerPosition(spindexerSlot, spindexerMode);
+        double centeredTarget = findNearestTargetInRange(spindexerCanonicalTargetPosition, 0.5);
+        spindexerTargetPosition = centeredTarget;
+        spindexerCommandPosition = centeredTarget;
+        spin.setPosition(spindexerCommandPosition);
+    }
+
     private void updateSpindexerPosition(double dtSeconds) {
         spindexerTargetPosition = Range.clip(spindexerTargetPosition, 0.0, 1.0);
         double maxStep = SPIN_MAX_POS_PER_SEC * dtSeconds;
@@ -538,6 +582,11 @@ public class DecodeRobotControl {
         spindexerTargetPosition = Range.clip(spindexerTargetPosition, 0.0, 1.0);
         spindexerCommandPosition = spindexerTargetPosition;
         spin.setPosition(spindexerCommandPosition);
+    }
+
+    private enum SpindexerMode {
+        COLLECT,
+        SHOOT
     }
 
     private OpModeState evaluateCommandSequence() {
