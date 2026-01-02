@@ -6,6 +6,7 @@ import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_RECOGNITION_MAX
 import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_RECOGNITION_MIN_RANGE;
 import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_RECOGNITION_YAW_THRESHOLD;
 import static org.firstinspires.ftc.teamcode.Constants.DRIVE_TO_POSE_THRESHOLD;
+import static org.firstinspires.ftc.teamcode.Constants.FRONT_CAMERA_LATERAL_OFFSET_INCHES;
 import static org.firstinspires.ftc.teamcode.Constants.FRONT_CAMERA_OFFSET_INCHES;
 import static org.firstinspires.ftc.teamcode.Constants.SPEED_GAIN;
 import static org.firstinspires.ftc.teamcode.Constants.TURN_ERROR_THRESHOLD;
@@ -657,7 +658,8 @@ public class DecodeRobotControl {
     }
 
     private void evaluatePositioningSystems() {
-        double cameraDistanceOffset = FRONT_CAMERA_OFFSET_INCHES;
+        double cameraForwardOffset = FRONT_CAMERA_OFFSET_INCHES;
+        double cameraLateralOffset = FRONT_CAMERA_LATERAL_OFFSET_INCHES;
         double cameraAngleOffset = 0;
 
         List<AprilTagDetection> detections = aprilTagProcessor.getFreshDetections();
@@ -674,7 +676,7 @@ public class DecodeRobotControl {
                     continue;
                 }
 
-                Pose2d estimatedPose = calculateRobotPose(detection, cameraDistanceOffset, cameraAngleOffset);
+                Pose2d estimatedPose = calculateRobotPose(detection, cameraForwardOffset, cameraLateralOffset, cameraAngleOffset);
                 if (poseQueue.size() >= APRIL_TAG_QUEUE_CAPACITY) {
                     poseQueue.poll();
                 }
@@ -769,7 +771,11 @@ public class DecodeRobotControl {
     double lastDetectionBearing = 0.0;
     double lastDetectionRange = 0.0;
 
-    private Pose2d calculateRobotPose(AprilTagDetection detection, double cameraRobotOffset, double cameraRobotHeadingOffset) {
+    private Pose2d calculateRobotPose(
+            AprilTagDetection detection,
+            double cameraRobotForwardOffset,
+            double cameraRobotLateralOffset,
+            double cameraRobotHeadingOffset) {
         AprilTagMetadata tag = APRIL_TAG_LIBRARY.lookupTag(detection.id);
         if (tag == null) return null;
 
@@ -788,8 +794,13 @@ public class DecodeRobotControl {
         double cameraFieldHeading = Angle.norm(
                 tagFieldHeading + Math.PI + cameraRobotHeadingOffset - yaw);
 
-        double robotFieldX = cameraFieldX - (cameraRobotOffset * Math.cos(cameraFieldHeading));
-        double robotFieldY = cameraFieldY - (cameraRobotOffset * Math.sin(cameraFieldHeading));
+        double offsetFieldX = (cameraRobotForwardOffset * Math.cos(cameraFieldHeading)) -
+                (cameraRobotLateralOffset * Math.sin(cameraFieldHeading));
+        double offsetFieldY = (cameraRobotForwardOffset * Math.sin(cameraFieldHeading)) +
+                (cameraRobotLateralOffset * Math.cos(cameraFieldHeading));
+
+        double robotFieldX = cameraFieldX - offsetFieldX;
+        double robotFieldY = cameraFieldY - offsetFieldY;
 
         return new Pose2d(robotFieldX, robotFieldY, cameraFieldHeading);
     }
