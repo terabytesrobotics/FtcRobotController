@@ -57,6 +57,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 
+import org.firstinspires.ftc.teamcode.drive.PinpointLocalizer;
+
 public class DecodeRobotControl {
 
     private static final double BALL_RADIUS_INCHES = 2.75;
@@ -105,6 +107,9 @@ public class DecodeRobotControl {
     private static final double SPIN_MODE_OFFSET_SHOOT = (SPIN_MODE_OFFSET_DEGREES / 360.0) * SPIN_SERVO_FULL_TURN;
     private static final double SPIN_MAX_DEG_PER_SEC = 240.0;
     private static final double SPIN_MAX_POS_PER_SEC = (SPIN_MAX_DEG_PER_SEC / 360.0) * SPIN_SERVO_FULL_TURN; // 1.0 = full servo range
+
+    // Only trust the large field tags for localization.
+    private static final int[] APRIL_TAG_ALLOWED_IDS = {20, 24};
 
     static double clamp01(double v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
 
@@ -253,11 +258,13 @@ public class DecodeRobotControl {
         lb1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.left_bumper);
 
         drive = new SampleMecanumDrive(hardwareMap);
-        drive.setPoseEstimate(new Pose2d()); // TODO: Initialize more smartly
 
         lift = hardwareMap.get(Servo.class, "lift");
 
         configurePinpoint();
+
+        drive.setLocalizer(new PinpointLocalizer(pinpoint));
+        drive.setPoseEstimate(new Pose2d());
 
         pinpoint.setPosition(new Pose2D(DistanceUnit.INCH, 0, 0, AngleUnit.RADIANS, 0));
     }
@@ -412,7 +419,6 @@ public class DecodeRobotControl {
     public boolean evaluate() {
         double dt = loopTime.milliseconds();
         loopTime.reset();
-        pinpoint.update();
         drive.update();
         latestPoseEstimate = drive.getPoseEstimate();
         evaluateSwitchCamera();
@@ -665,6 +671,10 @@ public class DecodeRobotControl {
         List<AprilTagDetection> detections = aprilTagProcessor.getFreshDetections();
         if (detections != null) {
             for (AprilTagDetection detection : detections) {
+                if (!isAllowedAprilTag(detection.id)) {
+                    continue;
+                }
+
                 if (detection.ftcPose == null) {
                     continue;
                 }
@@ -699,6 +709,13 @@ public class DecodeRobotControl {
                 poseQueue.clear();
             }
         }
+    }
+
+    private boolean isAllowedAprilTag(int tagId) {
+        for (int allowedId : APRIL_TAG_ALLOWED_IDS) {
+            if (allowedId == tagId) return true;
+        }
+        return false;
     }
 
     private Pose2d calculateAveragePose(Queue<Pose2d> poses) {
@@ -878,7 +895,8 @@ public class DecodeRobotControl {
          *  The Y pod offset refers to how far forwards from the tracking point the Y (strafe) odometry pod is.
          *  Forward of center is a positive number, backwards is a negative number.
          */
-        pinpoint.setOffsets(0, (3 * 24), DistanceUnit.MM); //these are tuned for 3110-0002-0001 Product Insight #1
+        // X pod is 120 mm to the right (left-positive, so -120), Y pod centered front/back.
+        pinpoint.setOffsets(-120, 0, DistanceUnit.MM);
 
         /*
          * Set the kind of pods used by your robot. If you're using goBILDA odometry pods, select either
@@ -895,7 +913,7 @@ public class DecodeRobotControl {
          * you move the robot to the left.
          */
         pinpoint.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.FORWARD,
-                GoBildaPinpointDriver.EncoderDirection.REVERSED);
+                GoBildaPinpointDriver.EncoderDirection.FORWARD);
 
         /*
          * Before running the robot, recalibrate the IMU. This needs to happen when the robot is stationary

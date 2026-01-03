@@ -5,8 +5,8 @@ import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.qualcomm.hardware.rev.RevBlinkinLedDriver;
 
 public enum AllianceColor {
-    BLUE(Math.toRadians(270)),
-    RED(Math.toRadians(90));
+    BLUE(Math.toRadians(90)),
+    RED(Math.toRadians(270));
 
     public double OperatorHeadingOffset;
 
