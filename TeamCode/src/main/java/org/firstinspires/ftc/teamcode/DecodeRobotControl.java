@@ -15,7 +15,9 @@ import static org.firstinspires.ftc.teamcode.Constants.TURN_GAIN;
 import android.util.ArrayMap;
 import android.util.Log;
 
+import com.acmerobotics.dashboard.canvas.Canvas;
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
+import com.acmerobotics.dashboard.canvas.Canvas;
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.acmerobotics.roadrunner.util.Angle;
@@ -65,13 +67,30 @@ public class DecodeRobotControl {
     private static final double BALL_DIAMETER_INCHES = BALL_RADIUS_INCHES * 2;
     private static final double SHOOTER_WHEEL_RADIUS_INCHES = 2.0;
     private static final double SHOOTER_WHEEL_DIAMETER_INCHES = SHOOTER_WHEEL_RADIUS_INCHES * 2;
+    private static final double FIELD_RIM_HEIGHT_INCHES = 39.0;
+    private static final double RIM_CLEARANCE_INCHES = BALL_RADIUS_INCHES; // center clears rim by a radius
+    private static final double TARGET_PLANE_HEIGHT_INCHES = FIELD_RIM_HEIGHT_INCHES + RIM_CLEARANCE_INCHES;
+    private static final Vector2d RED_BASKET_POSITION_INCHES = new Vector2d(-72.0, 72.0);
+    private static final Vector2d BLUE_BASKET_POSITION_INCHES = new Vector2d(-72.0, -72.0);
+    private static final double SHOOTER_EXIT_ANGLE_RADIANS = Math.toRadians(50.0);
+    // Ball exit height: bottom of ball at 13" above carpet -> center at 13" + radius.
+    private static final double SHOOTER_EXIT_HEIGHT_INCHES = 13.0 + BALL_RADIUS_INCHES;
+    // Shooter exit point relative to the robot center; +lateral is to the left, so right offset is negative.
+    private static final double SHOOTER_FORWARD_OFFSET_INCHES = 0.0;
+    private static final double SHOOTER_LATERAL_OFFSET_INCHES = -5.0;
+    private static final double BALLISTIC_GRAVITY_IN_PER_S2 = 386.0886; // in/s^2
+    // Simple top-spin model: extra downward load scales with spin rate; reduced to lighten long-shot drop.
+    private static final double TOPSPIN_DROP_PER_RAD_PER_SEC = 0.002;
 
     private static final double SHOOTER_WHEEL_CIRCUMFERENCE_INCHES = Math.PI * SHOOTER_WHEEL_DIAMETER_INCHES;
-    private static final double SHOOTER_CONTACT_ANGLE_RADIANS = Math.toRadians(135);
+    private static final double SHOOTER_CONTACT_ANGLE_RADIANS = Math.toRadians(130);
     // Arc length where the ball and wheel stay engaged; helps reason about acceleration distance.
     private static final double SHOOTER_CONTACT_ARC_LENGTH_INCHES = SHOOTER_WHEEL_RADIUS_INCHES * SHOOTER_CONTACT_ANGLE_RADIANS;
-    // Efficiency factor: exit velocity tends to trail the wheel surface speed because of slip/compression.
-    private static final double SHOOTER_EXIT_VELOCITY_TRANSFER_RATIO = 0.9;
+    // Efficiency factor baseline: exit velocity tends to trail the wheel surface speed because of slip/compression.
+    private static final double SHOOTER_EXIT_VELOCITY_TRANSFER_BASE = 0.8;
+    private static final double SHOOTER_TRANSFER_TRIM_RANGE = 0.1; // +/-10% via triggers
+    private static final double SHOOTER_TRANSFER_MIN = 0.75;
+    private static final double SHOOTER_TRANSFER_MAX = 1.05;
     private static final double SHOOTER_MIN_EXIT_VELOCITY_INCHES_PER_SECOND = 180.0;
     private static final double SHOOTER_MAX_EXIT_VELOCITY_INCHES_PER_SECOND = 450.0;
     private static final double SHOOTER_WHEEL_AXLE_HEIGHT_INCHES = 6.75;
@@ -189,7 +208,11 @@ public class DecodeRobotControl {
     private boolean shooterEnabled = false;
     private double shooterDesiredExitVelocityIps = 0.0;
     private double shooterDesiredWheelTicksPerSecond = 0.0;
+    private double shooterLossTrim = 0.0;
+    private double shooterTransferRatio = SHOOTER_EXIT_VELOCITY_TRANSFER_BASE;
     private boolean kickerKicked = false;
+    private ShotSolution lastShotSolution = null;
+    private boolean lastShotBlockedByRim = false;
 
     public DecodeRobotControl(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, boolean debugMode) {
         this.allianceColor = allianceColor;
@@ -337,9 +360,29 @@ public class DecodeRobotControl {
         packet.put("Color1GreenPresence", greenPresence);
         packet.put("Color1PurplePresence", purplePresence);
 
-        packet.fieldOverlay()
-                .fillCircle(x, y, 5)
-                .strokeLine(x, y, x2, y2);
+        Canvas overlay = packet.fieldOverlay();
+        Pose2d shooterPose = getShooterPoseEstimate();
+        double sx = shooterPose != null ? shooterPose.getX() : x;
+        double sy = shooterPose != null ? shooterPose.getY() : y;
+        double sheading = shooterPose != null ? shooterPose.getHeading() : heading;
+        double shotLen = 12;
+        double shx = sx + shotLen * Math.cos(sheading);
+        double shy = sy + shotLen * Math.sin(sheading);
+
+        overlay.fillCircle(sx, sy, 5)
+                .strokeLine(sx, sy, shx, shy);
+        if (lastShotSolution != null) {
+            overlay.strokeLine(sx, sy, lastShotSolution.interceptX, lastShotSolution.interceptY)
+                    .strokeCircle(lastShotSolution.interceptX, lastShotSolution.interceptY, 3)
+                    .fillCircle(lastShotSolution.interceptX, lastShotSolution.interceptY, 2);
+        } else if (lastShotBlockedByRim) {
+            Vector2d basket = getActiveBasketPosition();
+            double bx = basket.getX();
+            double by = basket.getY();
+            double r = 4;
+            overlay.strokeLine(bx - r, by - r, bx + r, by + r)
+                    .strokeLine(bx - r, by + r, bx + r, by - r);
+        }
 
         packet.put("loopTime", loopTime.milliseconds());
         packet.put("x", x);
@@ -360,8 +403,10 @@ public class DecodeRobotControl {
 
         packet.put("G2_RSX", gamepad2.right_stick_x);
         packet.put("WheelCurrent", wheel.getCurrent(CurrentUnit.MILLIAMPS));
-        packet.put("WheelVelocity", wheel.getVelocity());
-        packet.put("WheelVelocityInchesPerSecond", (wheel.getVelocity() / WHEEL_PPR) * SHOOTER_WHEEL_CIRCUMFERENCE_INCHES);
+        double wheelVelocityTps = wheel.getVelocity();
+        packet.put("WheelVelocity", wheelVelocityTps);
+        packet.put("WheelVelocityInchesPerSecond", (wheelVelocityTps / WHEEL_PPR) * SHOOTER_WHEEL_CIRCUMFERENCE_INCHES);
+        packet.put("WheelVelocityError", shooterDesiredWheelTicksPerSecond - wheelVelocityTps);
         packet.put("ShooterEnabled", shooterEnabled);
         packet.put("ShooterDesiredExitVelocityIps", shooterDesiredExitVelocityIps);
         packet.put("WheelDesiredRevPerSecond", shooterDesiredWheelTicksPerSecond / WHEEL_PPR);
@@ -380,6 +425,23 @@ public class DecodeRobotControl {
         packet.put("SpindexerDelta", spindexerTargetPosition - spindexerCommandPosition);
         packet.put("KickerTargetPosition", kickerKicked ? KICKER_KICKED_POSITION : KICKER_UNKICKED_POSITION);
         packet.put("KickerServoPosition", kicker.getPosition());
+        packet.put("ShotSolutionAvailable", lastShotSolution != null);
+        packet.put("ShotBlockedByRim", lastShotBlockedByRim);
+        packet.put("ShooterTransferRatio", shooterTransferRatio);
+        packet.put("ShooterLossTrim", shooterLossTrim);
+        if (lastShotSolution != null) {
+            packet.put("ShotSolutionVelocityIps", lastShotSolution.exitVelocityIps);
+            packet.put("ShotSolutionWheelTicksPerSecond", lastShotSolution.wheelTicksPerSecond);
+            packet.put("ShotSolutionHorizontalDistance", lastShotSolution.horizontalDistance);
+            packet.put("ShotSolutionVerticalDelta", lastShotSolution.verticalDelta);
+            packet.put("ShotSolutionTimeOfFlightSec", lastShotSolution.timeOfFlightSec);
+            packet.put("ShotSolutionInterceptX", lastShotSolution.interceptX);
+            packet.put("ShotSolutionInterceptY", lastShotSolution.interceptY);
+            packet.put("ShotSolutionEffectiveGravity", lastShotSolution.effectiveGravity);
+            packet.put("ShotSolutionTopSpinRadPerSec", lastShotSolution.topSpinRadPerSec);
+            packet.put("ShotSolutionTransferRatio", lastShotSolution.transferRatio);
+            packet.put("ShotSolutionTangentialSpeedIps", lastShotSolution.tangentialSpeedIps);
+        }
 
         packet.put("PinpointHeading", pinpoint.getHeading(UnnormalizedAngleUnit.RADIANS));
         packet.put("PinpointX", pinpoint.getEncoderX());
@@ -471,9 +533,132 @@ public class DecodeRobotControl {
                 SHOOTER_MAX_EXIT_VELOCITY_INCHES_PER_SECOND);
     }
 
-    private double exitVelocityToWheelTicksPerSecond(double exitVelocityIps) {
-        double tangentialSpeedIps = exitVelocityIps / SHOOTER_EXIT_VELOCITY_TRANSFER_RATIO;
+    private double exitVelocityToWheelTicksPerSecond(double exitVelocityIps, double transferRatio) {
+        double tangentialSpeedIps = exitVelocityIps / transferRatio;
         return (tangentialSpeedIps / SHOOTER_WHEEL_CIRCUMFERENCE_INCHES) * WHEEL_PPR;
+    }
+
+    private Vector2d getActiveBasketPosition() {
+        return allianceColor == AllianceColor.RED ? RED_BASKET_POSITION_INCHES : BLUE_BASKET_POSITION_INCHES;
+    }
+
+    private Pose2d getShooterPoseEstimate() {
+        Pose2d basePose = latestPoseEstimate != null ? latestPoseEstimate : lastAprilTagFieldPosition;
+        if (basePose == null) return null;
+        double heading = basePose.getHeading();
+        double offsetX = (SHOOTER_FORWARD_OFFSET_INCHES * Math.cos(heading)) -
+                (SHOOTER_LATERAL_OFFSET_INCHES * Math.sin(heading));
+        double offsetY = (SHOOTER_FORWARD_OFFSET_INCHES * Math.sin(heading)) +
+                (SHOOTER_LATERAL_OFFSET_INCHES * Math.cos(heading));
+        return new Pose2d(
+                basePose.getX() + offsetX,
+                basePose.getY() + offsetY,
+                heading);
+    }
+
+    private ShotSolution solveShotToActiveBasket(double transferRatio) {
+        lastShotBlockedByRim = false;
+        Pose2d shooterPose = getShooterPoseEstimate();
+        if (shooterPose == null) return null;
+
+        Vector2d basket = getActiveBasketPosition();
+        double dx = basket.getX() - shooterPose.getX();
+        double dy = basket.getY() - shooterPose.getY();
+        double horizontalDistance = Math.hypot(dx, dy);
+        if (horizontalDistance < 1e-3) return null;
+
+        double headingToTarget = Math.atan2(dy, dx);
+        double verticalDelta = TARGET_PLANE_HEIGHT_INCHES - SHOOTER_EXIT_HEIGHT_INCHES;
+        double cosTheta = Math.cos(SHOOTER_EXIT_ANGLE_RADIANS);
+        double sinTheta = Math.sin(SHOOTER_EXIT_ANGLE_RADIANS);
+        double tanTheta = Math.tan(SHOOTER_EXIT_ANGLE_RADIANS);
+
+        double verticalTerm = (horizontalDistance * tanTheta) - verticalDelta;
+        if (verticalTerm <= 0.5) {
+            lastShotBlockedByRim = true; // target too high/close for the fixed launch angle
+            return null;
+        }
+
+        double effectiveGravity = BALLISTIC_GRAVITY_IN_PER_S2;
+        double exitVelocityIps = SHOOTER_MIN_EXIT_VELOCITY_INCHES_PER_SECOND;
+        double topSpinRadPerSec = 0.0;
+
+        for (int i = 0; i < 3; i++) {
+            double denom = 2.0 * cosTheta * cosTheta * verticalTerm;
+            exitVelocityIps = Math.sqrt((effectiveGravity * horizontalDistance * horizontalDistance) / denom);
+            double tangentialSpeedIps = exitVelocityIps / transferRatio;
+            double surfaceRatio = tangentialSpeedIps / Math.max(1e-3, exitVelocityIps);
+            double naturalRotations = SHOOTER_CONTACT_ARC_LENGTH_INCHES / (2 * Math.PI * BALL_RADIUS_INCHES);
+            double avgLinear = Math.max(1e-3, 0.5 * (tangentialSpeedIps + exitVelocityIps));
+            double contactTime = SHOOTER_CONTACT_ARC_LENGTH_INCHES / avgLinear;
+            double rollSpinRadPerSec = (naturalRotations * 2 * Math.PI) / Math.max(1e-3, contactTime);
+            double exitSpinRadPerSec = exitVelocityIps / BALL_RADIUS_INCHES;
+            topSpinRadPerSec = 0.5 * (rollSpinRadPerSec + (exitSpinRadPerSec * surfaceRatio));
+            double magnusMultiplier = 1.0 + Math.max(0.0, TOPSPIN_DROP_PER_RAD_PER_SEC * topSpinRadPerSec);
+            effectiveGravity = BALLISTIC_GRAVITY_IN_PER_S2 * magnusMultiplier;
+        }
+
+        exitVelocityIps = Range.clip(
+                exitVelocityIps,
+                SHOOTER_MIN_EXIT_VELOCITY_INCHES_PER_SECOND,
+                SHOOTER_MAX_EXIT_VELOCITY_INCHES_PER_SECOND);
+
+        double planarSpeed = exitVelocityIps * cosTheta;
+        double timeToPlane = solveTimeToHeight(effectiveGravity, exitVelocityIps, TARGET_PLANE_HEIGHT_INCHES);
+        if (timeToPlane <= 0) {
+            timeToPlane = horizontalDistance / Math.max(1e-3, planarSpeed);
+        }
+
+        double interceptX = shooterPose.getX() + (planarSpeed * Math.cos(headingToTarget) * timeToPlane);
+        double interceptY = shooterPose.getY() + (planarSpeed * Math.sin(headingToTarget) * timeToPlane);
+
+        ShotSolution solution = new ShotSolution();
+        solution.exitVelocityIps = exitVelocityIps;
+        solution.wheelTicksPerSecond = exitVelocityToWheelTicksPerSecond(exitVelocityIps, transferRatio);
+        solution.effectiveGravity = effectiveGravity;
+        solution.horizontalDistance = horizontalDistance;
+        solution.verticalDelta = verticalDelta;
+        solution.timeOfFlightSec = timeToPlane;
+        solution.headingToTarget = headingToTarget;
+        solution.interceptX = interceptX;
+        solution.interceptY = interceptY;
+        solution.topSpinRadPerSec = topSpinRadPerSec;
+        solution.transferRatio = transferRatio;
+        solution.tangentialSpeedIps = exitVelocityIps / transferRatio;
+        return solution;
+    }
+
+    private double solveTimeToHeight(double effectiveGravity, double exitVelocityIps, double targetHeight) {
+        double a = -0.5 * effectiveGravity;
+        double b = exitVelocityIps * Math.sin(SHOOTER_EXIT_ANGLE_RADIANS);
+        double c = SHOOTER_EXIT_HEIGHT_INCHES - targetHeight;
+        double discriminant = (b * b) - (4 * a * c);
+        if (discriminant < 0) return -1;
+
+        double sqrtDisc = Math.sqrt(discriminant);
+        double t1 = (-b + sqrtDisc) / (2 * a);
+        double t2 = (-b - sqrtDisc) / (2 * a);
+
+        double max = Math.max(t1, t2);
+        double min = Math.min(t1, t2);
+        if (max > 0) return max;
+        if (min > 0) return min;
+        return -1;
+    }
+
+    private static class ShotSolution {
+        double exitVelocityIps;
+        double wheelTicksPerSecond;
+        double effectiveGravity;
+        double horizontalDistance;
+        double verticalDelta;
+        double timeOfFlightSec;
+        double headingToTarget;
+        double interceptX;
+        double interceptY;
+        double topSpinRadPerSec;
+        double transferRatio;
+        double tangentialSpeedIps;
     }
 
     private OpModeState evaluateManualControl(double dtMillis) {
@@ -481,15 +666,35 @@ public class DecodeRobotControl {
             shooterEnabled = !shooterEnabled;
         }
 
+        ShotSolution shotSolution = null;
+        lastShotBlockedByRim = false;
+        double trimInput = Range.clip(gamepad2.right_trigger - gamepad2.left_trigger, -1.0, 1.0);
+        shooterLossTrim = Range.clip(
+                trimInput * SHOOTER_TRANSFER_TRIM_RANGE,
+                -SHOOTER_TRANSFER_TRIM_RANGE,
+                SHOOTER_TRANSFER_TRIM_RANGE);
+        shooterTransferRatio = Range.clip(
+                SHOOTER_EXIT_VELOCITY_TRANSFER_BASE + shooterLossTrim,
+                SHOOTER_TRANSFER_MIN,
+                SHOOTER_TRANSFER_MAX);
         if (shooterEnabled) {
-            shooterDesiredExitVelocityIps = getDesiredExitVelocityIps();
-            shooterDesiredWheelTicksPerSecond = exitVelocityToWheelTicksPerSecond(shooterDesiredExitVelocityIps);
+            shotSolution = solveShotToActiveBasket(shooterTransferRatio);
+            if (shotSolution != null) {
+                shooterDesiredExitVelocityIps = shotSolution.exitVelocityIps;
+                shooterDesiredWheelTicksPerSecond = shotSolution.wheelTicksPerSecond;
+            } else {
+                shooterDesiredExitVelocityIps = getDesiredExitVelocityIps();
+                shooterDesiredWheelTicksPerSecond = exitVelocityToWheelTicksPerSecond(shooterDesiredExitVelocityIps, shooterTransferRatio);
+            }
+            shooterDesiredWheelTicksPerSecond = exitVelocityToWheelTicksPerSecond(shooterDesiredExitVelocityIps, shooterTransferRatio);
             wheel.setVelocity(shooterDesiredWheelTicksPerSecond);
         } else {
             shooterDesiredExitVelocityIps = 0.0;
             shooterDesiredWheelTicksPerSecond = 0.0;
             wheel.setPower(0.0);
+            lastShotBlockedByRim = false;
         }
+        lastShotSolution = shotSolution;
         double intakePower = gamepad1.y ? INTAKE_MOTOR_POWER : 0.0;
         intakeMotor.setPower(intakePower);
 
