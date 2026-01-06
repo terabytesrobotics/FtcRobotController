@@ -58,6 +58,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Arrays;
 
 import org.firstinspires.ftc.teamcode.drive.PinpointLocalizer;
 
@@ -99,6 +100,17 @@ public class DecodeRobotControl {
     private static final double PRESENCE_PROXIMITY_THRESHOLD_INCHES = 1.85;
     private static final double GREEN_MATCH_THRESHOLD = 0.63;
     private static final double PURPLE_MATCH_THRESHOLD = 0.5;
+    private static final double COLLECTOR_PRESENCE_ENTER_THRESHOLD = 0.125;
+    private static final double COLLECTOR_PRESENCE_EXIT_THRESHOLD = 0.05;
+    private static final double COLLECTOR_TRAVEL_DISTANCE_INCHES = 11.0;
+    private static final double INTAKE_TICKS_PER_REV = 384.5; // encoder ticks per motor revolution
+    private static final double INTAKE_ROLLER_RADIUS_INCHES = 2.5; // effective radius of the compliant roller
+    private static final double INTAKE_COMPLIANCE_SLIP = 1.1; // >1 to account for band slip/compliance; tune on robot
+    private static final double INTAKE_TICKS_PER_INCH = (INTAKE_TICKS_PER_REV / (2.0 * Math.PI * INTAKE_ROLLER_RADIUS_INCHES)) * INTAKE_COMPLIANCE_SLIP;
+    private static final double SPIN_IN_TRANSIT_THRESHOLD = 0.003; // servo units; ~0.5 deg on a 5-turn servo
+    private static final double SPIN_AT_TARGET_THRESHOLD = 0.002;
+    private static final double KICKER_PULSE_SEC = 0.25;
+    private static final double SHOOT_RECOVER_SEC = 0.1;
 
     private static final double GREEN_PRESENCE_THRESHOLD = 0.15;
     private static final double PURPLE_PRESENCE_THRESHOLD = 0.15;
@@ -197,6 +209,7 @@ public class DecodeRobotControl {
     private final AprilTagProcessor aprilTagProcessor;
     private final GoBildaPinpointDriver pinpoint;
     private final RevColorSensorV3 color1;
+    private final RevColorSensorV3 color2;
     public final VisionPortal visionPortal;
     public final Servo spin;
     private final Servo kicker;
@@ -205,6 +218,30 @@ public class DecodeRobotControl {
     private double spindexerCanonicalTargetPosition = SPIN_BASE_POSITION_COLLECT;
     private double spindexerTargetPosition = SPIN_BASE_POSITION_COLLECT;
     private double spindexerCommandPosition = SPIN_BASE_POSITION_COLLECT;
+    private final BallColor[] spindexerInventory = new BallColor[SPINDEXER_SLOT_COUNT]; // Slot-wise ball colors, UNKNOWN until detected/assigned.
+    private boolean collectorPresenceLatched = false;
+    private boolean collectorPresenceRisingEdge = false;
+    private boolean collectorPresenceFallingEdge = false;
+    private boolean collectorOverCapacity = false;
+    private int collectorEstimatedBallCount = 0;
+    private boolean collectorCapturePending = false;
+    private boolean collectorCaptureDistanceRunning = false;
+    private int collectorCaptureStartTicks = 0;
+    private int collectorCaptureLastEncoderTicks = 0;
+    private double collectorCaptureAccumTicks = 0.0;
+    private double collectorCaptureTravelTicks = COLLECTOR_TRAVEL_DISTANCE_INCHES * INTAKE_TICKS_PER_INCH;
+    private double lastCollectorPresence = 0.0;
+    private double lastColor1ProximityInches = 0.0;
+    private double lastColor2ProximityInches = 0.0;
+    private double lastColor1GreenPresence = 0.0;
+    private double lastColor1PurplePresence = 0.0;
+    private double lastColor2GreenPresence = 0.0;
+    private double lastColor2PurplePresence = 0.0;
+    private boolean spindexerInTransit = false;
+    private boolean intakeSuppressed = false;
+    private IntakeState intakeState = IntakeState.FORWARD;
+    private ShootCommandState shootCommandState = ShootCommandState.IDLE;
+    private final ElapsedTime shootCommandTimer = new ElapsedTime();
     private boolean shooterEnabled = false;
     private double shooterDesiredExitVelocityIps = 0.0;
     private double shooterDesiredWheelTicksPerSecond = 0.0;
@@ -224,9 +261,11 @@ public class DecodeRobotControl {
         pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
         camera = hardwareMap.get(WebcamName.class, "Webcam 1");
         color1 = hardwareMap.get(RevColorSensorV3.class, "color1");
+        color2 = hardwareMap.get(RevColorSensorV3.class, "color2");
         spin = hardwareMap.get(Servo.class, "spin");
         kicker = hardwareMap.get(Servo.class, "kicker");
         kicker.setPosition(Range.clip(KICKER_UNKICKED_POSITION, 0.0, 1.0));
+        resetSpindexerInventory();
         initializeSpindexerToMidrange();
         wheel = hardwareMap.get(DcMotorEx.class, "wheel");
         wheel.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
@@ -311,36 +350,21 @@ public class DecodeRobotControl {
         return ratio / (ratio + 1.0);
     }
 
-    private Pose2d driveInput = new Pose2d();
-    public TelemetryPacket getTelemetryPacket() {
-        TelemetryPacket packet = new TelemetryPacket();
-
-        double x = latestPoseEstimate == null ? 0.0 : latestPoseEstimate.getX();
-        double y = latestPoseEstimate == null ? 0.0 : latestPoseEstimate.getY();
-        double heading = latestPoseEstimate == null ? 0.0 : latestPoseEstimate.getHeading();
-
-        double len = 12; // projection length
-        double x2 = x + len * Math.cos(heading);
-        double y2 = y + len * Math.sin(heading);
-
+    private double sampleCollectorPresence() {
         int colorReadingMaxInt = 2 << 11;
         double red = (double) color1.red() / colorReadingMaxInt;
         double green = (double) color1.green() / colorReadingMaxInt;
         double blue = (double) color1.blue() / colorReadingMaxInt;
-        double alpha = (double) color1.alpha() / colorReadingMaxInt;
         double color1ProximityInches = color1.getDistance(DistanceUnit.INCH);
-        double greenMatch = greenResonance(
-                red, green, blue);
-        double purpleMatch = purpleResonance(
-                red, green, blue);
-        packet.put("Color1GreenMatch", greenMatch);
-        packet.put("Color1PurpleMatch", purpleMatch);
-        packet.put("Color1Red", red);
-        packet.put("Color1Green", green);
-        packet.put("Color1Blue", blue);
-        packet.put("Color1Alpha", alpha);
-        packet.put("Color1ProximityFootNormalized", Math.max(0, Math.min(1, color1ProximityInches / 12)));
-        packet.put("Color1ProximityInches", color1.getDistance(DistanceUnit.INCH));
+        double red2 = (double) color2.red() / colorReadingMaxInt;
+        double green2 = (double) color2.green() / colorReadingMaxInt;
+        double blue2 = (double) color2.blue() / colorReadingMaxInt;
+        double color2ProximityInches = color2.getDistance(DistanceUnit.INCH);
+
+        double greenMatch = greenResonance(red, green, blue);
+        double purpleMatch = purpleResonance(red, green, blue);
+        double greenMatch2 = greenResonance(red2, green2, blue2);
+        double purpleMatch2 = purpleResonance(red2, green2, blue2);
 
         double proxSoft = 0.5;   // inches past threshold to fade out
         double matchSoft = 0.15; // match past threshold to fade in
@@ -357,8 +381,60 @@ public class DecodeRobotControl {
                 proxSoft, matchSoft
         );
 
-        packet.put("Color1GreenPresence", greenPresence);
-        packet.put("Color1PurplePresence", purplePresence);
+        double greenPresence2 = colorPresence(
+                color2ProximityInches, greenMatch2,
+                PRESENCE_PROXIMITY_THRESHOLD_INCHES, GREEN_MATCH_THRESHOLD,
+                proxSoft, matchSoft
+        );
+
+        double purplePresence2 = colorPresence(
+                color2ProximityInches, purpleMatch2,
+                PRESENCE_PROXIMITY_THRESHOLD_INCHES, PURPLE_MATCH_THRESHOLD,
+                proxSoft, matchSoft
+        );
+
+        double collectorPresence = Math.max(
+                Math.max(greenPresence, purplePresence),
+                Math.max(greenPresence2, purplePresence2)
+        );
+
+        lastCollectorPresence = collectorPresence;
+        lastColor1ProximityInches = color1ProximityInches;
+        lastColor2ProximityInches = color2ProximityInches;
+        lastColor1GreenPresence = greenPresence;
+        lastColor1PurplePresence = purplePresence;
+        lastColor2GreenPresence = greenPresence2;
+        lastColor2PurplePresence = purplePresence2;
+
+        updateCollectorPresence(collectorPresence);
+        return collectorPresence;
+    }
+
+    private Pose2d driveInput = new Pose2d();
+    public TelemetryPacket getTelemetryPacket() {
+        TelemetryPacket packet = new TelemetryPacket();
+
+        double x = latestPoseEstimate == null ? 0.0 : latestPoseEstimate.getX();
+        double y = latestPoseEstimate == null ? 0.0 : latestPoseEstimate.getY();
+        double heading = latestPoseEstimate == null ? 0.0 : latestPoseEstimate.getHeading();
+
+        double len = 12; // projection length
+        double x2 = x + len * Math.cos(heading);
+        double y2 = y + len * Math.sin(heading);
+
+        packet.put("Color1ProximityInches", lastColor1ProximityInches);
+        packet.put("Color1GreenPresence", lastColor1GreenPresence);
+        packet.put("Color1PurplePresence", lastColor1PurplePresence);
+        packet.put("Color2ProximityInches", lastColor2ProximityInches);
+        packet.put("Color2GreenPresence", lastColor2GreenPresence);
+        packet.put("Color2PurplePresence", lastColor2PurplePresence);
+        packet.put("CollectorPresence", lastCollectorPresence);
+        packet.put("CollectorOverCapacity", collectorOverCapacity);
+        packet.put("CollectorEstimatedBallCount", collectorEstimatedBallCount);
+        packet.put("CollectorPresenceLatched", collectorPresenceLatched);
+        packet.put("CollectorPresenceRising", collectorPresenceRisingEdge);
+        packet.put("CollectorPresenceFalling", collectorPresenceFallingEdge);
+        packet.put("IntakeSuppressed", intakeSuppressed);
 
         Canvas overlay = packet.fieldOverlay();
         Pose2d shooterPose = getShooterPoseEstimate();
@@ -383,6 +459,7 @@ public class DecodeRobotControl {
             overlay.strokeLine(bx - r, by - r, bx + r, by + r)
                     .strokeLine(bx - r, by + r, bx + r, by - r);
         }
+        drawSpindexerInventoryIcons(overlay, sx, sy);
 
         packet.put("loopTime", loopTime.milliseconds());
         packet.put("x", x);
@@ -414,6 +491,25 @@ public class DecodeRobotControl {
         packet.put("WheelEncoder", wheel.getCurrentPosition());
         packet.put("IntakeCurrent", intakeMotor.getCurrent(CurrentUnit.MILLIAMPS));
         packet.put("IntakePower", intakeMotor.getPower());
+        packet.put("IntakeSuppressed", intakeSuppressed);
+        packet.put("IntakeState", intakeState.name());
+        packet.put("Color1ProximityInches", lastColor1ProximityInches);
+        packet.put("Color1GreenPresence", lastColor1GreenPresence);
+        packet.put("Color1PurplePresence", lastColor1PurplePresence);
+        packet.put("Color2ProximityInches", lastColor2ProximityInches);
+        packet.put("Color2GreenPresence", lastColor2GreenPresence);
+        packet.put("Color2PurplePresence", lastColor2PurplePresence);
+        packet.put("CollectorPresence", lastCollectorPresence);
+        packet.put("CollectorOverCapacity", collectorOverCapacity);
+        packet.put("CollectorEstimatedBallCount", collectorEstimatedBallCount);
+        packet.put("CollectorPresenceLatched", collectorPresenceLatched);
+        packet.put("CollectorPresenceRising", collectorPresenceRisingEdge);
+        packet.put("CollectorPresenceFalling", collectorPresenceFallingEdge);
+        packet.put("CollectorCapturePending", collectorCapturePending);
+        packet.put("CollectorCaptureDistanceRunning", collectorCaptureDistanceRunning);
+        packet.put("CollectorCaptureTravelTicks", collectorCaptureTravelTicks);
+        packet.put("CollectorCaptureTraveledTicks", collectorCaptureTraveledTicks());
+        packet.put("ShootCommandState", shootCommandState.name());
         packet.put("DriveInputX", driveInput.getX());
         packet.put("DriveInputY", driveInput.getY());
         packet.put("SpindexerSlot", Math.floorMod(spindexerSlot, SPINDEXER_SLOT_COUNT) + 1); // human-friendly 1-based
@@ -423,6 +519,10 @@ public class DecodeRobotControl {
         packet.put("SpindexerCommandPosition", spindexerCommandPosition);
         packet.put("SpindexerServoPosition", spin.getPosition());
         packet.put("SpindexerDelta", spindexerTargetPosition - spindexerCommandPosition);
+        packet.put("SpindexerInTransit", spindexerInTransit);
+        for (int i = 0; i < SPINDEXER_SLOT_COUNT; i++) {
+            packet.put("SpindexerSlot" + (i + 1) + "Color", spindexerInventory[i].name());
+        }
         packet.put("KickerTargetPosition", kickerKicked ? KICKER_KICKED_POSITION : KICKER_UNKICKED_POSITION);
         packet.put("KickerServoPosition", kicker.getPosition());
         packet.put("ShotSolutionAvailable", lastShotSolution != null);
@@ -695,27 +795,17 @@ public class DecodeRobotControl {
             lastShotBlockedByRim = false;
         }
         lastShotSolution = shotSolution;
-        double intakePower = gamepad1.y ? INTAKE_MOTOR_POWER : 0.0;
-        intakeMotor.setPower(intakePower);
+        double collectorPresence = sampleCollectorPresence();
+        evaluateCollectorCapture();
+        spindexerInTransit = Math.abs(spindexerTargetPosition - spindexerCommandPosition) > SPIN_IN_TRANSIT_THRESHOLD;
 
-        boolean fastMode = gamepad1.left_bumper;
-        boolean hasPositionEstimate = hasPositionEstimate();
+        if (a2ActivatedEvaluator.evaluate() && shootCommandState == ShootCommandState.IDLE) {
+            startShootCommand();
+        }
 
-        if (x2ActivatedEvaluator.evaluate()) {
-            spindexerSlot = Math.floorMod(spindexerSlot + 1, SPINDEXER_SLOT_COUNT);
-            retargetSpindexer();
-        } else if (b2ActivatedEvaluator.evaluate()) {
-            spindexerSlot = Math.floorMod(spindexerSlot - 1, SPINDEXER_SLOT_COUNT);
-            retargetSpindexer();
-        }
-        if (dpu2ActivatedEvaluator.evaluate()) {
-            spindexerMode = SpindexerMode.SHOOT;
-            retargetSpindexer();
-        } else if (dpd2ActivatedEvaluator.evaluate()) {
-            spindexerMode = SpindexerMode.COLLECT;
-            retargetSpindexer();
-            kickerKicked = false; // default to safe position when not shooting
-        }
+        boolean allowSpindexerRetarget = !kickerKicked && shootCommandState == ShootCommandState.IDLE;
+        updateShootCommand();
+
         updateSpindexerPosition(dtMillis / 1000.0);
 
         if (a1ActivatedEvaluator.evaluate()) {
@@ -725,13 +815,36 @@ public class DecodeRobotControl {
         lift.setPosition(lifted ? 0.0 : 1.0);
 
         if (lb2ActivatedEvaluator.evaluate()) {
-            kickerKicked = !kickerKicked;
+            if (!kickerKicked) {
+                boolean canKick = (spindexerMode == SpindexerMode.SHOOT) && isSpindexerAtTarget() && shootCommandState == ShootCommandState.IDLE;
+                kickerKicked = canKick;
+            } else {
+                kickerKicked = false;
+            }
         }
 
         double kickerTarget = (spindexerMode == SpindexerMode.SHOOT && kickerKicked)
                 ? KICKER_KICKED_POSITION
                 : KICKER_UNKICKED_POSITION;
         kicker.setPosition(Range.clip(kickerTarget, 0.0, 1.0));
+
+        intakeSuppressed = spindexerInTransit || shooterEnabled || kickerKicked;
+        if (intakeSuppressed) {
+            intakeState = IntakeState.STOPPED;
+        }
+        updateIntakeStateMachine(intakeSuppressed);
+        double intakePower = 0.0;
+        if (!intakeSuppressed) {
+            if (intakeState == IntakeState.FORWARD) {
+                intakePower = INTAKE_MOTOR_POWER;
+            } else if (intakeState == IntakeState.REVERSE_REJECT) {
+                intakePower = -INTAKE_MOTOR_POWER;
+            }
+        }
+        intakeMotor.setPower(intakePower);
+
+        boolean fastMode = gamepad1.left_bumper;
+        boolean hasPositionEstimate = hasPositionEstimate();
 
         driveInput = driveInput
                 .plus(getScaledHeadlessDriverInput(gamepad1, allianceColor.OperatorHeadingOffset));
@@ -810,19 +923,238 @@ public class DecodeRobotControl {
         double maxStep = SPIN_MAX_POS_PER_SEC * dtSeconds;
         double error = spindexerTargetPosition - spindexerCommandPosition;
         double step = Range.clip(error, -maxStep, maxStep);
-        spindexerCommandPosition = Range.clip(spindexerCommandPosition + step, 0.0, 1.0);
-        spin.setPosition(spindexerCommandPosition);
+        double nextPos = Range.clip(spindexerCommandPosition + step, 0.0, 1.0);
+        if (!kickerKicked) { // do not move when kicker is engaged
+            spindexerCommandPosition = nextPos;
+            spin.setPosition(spindexerCommandPosition);
+        }
     }
 
     private void updateSpindexerPosition() {
         spindexerTargetPosition = Range.clip(spindexerTargetPosition, 0.0, 1.0);
-        spindexerCommandPosition = spindexerTargetPosition;
-        spin.setPosition(spindexerCommandPosition);
+        if (!kickerKicked) { // do not move when kicker is engaged
+            spindexerCommandPosition = spindexerTargetPosition;
+            spin.setPosition(spindexerCommandPosition);
+        }
+    }
+
+    private void resetSpindexerInventory() {
+        Arrays.fill(spindexerInventory, BallColor.EMPTY);
+    }
+
+    private BallColor getSlotColor(int slotIndex) {
+        int boundedIndex = Math.floorMod(slotIndex, SPINDEXER_SLOT_COUNT);
+        return spindexerInventory[boundedIndex];
+    }
+
+    private void setSlotColor(int slotIndex, BallColor color) {
+        int boundedIndex = Math.floorMod(slotIndex, SPINDEXER_SLOT_COUNT);
+        spindexerInventory[boundedIndex] = color == null ? BallColor.EMPTY : color;
+    }
+
+    private int getKnownBallCount() {
+        int count = 0;
+        for (BallColor c : spindexerInventory) {
+            if (c != BallColor.EMPTY) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    // Fusion of intake sensors to track a ball entering the mouth; hysteresis reduces flicker.
+    // Collector travel is ~11" to the spindexer pocket; we treat a latched presence as a ball in the throat,
+    // and mark over-capacity if that implies a fourth ball.
+    private void updateCollectorPresence(double collectorPresence) {
+        collectorPresenceRisingEdge = false;
+        collectorPresenceFallingEdge = false;
+        boolean wasLatched = collectorPresenceLatched;
+        if (!collectorPresenceLatched && collectorPresence >= COLLECTOR_PRESENCE_ENTER_THRESHOLD) {
+            collectorPresenceLatched = true;
+        } else if (collectorPresenceLatched && collectorPresence <= COLLECTOR_PRESENCE_EXIT_THRESHOLD) {
+            collectorPresenceLatched = false;
+        }
+        collectorPresenceRisingEdge = !wasLatched && collectorPresenceLatched;
+        collectorPresenceFallingEdge = wasLatched && !collectorPresenceLatched;
+
+        int provisionalCount = getKnownBallCount() + (collectorPresenceLatched ? 1 : 0);
+        boolean rejecting = intakeState == IntakeState.REVERSE_REJECT;
+        boolean forwardFeeding = intakeState == IntakeState.FORWARD && !intakeSuppressed;
+
+        if (collectorPresenceRisingEdge && forwardFeeding && provisionalCount <= SPINDEXER_SLOT_COUNT) {
+            collectorCapturePending = true;
+            collectorCaptureDistanceRunning = false;
+        }
+
+        if (collectorPresenceFallingEdge && collectorCapturePending && forwardFeeding && provisionalCount <= SPINDEXER_SLOT_COUNT) {
+            collectorCaptureDistanceRunning = true;
+            collectorCaptureStartTicks = intakeMotor.getCurrentPosition();
+            collectorCaptureLastEncoderTicks = collectorCaptureStartTicks;
+            collectorCaptureAccumTicks = 0.0;
+        } else if (collectorPresenceFallingEdge && !forwardFeeding) {
+            collectorCapturePending = false;
+            collectorCaptureDistanceRunning = false;
+            collectorCaptureAccumTicks = 0.0;
+        }
+
+        collectorEstimatedBallCount = getKnownBallCount() + (collectorPresenceLatched ? 1 : 0);
+        collectorOverCapacity = collectorEstimatedBallCount > SPINDEXER_SLOT_COUNT;
+    }
+
+    private void updateIntakeStateMachine(boolean suppressed) {
+        if (collectorPresenceRisingEdge && getKnownBallCount() >= SPINDEXER_SLOT_COUNT) {
+            intakeState = IntakeState.REVERSE_REJECT;
+        }
+
+        if (intakeState == IntakeState.REVERSE_REJECT && collectorPresenceFallingEdge) {
+            intakeState = IntakeState.FORWARD;
+        }
+
+        if (intakeState == IntakeState.STOPPED && !suppressed) {
+            intakeState = IntakeState.FORWARD; // default to feeding when we regain control
+        }
+    }
+
+    private void evaluateCollectorCapture() {
+        if (collectorCaptureDistanceRunning) {
+            int encoderNow = intakeMotor.getCurrentPosition();
+            int delta = encoderNow - collectorCaptureLastEncoderTicks;
+            collectorCaptureLastEncoderTicks = encoderNow;
+            if (delta > 0) {
+                collectorCaptureAccumTicks += delta; // count only forward motion
+            }
+            if (collectorCaptureAccumTicks >= collectorCaptureTravelTicks && intakeState == IntakeState.FORWARD && !intakeSuppressed) {
+                registerCollectedBall();
+                collectorCapturePending = false;
+                collectorCaptureDistanceRunning = false;
+                collectorCaptureAccumTicks = 0.0;
+            }
+        }
+        if (intakeState != IntakeState.FORWARD || intakeSuppressed) {
+            collectorCaptureDistanceRunning = false; // pause; do not clear pending/accum so we can continue when forward resumes
+        }
+    }
+
+    private double collectorCaptureTraveledTicks() {
+        if (!collectorCaptureDistanceRunning) {
+            return collectorCaptureAccumTicks;
+        }
+        return collectorCaptureAccumTicks;
+    }
+
+    private void startShootCommand() {
+        shootCommandState = ShootCommandState.ARMING;
+        shootCommandTimer.reset();
+        spindexerMode = SpindexerMode.SHOOT;
+        retargetSpindexer();
+        kickerKicked = false;
+    }
+
+    private void updateShootCommand() {
+        switch (shootCommandState) {
+            case IDLE:
+                return;
+            case ARMING:
+                spindexerMode = SpindexerMode.SHOOT;
+                retargetSpindexer();
+                if (isSpindexerAtTarget()) {
+                    kickerKicked = true;
+                    shootCommandState = ShootCommandState.KICKING;
+                    shootCommandTimer.reset();
+                }
+                break;
+            case KICKING:
+                if (shootCommandTimer.seconds() >= KICKER_PULSE_SEC) {
+                    kickerKicked = false;
+                    shootCommandState = ShootCommandState.RECOVERING;
+                    shootCommandTimer.reset();
+                    spindexerMode = SpindexerMode.COLLECT;
+                    retargetSpindexer();
+                }
+                break;
+            case RECOVERING:
+                if (shootCommandTimer.seconds() >= SHOOT_RECOVER_SEC) {
+                    shootCommandState = ShootCommandState.IDLE;
+                }
+                break;
+        }
+    }
+
+    private boolean isSpindexerAtTarget() {
+        return Math.abs(spindexerTargetPosition - spindexerCommandPosition) <= SPIN_AT_TARGET_THRESHOLD;
+    }
+
+    private void registerCollectedBall() {
+        setSlotColor(spindexerSlot, BallColor.UNKNOWN);
+        int nextSlot = findNextEmptySlot(spindexerSlot);
+        if (nextSlot != spindexerSlot && !kickerKicked) {
+            spindexerSlot = nextSlot;
+            retargetSpindexer();
+        }
+    }
+
+    private int findNextEmptySlot(int startSlot) {
+        for (int i = 1; i <= SPINDEXER_SLOT_COUNT; i++) {
+            int candidate = Math.floorMod(startSlot + i, SPINDEXER_SLOT_COUNT);
+            if (spindexerInventory[candidate] == BallColor.EMPTY) {
+                return candidate;
+            }
+        }
+        return startSlot;
+    }
+
+    private void drawSpindexerInventoryIcons(Canvas overlay, double originX, double originY) {
+        double spacing = 5.0;
+        double radius = 2.0;
+        double startX = originX - spacing;
+        double y = originY + 8.0; // small offset behind the robot icon
+        for (int i = 0; i < SPINDEXER_SLOT_COUNT; i++) {
+            String fill = ballColorToFill(spindexerInventory[i]);
+            String stroke = "#000000";
+            double cx = startX + (i * spacing);
+            overlay.setFill(fill);
+            overlay.setStroke(stroke);
+            overlay.fillCircle(cx, y, radius)
+                    .strokeCircle(cx, y, radius);
+        }
+    }
+
+    private String ballColorToFill(BallColor color) {
+        switch (color) {
+            case EMPTY:
+                return "#cccccc";
+            case GREEN:
+                return "#00cc44";
+            case PURPLE:
+                return "#7a2cff";
+            default:
+                return "#555555"; // unknown/empty
+        }
     }
 
     private enum SpindexerMode {
         COLLECT,
         SHOOT
+    }
+
+    private enum IntakeState {
+        FORWARD,
+        REVERSE_REJECT,
+        STOPPED
+    }
+
+    private enum ShootCommandState {
+        IDLE,
+        ARMING,
+        KICKING,
+        RECOVERING
+    }
+
+    private enum BallColor {
+        EMPTY,
+        UNKNOWN,
+        GREEN,
+        PURPLE
     }
 
     private OpModeState evaluateCommandSequence() {
