@@ -109,7 +109,7 @@ public class DecodeRobotControl {
     private static final double KICKER_KICK_RANGE_DEGREES = 100.0; // expected travel for a full kick
     private static final double KICKER_KICK_RANGE = KICKER_KICK_RANGE_DEGREES / KICKER_SERVO_RANGE_DEGREES;
     // Start conservative; both positions are meant to be tuned on a real robot.
-    private static final double KICKER_UNKICKED_POSITION = 0.2;
+    private static final double KICKER_UNKICKED_POSITION = 0.05;
     private static final double KICKER_KICKED_POSITION = KICKER_UNKICKED_POSITION + KICKER_KICK_RANGE;
     // Rated 5-turn servo: 0-1 range maps to ~0-1800 degrees (tunable if real range differs).
     private static final double SPIN_SERVO_RANGE_DEGREES = (4.5 * 360) + 10;
@@ -122,7 +122,7 @@ public class DecodeRobotControl {
     private static final double SPIN_BASE_POSITION_COLLECT = 0.0;
     // Offset from collect to shoot mode (in servo position units: 1.0 = 5 full turns = 1800 deg).
     // Approximately 2/5 of a turn between collect and shoot -> 144 degrees (applied in opposite direction).
-    private static final double SPIN_MODE_OFFSET_DEGREES = 92.5;
+    private static final double SPIN_MODE_OFFSET_DEGREES = 97.5;
     private static final double SPIN_MODE_OFFSET_SHOOT = (SPIN_MODE_OFFSET_DEGREES / 360.0) * SPIN_SERVO_FULL_TURN;
     private static final double SPIN_MAX_DEG_PER_SEC = 240.0;
     private static final double SPIN_MAX_POS_PER_SEC = (SPIN_MAX_DEG_PER_SEC / 360.0) * SPIN_SERVO_FULL_TURN; // 1.0 = full servo range
