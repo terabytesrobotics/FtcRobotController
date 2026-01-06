@@ -1002,7 +1002,14 @@ public class DecodeRobotControl {
     }
 
     private void updateIntakeStateMachine(boolean suppressed) {
-        if (collectorPresenceRisingEdge && getKnownBallCount() >= SPINDEXER_SLOT_COUNT) {
+        boolean atCapacity = getKnownBallCount() >= SPINDEXER_SLOT_COUNT;
+        boolean overCapacity = collectorOverCapacity || (collectorPresenceLatched && atCapacity);
+
+        if (collectorPresenceRisingEdge && atCapacity) {
+            intakeState = IntakeState.REVERSE_REJECT;
+        }
+
+        if (overCapacity) {
             intakeState = IntakeState.REVERSE_REJECT;
         }
 
