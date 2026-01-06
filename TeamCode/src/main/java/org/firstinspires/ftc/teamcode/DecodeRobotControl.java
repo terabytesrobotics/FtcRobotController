@@ -103,6 +103,9 @@ public class DecodeRobotControl {
     private static final double COLLECTOR_PRESENCE_ENTER_THRESHOLD = 0.125;
     private static final double COLLECTOR_PRESENCE_EXIT_THRESHOLD = 0.05;
     private static final double COLLECTOR_TRAVEL_DISTANCE_INCHES = 11.0;
+    private static final double SLOT_SENSOR_ENTER_THRESHOLD_GREEN = 0.15;
+    private static final double SLOT_SENSOR_ENTER_THRESHOLD_PURPLE = 0.06;
+    private static final double SLOT_SENSOR_EXIT_THRESHOLD = 0.03;
     private static final double INTAKE_TICKS_PER_REV = 384.5; // encoder ticks per motor revolution
     private static final double INTAKE_ROLLER_RADIUS_INCHES = 2.5; // effective radius of the compliant roller
     private static final double INTAKE_COMPLIANCE_SLIP = 1.1; // >1 to account for band slip/compliance; tune on robot
@@ -111,6 +114,7 @@ public class DecodeRobotControl {
     private static final double SPIN_AT_TARGET_THRESHOLD = 0.002;
     private static final double KICKER_PULSE_SEC = 0.25;
     private static final double SHOOT_RECOVER_SEC = 0.1;
+    private static final double SPIN_SETTLE_BEFORE_KICK_SEC = 0.25; // inflated to validate no premature kicks
 
     private static final double GREEN_PRESENCE_THRESHOLD = 0.15;
     private static final double PURPLE_PRESENCE_THRESHOLD = 0.15;
@@ -131,10 +135,11 @@ public class DecodeRobotControl {
     // Three slots 120 degrees apart -> converts degrees to servo position based on measured turn range.
     private static final double SPIN_SLOT_SPACING = (SPIN_SLOT_SPACING_DEGREES / 360.0) * SPIN_SERVO_FULL_TURN;
     // Tune this to align slot 0 with the collect pocket; leave at 0 to start.
-    private static final double SPIN_BASE_POSITION_COLLECT = 0.0;
+    private static final double SPIN_BASE_POSITION_COLLECT_DEGREES = 15; // positive = clockwise nudge
+    private static final double SPIN_BASE_POSITION_COLLECT = (SPIN_BASE_POSITION_COLLECT_DEGREES / 360.0) * SPIN_SERVO_FULL_TURN;
     // Offset from collect to shoot mode (in servo position units: 1.0 = 5 full turns = 1800 deg).
     // Approximately 2/5 of a turn between collect and shoot -> 144 degrees (applied in opposite direction).
-    private static final double SPIN_MODE_OFFSET_DEGREES = 97.5;
+    private static final double SPIN_MODE_OFFSET_DEGREES = 105.0;
     private static final double SPIN_MODE_OFFSET_SHOOT = (SPIN_MODE_OFFSET_DEGREES / 360.0) * SPIN_SERVO_FULL_TURN;
     private static final double SPIN_MAX_DEG_PER_SEC = 240.0;
     private static final double SPIN_MAX_POS_PER_SEC = (SPIN_MAX_DEG_PER_SEC / 360.0) * SPIN_SERVO_FULL_TURN; // 1.0 = full servo range
@@ -210,6 +215,7 @@ public class DecodeRobotControl {
     private final GoBildaPinpointDriver pinpoint;
     private final RevColorSensorV3 color1;
     private final RevColorSensorV3 color2;
+    private final RevColorSensorV3 color3;
     public final VisionPortal visionPortal;
     public final Servo spin;
     private final Servo kicker;
@@ -237,12 +243,17 @@ public class DecodeRobotControl {
     private double lastColor1PurplePresence = 0.0;
     private double lastColor2GreenPresence = 0.0;
     private double lastColor2PurplePresence = 0.0;
+    private double lastColor3ProximityInches = 0.0;
+    private double lastColor3GreenPresence = 0.0;
+    private double lastColor3PurplePresence = 0.0;
+    private boolean color3PresenceLatched = false;
     private boolean spindexerInTransit = false;
     private boolean intakeSuppressed = false;
     private IntakeState intakeState = IntakeState.FORWARD;
     private ShootCommandState shootCommandState = ShootCommandState.IDLE;
     private final ElapsedTime shootCommandTimer = new ElapsedTime();
-    private boolean shooterEnabled = false;
+    private final ElapsedTime spindexerSettleTimer = new ElapsedTime();
+    private boolean shooterEnabled = true;
     private double shooterDesiredExitVelocityIps = 0.0;
     private double shooterDesiredWheelTicksPerSecond = 0.0;
     private double shooterLossTrim = 0.0;
@@ -262,6 +273,7 @@ public class DecodeRobotControl {
         camera = hardwareMap.get(WebcamName.class, "Webcam 1");
         color1 = hardwareMap.get(RevColorSensorV3.class, "color1");
         color2 = hardwareMap.get(RevColorSensorV3.class, "color2");
+        color3 = hardwareMap.get(RevColorSensorV3.class, "color3");
         spin = hardwareMap.get(Servo.class, "spin");
         kicker = hardwareMap.get(Servo.class, "kicker");
         kicker.setPosition(Range.clip(KICKER_UNKICKED_POSITION, 0.0, 1.0));
@@ -428,6 +440,10 @@ public class DecodeRobotControl {
         packet.put("Color2ProximityInches", lastColor2ProximityInches);
         packet.put("Color2GreenPresence", lastColor2GreenPresence);
         packet.put("Color2PurplePresence", lastColor2PurplePresence);
+        packet.put("Color3ProximityInches", lastColor3ProximityInches);
+        packet.put("Color3GreenPresence", lastColor3GreenPresence);
+        packet.put("Color3PurplePresence", lastColor3PurplePresence);
+        packet.put("Color3PresenceLatched", color3PresenceLatched);
         packet.put("CollectorPresence", lastCollectorPresence);
         packet.put("CollectorOverCapacity", collectorOverCapacity);
         packet.put("CollectorEstimatedBallCount", collectorEstimatedBallCount);
@@ -762,6 +778,7 @@ public class DecodeRobotControl {
     }
 
     private OpModeState evaluateManualControl(double dtMillis) {
+        // Default shooter on; right bumper toggles off/on via the edge evaluator.
         if (rb2ActivatedEvaluator.evaluate()) {
             shooterEnabled = !shooterEnabled;
         }
@@ -797,16 +814,18 @@ public class DecodeRobotControl {
         lastShotSolution = shotSolution;
         double collectorPresence = sampleCollectorPresence();
         evaluateCollectorCapture();
-        spindexerInTransit = Math.abs(spindexerTargetPosition - spindexerCommandPosition) > SPIN_IN_TRANSIT_THRESHOLD;
+        updateCollectedSlotSensor();
 
         if (a2ActivatedEvaluator.evaluate() && shootCommandState == ShootCommandState.IDLE) {
             startShootCommand();
         }
 
+        spindexerInTransit = Math.abs(spindexerTargetPosition - spindexerCommandPosition) > SPIN_IN_TRANSIT_THRESHOLD;
         boolean allowSpindexerRetarget = !kickerKicked && shootCommandState == ShootCommandState.IDLE;
         updateShootCommand();
 
         updateSpindexerPosition(dtMillis / 1000.0);
+        spindexerInTransit = Math.abs(spindexerTargetPosition - spindexerCommandPosition) > SPIN_IN_TRANSIT_THRESHOLD;
 
         if (a1ActivatedEvaluator.evaluate()) {
             lifted = !lifted;
@@ -816,7 +835,7 @@ public class DecodeRobotControl {
 
         if (lb2ActivatedEvaluator.evaluate()) {
             if (!kickerKicked) {
-                boolean canKick = (spindexerMode == SpindexerMode.SHOOT) && isSpindexerAtTarget() && shootCommandState == ShootCommandState.IDLE;
+                boolean canKick = (spindexerMode == SpindexerMode.SHOOT) && isSpindexerSettled() && shootCommandState == ShootCommandState.IDLE;
                 kickerKicked = canKick;
             } else {
                 kickerKicked = false;
@@ -828,7 +847,7 @@ public class DecodeRobotControl {
                 : KICKER_UNKICKED_POSITION;
         kicker.setPosition(Range.clip(kickerTarget, 0.0, 1.0));
 
-        intakeSuppressed = spindexerInTransit || shooterEnabled || kickerKicked;
+        intakeSuppressed = spindexerInTransit || kickerKicked || shootCommandState == ShootCommandState.KICKING;
         if (intakeSuppressed) {
             intakeState = IntakeState.STOPPED;
         }
@@ -1030,7 +1049,7 @@ public class DecodeRobotControl {
             if (delta > 0) {
                 collectorCaptureAccumTicks += delta; // count only forward motion
             }
-            if (collectorCaptureAccumTicks >= collectorCaptureTravelTicks && intakeState == IntakeState.FORWARD && !intakeSuppressed) {
+            if (collectorCaptureAccumTicks >= collectorCaptureTravelTicks && intakeState == IntakeState.FORWARD && !intakeSuppressed && !spindexerInTransit) {
                 registerCollectedBall();
                 collectorCapturePending = false;
                 collectorCaptureDistanceRunning = false;
@@ -1042,6 +1061,55 @@ public class DecodeRobotControl {
         }
     }
 
+    private void updateCollectedSlotSensor() {
+        int colorReadingMaxInt = 2 << 11;
+        double red3 = (double) color3.red() / colorReadingMaxInt;
+        double green3 = (double) color3.green() / colorReadingMaxInt;
+        double blue3 = (double) color3.blue() / colorReadingMaxInt;
+        double color3ProximityInches = color3.getDistance(DistanceUnit.INCH);
+
+        double proxSoft = 0.5;
+        double matchSoft = 0.15;
+        double greenPresence3 = colorPresence(
+                color3ProximityInches,
+                greenResonance(red3, green3, blue3),
+                PRESENCE_PROXIMITY_THRESHOLD_INCHES, GREEN_MATCH_THRESHOLD,
+                proxSoft, matchSoft
+        );
+        double purplePresence3 = colorPresence(
+                color3ProximityInches,
+                purpleResonance(red3, green3, blue3),
+                PRESENCE_PROXIMITY_THRESHOLD_INCHES, PURPLE_MATCH_THRESHOLD,
+                proxSoft, matchSoft
+        );
+        boolean greenHit = greenPresence3 >= SLOT_SENSOR_ENTER_THRESHOLD_GREEN;
+        boolean purpleHit = purplePresence3 >= SLOT_SENSOR_ENTER_THRESHOLD_PURPLE;
+        double slotPresence = Math.max(greenPresence3, purplePresence3);
+        BallColor detectedColor = BallColor.UNKNOWN;
+        if (greenHit && (!purpleHit || greenPresence3 >= purplePresence3)) {
+            detectedColor = BallColor.GREEN;
+        } else if (purpleHit) {
+            detectedColor = BallColor.PURPLE;
+        }
+
+        lastColor3ProximityInches = color3ProximityInches;
+        lastColor3GreenPresence = greenPresence3;
+        lastColor3PurplePresence = purplePresence3;
+
+        boolean slotStable = Math.abs(spindexerTargetPosition - spindexerCommandPosition) <= SPIN_IN_TRANSIT_THRESHOLD;
+        boolean canEvaluate = spindexerMode == SpindexerMode.COLLECT && !kickerKicked && slotStable;
+
+        if (canEvaluate && !color3PresenceLatched && (greenHit || purpleHit)) {
+            color3PresenceLatched = true;
+            collectorCapturePending = false;
+            collectorCaptureDistanceRunning = false;
+            collectorCaptureAccumTicks = 0.0;
+            registerCollectedBallWithColor(detectedColor);
+        } else if (color3PresenceLatched && slotPresence <= SLOT_SENSOR_EXIT_THRESHOLD) {
+            color3PresenceLatched = false;
+        }
+    }
+
     private double collectorCaptureTraveledTicks() {
         if (!collectorCaptureDistanceRunning) {
             return collectorCaptureAccumTicks;
@@ -1050,11 +1118,18 @@ public class DecodeRobotControl {
     }
 
     private void startShootCommand() {
+        int filledSlot = findNextFilledSlot(spindexerSlot);
+        if (filledSlot == -1) {
+            shootCommandState = ShootCommandState.IDLE;
+            return;
+        }
+        spindexerSlot = filledSlot;
         shootCommandState = ShootCommandState.ARMING;
         shootCommandTimer.reset();
         spindexerMode = SpindexerMode.SHOOT;
         retargetSpindexer();
         kickerKicked = false;
+        spindexerSettleTimer.reset();
     }
 
     private void updateShootCommand() {
@@ -1064,15 +1139,20 @@ public class DecodeRobotControl {
             case ARMING:
                 spindexerMode = SpindexerMode.SHOOT;
                 retargetSpindexer();
-                if (isSpindexerAtTarget()) {
-                    kickerKicked = true;
-                    shootCommandState = ShootCommandState.KICKING;
-                    shootCommandTimer.reset();
+                if (isSpindexerSettled()) {
+                    if (spindexerSettleTimer.seconds() >= SPIN_SETTLE_BEFORE_KICK_SEC) {
+                        kickerKicked = true;
+                        shootCommandState = ShootCommandState.KICKING;
+                        shootCommandTimer.reset();
+                    }
+                } else {
+                    spindexerSettleTimer.reset();
                 }
                 break;
             case KICKING:
                 if (shootCommandTimer.seconds() >= KICKER_PULSE_SEC) {
                     kickerKicked = false;
+                    setSlotColor(spindexerSlot, BallColor.EMPTY);
                     shootCommandState = ShootCommandState.RECOVERING;
                     shootCommandTimer.reset();
                     spindexerMode = SpindexerMode.COLLECT;
@@ -1091,8 +1171,16 @@ public class DecodeRobotControl {
         return Math.abs(spindexerTargetPosition - spindexerCommandPosition) <= SPIN_AT_TARGET_THRESHOLD;
     }
 
+    private boolean isSpindexerSettled() {
+        return !spindexerInTransit && isSpindexerAtTarget();
+    }
+
     private void registerCollectedBall() {
-        setSlotColor(spindexerSlot, BallColor.UNKNOWN);
+        registerCollectedBallWithColor(BallColor.UNKNOWN);
+    }
+
+    private void registerCollectedBallWithColor(BallColor color) {
+        setSlotColor(spindexerSlot, color == BallColor.EMPTY ? BallColor.UNKNOWN : color);
         int nextSlot = findNextEmptySlot(spindexerSlot);
         if (nextSlot != spindexerSlot && !kickerKicked) {
             spindexerSlot = nextSlot;
@@ -1108,6 +1196,16 @@ public class DecodeRobotControl {
             }
         }
         return startSlot;
+    }
+
+    private int findNextFilledSlot(int startSlot) {
+        for (int i = 0; i < SPINDEXER_SLOT_COUNT; i++) {
+            int candidate = Math.floorMod(startSlot + i, SPINDEXER_SLOT_COUNT);
+            if (spindexerInventory[candidate] != BallColor.EMPTY) {
+                return candidate;
+            }
+        }
+        return -1;
     }
 
     private void drawSpindexerInventoryIcons(Canvas overlay, double originX, double originY) {
