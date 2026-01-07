@@ -44,6 +44,7 @@ import org.firstinspires.ftc.teamcode.Processors.SampleDetectVisionProcessor;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
 import org.firstinspires.ftc.teamcode.util.OnActivatedEvaluator;
+import org.firstinspires.ftc.teamcode.HeadlessConfig;
 
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
@@ -863,36 +864,35 @@ public class DecodeRobotControl {
         intakeMotor.setPower(intakePower);
 
         boolean fastMode = gamepad1.left_bumper;
-        boolean hasPositionEstimate = hasPositionEstimate();
 
-        driveInput = driveInput
-                .plus(getScaledHeadlessDriverInput(gamepad1, allianceColor.OperatorHeadingOffset));
-
-        if (fastMode) {
-            driveInput = driveInput.div(1.5);
-        } else {
-            driveInput = driveInput.div(2.25);
-        }
+        double driverForwardHeading = HeadlessConfig.forwardHeadingRadians(allianceColor);
+        driveInput = getHeadlessDriveInput(gamepad1, driverForwardHeading, latestPoseEstimate.getHeading());
+        double divisor = fastMode ? 1.5 : 2.25;
+        driveInput = driveInput.div(divisor);
 
         setDrivePower(driveInput);
         return OpModeState.MANUAL_CONTROL;
     }
 
-    private Pose2d getScaledHeadlessDriverInput(Gamepad gamepad, double operatorHeadingOffset) {
-        Vector2d inputFieldDirection = Helpers.headlessLeftStickFieldDirection(gamepad, operatorHeadingOffset, latestPoseEstimate.getHeading());
+    private Pose2d getHeadlessDriveInput(Gamepad gamepad, double driverForwardHeading, double robotHeading) {
+        Vector2d robotTranslation = Helpers.fieldRelativeLeftStick(gamepad, driverForwardHeading, robotHeading);
+        // Right stick X: right = clockwise (negative in CCW-positive math)
+        double rotation = -applySignedSquareDeadband(gamepad.right_stick_x, 0.02);
+        return new Pose2d(robotTranslation.getX(), robotTranslation.getY(), rotation);
+    }
+
+    private Pose2d getScaledHeadlessDriverABInput(Gamepad gamepad, double driverForwardHeading) {
+        Vector2d inputFieldDirection = Helpers.headlessABButtonFieldDirection(gamepad, driverForwardHeading, latestPoseEstimate.getHeading());
         double scaledRobotX = inputFieldDirection.getX();
         double scaledRobotY = inputFieldDirection.getY();
-        double signRotation = -Math.signum(gamepad.right_stick_x);
-        double scaledRotation = signRotation * (gamepad.right_stick_x * gamepad.right_stick_x);
+        double scaledRotation = -applySignedSquareDeadband(gamepad.right_stick_x, 0.02);
         return new Pose2d(scaledRobotX, scaledRobotY, scaledRotation);
     }
 
-    private Pose2d getScaledHeadlessDriverABInput(Gamepad gamepad, double operatorHeadingOffset) {
-        Vector2d inputFieldDirection = Helpers.headlessABButtonFieldDirection(gamepad, operatorHeadingOffset, latestPoseEstimate.getHeading());
-        double scaledRobotX = inputFieldDirection.getX();
-        double scaledRobotY = inputFieldDirection.getY();
-        double scaledRotation = -gamepad.right_stick_x;
-        return new Pose2d(scaledRobotX, scaledRobotY, scaledRotation);
+    private double applySignedSquareDeadband(double value, double deadband) {
+        if (Math.abs(value) <= deadband) return 0.0;
+        double scaled = (Math.abs(value) - deadband) / (1.0 - deadband);
+        return Math.copySign(scaled * scaled, value);
     }
 
     private double computeCanonicalSpindexerPosition(int slot, SpindexerMode mode) {

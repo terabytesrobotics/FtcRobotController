@@ -172,7 +172,8 @@ public abstract class DecodeOpMode extends LinearOpMode {
             boolean persistedDataIsValid = persistedData != null &&
                     initTime - persistedData.timestamp < EXPIRY_INTERVAL_MS;
             if (debugMode || !persistedDataIsValid) {
-                terabytes.teleopInit(new Pose2d(0, 0, Math.toRadians(180) + allianceColor.OperatorHeadingOffset));
+                // Default to facing across the field; driver-forward is handled in the headless transform.
+                terabytes.teleopInit(new Pose2d(0, 0, Math.toRadians(180)));
             } else {
                 terabytes.teleopInit(persistedData.pose);
             }

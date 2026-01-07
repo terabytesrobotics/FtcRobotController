@@ -5,13 +5,14 @@ import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.qualcomm.hardware.rev.RevBlinkinLedDriver;
 
 public enum AllianceColor {
-    BLUE(Math.toRadians(90)),
-    RED(Math.toRadians(270));
+    // Heading the driver faces (their forward/+Y stick direction) in field coordinates (CCW-positive).
+    BLUE(Math.toRadians(-90)), // drivers on +Y wall facing -Y
+    RED(Math.toRadians(90));   // drivers on -Y wall facing +Y
 
-    public double OperatorHeadingOffset;
+    public final double driverForwardHeading;
 
-    AllianceColor(double operatorHeadingOffset) {
-        this.OperatorHeadingOffset = operatorHeadingOffset;
+    AllianceColor(double driverForwardHeading) {
+        this.driverForwardHeading = driverForwardHeading;
     }
 
     public double intoTheDeepNetApproachHeadingX() {
