@@ -865,6 +865,23 @@ public class DecodeRobotControl {
     }
 
     private Pose2d getHeadlessDriveInput(Gamepad gamepad, double driverForwardHeading, double robotHeading) {
+        // Robot-frame cardinal sanity check: D-pad drives pure cardinal without headless math.
+        if (gamepad.dpad_up || gamepad.dpad_down || gamepad.dpad_left || gamepad.dpad_right) {
+            final double dpadPower = 0.35; // gentle check, avoids full send during diagnostics
+            double robotX = 0.0; // +X = robot forward, -X = robot back
+            double robotY = 0.0; // +Y = robot left strafe, -Y = robot right strafe
+            if (gamepad.dpad_up) {
+                robotX = dpadPower;
+            } else if (gamepad.dpad_down) {
+                robotX = -dpadPower;
+            } else if (gamepad.dpad_left) {
+                robotY = dpadPower;
+            } else if (gamepad.dpad_right) {
+                robotY = -dpadPower;
+            }
+            return new Pose2d(robotX, robotY, 0.0);
+        }
+
         Vector2d robotTranslation = Helpers.fieldRelativeLeftStick(gamepad, driverForwardHeading, robotHeading);
         // Right stick X: right = clockwise (negative in CCW-positive math)
         double rotation = -applySignedSquareDeadband(gamepad.right_stick_x, 0.02);
@@ -1449,24 +1466,22 @@ public class DecodeRobotControl {
     }
 
     public void setDrivePower(Pose2d drivePower) {
-        Pose2d normalized = drivePower;
-        if (Math.abs(drivePower.getX()) + Math.abs(drivePower.getY())
-                + Math.abs(drivePower.getHeading()) > 1) {
-            double denom = Math.abs(drivePower.getX())
-                    + Math.abs(drivePower.getY())
-                    + Math.abs(drivePower.getHeading());
+        // Our wiring/orientation has translation flipped; invert X/Y so operator forward/left match physical forward/left.
+        double x = -drivePower.getX();
+        double y = -drivePower.getY();
+        double h = drivePower.getHeading();
 
-            normalized = new Pose2d(
-                    drivePower.getX(),
-                    drivePower.getY(),
-                    drivePower.getHeading()
-            ).div(denom);
+        double sum = Math.abs(x) + Math.abs(y) + Math.abs(h);
+        if (sum > 1) {
+            x /= sum;
+            y /= sum;
+            h /= sum;
         }
 
         drive.setDrivePower(new Pose2d(
-                Math.abs(normalized.getX()) < 0.005 ? 0 : normalized.getX(),
-                Math.abs(normalized.getY()) < 0.005 ? 0 : normalized.getY(),
-                Math.abs(normalized.getHeading()) < 0.005 * Math.PI ? 0 : normalized.getHeading()
+                Math.abs(x) < 0.005 ? 0 : x,
+                Math.abs(y) < 0.005 ? 0 : y,
+                Math.abs(h) < 0.005 * Math.PI ? 0 : h
         ));
     }
 
