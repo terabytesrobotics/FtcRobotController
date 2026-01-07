@@ -15,7 +15,6 @@ public class Helpers {
         double operatorX = gamepad.left_stick_x;
         double operatorY = -gamepad.left_stick_y; // invert so up is +Y
         if (Math.abs(operatorX) < 1e-4 && Math.abs(operatorY) < 1e-4) return new Vector2d(0, 0);
-
         double rightHeading = driverForwardHeading - (Math.PI / 2.0);
         double fieldX = (operatorX * Math.cos(rightHeading)) + (operatorY * Math.cos(driverForwardHeading));
         double fieldY = (operatorX * Math.sin(rightHeading)) + (operatorY * Math.sin(driverForwardHeading));

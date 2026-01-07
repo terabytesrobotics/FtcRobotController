@@ -104,6 +104,7 @@ public class DecodeRobotControl {
     private static final double COLLECTOR_PRESENCE_ENTER_THRESHOLD = 0.125;
     private static final double COLLECTOR_PRESENCE_EXIT_THRESHOLD = 0.05;
     private static final double COLLECTOR_TRAVEL_DISTANCE_INCHES = 11.0;
+    private static final double SLOT_SENSOR_PROXIMITY_THRESHOLD_INCHES = 1.25;
     private static final double SLOT_SENSOR_ENTER_THRESHOLD_GREEN = 0.15;
     private static final double SLOT_SENSOR_ENTER_THRESHOLD_PURPLE = 0.06;
     private static final double SLOT_SENSOR_EXIT_THRESHOLD = 0.03;
@@ -225,18 +226,12 @@ public class DecodeRobotControl {
     private double spindexerCanonicalTargetPosition = SPIN_BASE_POSITION_COLLECT;
     private double spindexerTargetPosition = SPIN_BASE_POSITION_COLLECT;
     private double spindexerCommandPosition = SPIN_BASE_POSITION_COLLECT;
-    private final BallColor[] spindexerInventory = new BallColor[SPINDEXER_SLOT_COUNT]; // Slot-wise ball colors, UNKNOWN until detected/assigned.
+    private final BallColor[] spindexerInventory = new BallColor[SPINDEXER_SLOT_COUNT]; // Slot-wise ball colors, filled from slot sensor.
     private boolean collectorPresenceLatched = false;
     private boolean collectorPresenceRisingEdge = false;
     private boolean collectorPresenceFallingEdge = false;
     private boolean collectorOverCapacity = false;
     private int collectorEstimatedBallCount = 0;
-    private boolean collectorCapturePending = false;
-    private boolean collectorCaptureDistanceRunning = false;
-    private int collectorCaptureStartTicks = 0;
-    private int collectorCaptureLastEncoderTicks = 0;
-    private double collectorCaptureAccumTicks = 0.0;
-    private double collectorCaptureTravelTicks = COLLECTOR_TRAVEL_DISTANCE_INCHES * INTAKE_TICKS_PER_INCH;
     private double lastCollectorPresence = 0.0;
     private double lastColor1ProximityInches = 0.0;
     private double lastColor2ProximityInches = 0.0;
@@ -522,10 +517,6 @@ public class DecodeRobotControl {
         packet.put("CollectorPresenceLatched", collectorPresenceLatched);
         packet.put("CollectorPresenceRising", collectorPresenceRisingEdge);
         packet.put("CollectorPresenceFalling", collectorPresenceFallingEdge);
-        packet.put("CollectorCapturePending", collectorCapturePending);
-        packet.put("CollectorCaptureDistanceRunning", collectorCaptureDistanceRunning);
-        packet.put("CollectorCaptureTravelTicks", collectorCaptureTravelTicks);
-        packet.put("CollectorCaptureTraveledTicks", collectorCaptureTraveledTicks());
         packet.put("ShootCommandState", shootCommandState.name());
         packet.put("DriveInputX", driveInput.getX());
         packet.put("DriveInputY", driveInput.getY());
@@ -814,7 +805,6 @@ public class DecodeRobotControl {
         }
         lastShotSolution = shotSolution;
         double collectorPresence = sampleCollectorPresence();
-        evaluateCollectorCapture();
         updateCollectedSlotSensor();
 
         if (a2ActivatedEvaluator.evaluate() && shootCommandState == ShootCommandState.IDLE) {
@@ -982,8 +972,7 @@ public class DecodeRobotControl {
     }
 
     // Fusion of intake sensors to track a ball entering the mouth; hysteresis reduces flicker.
-    // Collector travel is ~11" to the spindexer pocket; we treat a latched presence as a ball in the throat,
-    // and mark over-capacity if that implies a fourth ball.
+    // A latched presence represents a ball in the throat; we flag over-capacity if that implies a fourth ball.
     private void updateCollectorPresence(double collectorPresence) {
         collectorPresenceRisingEdge = false;
         collectorPresenceFallingEdge = false;
@@ -996,25 +985,8 @@ public class DecodeRobotControl {
         collectorPresenceRisingEdge = !wasLatched && collectorPresenceLatched;
         collectorPresenceFallingEdge = wasLatched && !collectorPresenceLatched;
 
-        int provisionalCount = getKnownBallCount() + (collectorPresenceLatched ? 1 : 0);
         boolean rejecting = intakeState == IntakeState.REVERSE_REJECT;
         boolean forwardFeeding = intakeState == IntakeState.FORWARD && !intakeSuppressed;
-
-        if (collectorPresenceRisingEdge && forwardFeeding && provisionalCount <= SPINDEXER_SLOT_COUNT) {
-            collectorCapturePending = true;
-            collectorCaptureDistanceRunning = false;
-        }
-
-        if (collectorPresenceFallingEdge && collectorCapturePending && forwardFeeding && provisionalCount <= SPINDEXER_SLOT_COUNT) {
-            collectorCaptureDistanceRunning = true;
-            collectorCaptureStartTicks = intakeMotor.getCurrentPosition();
-            collectorCaptureLastEncoderTicks = collectorCaptureStartTicks;
-            collectorCaptureAccumTicks = 0.0;
-        } else if (collectorPresenceFallingEdge && !forwardFeeding) {
-            collectorCapturePending = false;
-            collectorCaptureDistanceRunning = false;
-            collectorCaptureAccumTicks = 0.0;
-        }
 
         collectorEstimatedBallCount = getKnownBallCount() + (collectorPresenceLatched ? 1 : 0);
         collectorOverCapacity = collectorEstimatedBallCount > SPINDEXER_SLOT_COUNT;
@@ -1041,26 +1013,6 @@ public class DecodeRobotControl {
         }
     }
 
-    private void evaluateCollectorCapture() {
-        if (collectorCaptureDistanceRunning) {
-            int encoderNow = intakeMotor.getCurrentPosition();
-            int delta = encoderNow - collectorCaptureLastEncoderTicks;
-            collectorCaptureLastEncoderTicks = encoderNow;
-            if (delta > 0) {
-                collectorCaptureAccumTicks += delta; // count only forward motion
-            }
-            if (collectorCaptureAccumTicks >= collectorCaptureTravelTicks && intakeState == IntakeState.FORWARD && !intakeSuppressed && !spindexerInTransit) {
-                registerCollectedBall();
-                collectorCapturePending = false;
-                collectorCaptureDistanceRunning = false;
-                collectorCaptureAccumTicks = 0.0;
-            }
-        }
-        if (intakeState != IntakeState.FORWARD || intakeSuppressed) {
-            collectorCaptureDistanceRunning = false; // pause; do not clear pending/accum so we can continue when forward resumes
-        }
-    }
-
     private void updateCollectedSlotSensor() {
         int colorReadingMaxInt = 2 << 11;
         double red3 = (double) color3.red() / colorReadingMaxInt;
@@ -1073,19 +1025,19 @@ public class DecodeRobotControl {
         double greenPresence3 = colorPresence(
                 color3ProximityInches,
                 greenResonance(red3, green3, blue3),
-                PRESENCE_PROXIMITY_THRESHOLD_INCHES, GREEN_MATCH_THRESHOLD,
+                SLOT_SENSOR_PROXIMITY_THRESHOLD_INCHES, GREEN_MATCH_THRESHOLD,
                 proxSoft, matchSoft
         );
         double purplePresence3 = colorPresence(
                 color3ProximityInches,
                 purpleResonance(red3, green3, blue3),
-                PRESENCE_PROXIMITY_THRESHOLD_INCHES, PURPLE_MATCH_THRESHOLD,
+                SLOT_SENSOR_PROXIMITY_THRESHOLD_INCHES, PURPLE_MATCH_THRESHOLD,
                 proxSoft, matchSoft
         );
         boolean greenHit = greenPresence3 >= SLOT_SENSOR_ENTER_THRESHOLD_GREEN;
         boolean purpleHit = purplePresence3 >= SLOT_SENSOR_ENTER_THRESHOLD_PURPLE;
         double slotPresence = Math.max(greenPresence3, purplePresence3);
-        BallColor detectedColor = BallColor.UNKNOWN;
+        BallColor detectedColor = null;
         if (greenHit && (!purpleHit || greenPresence3 >= purplePresence3)) {
             detectedColor = BallColor.GREEN;
         } else if (purpleHit) {
@@ -1097,24 +1049,16 @@ public class DecodeRobotControl {
         lastColor3PurplePresence = purplePresence3;
 
         boolean slotStable = Math.abs(spindexerTargetPosition - spindexerCommandPosition) <= SPIN_IN_TRANSIT_THRESHOLD;
-        boolean canEvaluate = spindexerMode == SpindexerMode.COLLECT && !kickerKicked && slotStable;
+        boolean canEvaluate = spindexerMode == SpindexerMode.COLLECT
+                && !kickerKicked
+                && slotStable;
 
         if (canEvaluate && !color3PresenceLatched && (greenHit || purpleHit)) {
             color3PresenceLatched = true;
-            collectorCapturePending = false;
-            collectorCaptureDistanceRunning = false;
-            collectorCaptureAccumTicks = 0.0;
             registerCollectedBallWithColor(detectedColor);
         } else if (color3PresenceLatched && slotPresence <= SLOT_SENSOR_EXIT_THRESHOLD) {
             color3PresenceLatched = false;
         }
-    }
-
-    private double collectorCaptureTraveledTicks() {
-        if (!collectorCaptureDistanceRunning) {
-            return collectorCaptureAccumTicks;
-        }
-        return collectorCaptureAccumTicks;
     }
 
     private void startShootCommand() {
@@ -1175,12 +1119,11 @@ public class DecodeRobotControl {
         return !spindexerInTransit && isSpindexerAtTarget();
     }
 
-    private void registerCollectedBall() {
-        registerCollectedBallWithColor(BallColor.UNKNOWN);
-    }
-
     private void registerCollectedBallWithColor(BallColor color) {
-        setSlotColor(spindexerSlot, color == BallColor.EMPTY ? BallColor.UNKNOWN : color);
+        if (color != BallColor.GREEN && color != BallColor.PURPLE) {
+            return; // only register on a confident color hit
+        }
+        setSlotColor(spindexerSlot, color);
         int nextSlot = findNextEmptySlot(spindexerSlot);
         if (nextSlot != spindexerSlot && !kickerKicked) {
             spindexerSlot = nextSlot;
