@@ -122,29 +122,32 @@ public class DecodeRobotControl {
     private static final double PURPLE_PRESENCE_THRESHOLD = 0.15;
     private static final String INTAKE_MOTOR_NAME = "intake";
     private static final double INTAKE_MOTOR_POWER = 0.6;
+    private static final double INTAKE_POWER_SLEW_PER_SEC = 4.0; // limits bang-bang; full scale change in ~0.25s
     private static final int SPINDEXER_SLOT_COUNT = 3;
     private static final double KICKER_SERVO_RANGE_DEGREES = 270.0;
-    private static final double KICKER_KICK_RANGE_DEGREES = 100.0; // expected travel for a full kick
+    private static final double KICKER_KICK_RANGE_DEGREES = 110.0; // expected travel for a full kick
     private static final double KICKER_KICK_RANGE = KICKER_KICK_RANGE_DEGREES / KICKER_SERVO_RANGE_DEGREES;
     // Start conservative; both positions are meant to be tuned on a real robot.
     private static final double KICKER_UNKICKED_POSITION = 0.05;
     private static final double KICKER_KICKED_POSITION = KICKER_UNKICKED_POSITION + KICKER_KICK_RANGE;
     // Rated 5-turn servo: 0-1 range maps to ~0-1800 degrees (tunable if real range differs).
-    private static final double SPIN_SERVO_RANGE_DEGREES = (4.5 * 360) + 10;
+    // Calibrated from field test: 2 slot moves were ~28 deg short (212 vs 240), so range is ~88.3% of nominal 1630.
+    private static final double SPIN_SERVO_RANGE_DEGREES = (360.0 * 4.5) + 7.5;
     private static final double SPIN_SERVO_RANGE_TURNS = SPIN_SERVO_RANGE_DEGREES / 360.0;
     private static final double SPIN_SERVO_FULL_TURN = 1.0 / SPIN_SERVO_RANGE_TURNS;
     private static final double SPIN_SLOT_SPACING_DEGREES = 120.0;
     // Three slots 120 degrees apart -> converts degrees to servo position based on measured turn range.
     private static final double SPIN_SLOT_SPACING = (SPIN_SLOT_SPACING_DEGREES / 360.0) * SPIN_SERVO_FULL_TURN;
     // Tune this to align slot 0 with the collect pocket; leave at 0 to start.
-    private static final double SPIN_BASE_POSITION_COLLECT_DEGREES = 15; // positive = clockwise nudge
+    private static final double SPIN_BASE_POSITION_COLLECT_DEGREES = 21.15; // positive = clockwise nudge
     private static final double SPIN_BASE_POSITION_COLLECT = (SPIN_BASE_POSITION_COLLECT_DEGREES / 360.0) * SPIN_SERVO_FULL_TURN;
     // Offset from collect to shoot mode (in servo position units: 1.0 = 5 full turns = 1800 deg).
     // Approximately 2/5 of a turn between collect and shoot -> 144 degrees (applied in opposite direction).
-    private static final double SPIN_MODE_OFFSET_DEGREES = 105.0;
+    private static final double SPIN_MODE_OFFSET_DEGREES = 100.0;
     private static final double SPIN_MODE_OFFSET_SHOOT = (SPIN_MODE_OFFSET_DEGREES / 360.0) * SPIN_SERVO_FULL_TURN;
     private static final double SPIN_MAX_DEG_PER_SEC = 240.0;
     private static final double SPIN_MAX_POS_PER_SEC = (SPIN_MAX_DEG_PER_SEC / 360.0) * SPIN_SERVO_FULL_TURN; // 1.0 = full servo range
+    private static final double SLOT_SCAN_DWELL_SEC = 0.35;
 
     // Only trust the large field tags for localization.
     private static final int[] APRIL_TAG_ALLOWED_IDS = {20, 24};
@@ -232,6 +235,7 @@ public class DecodeRobotControl {
     private boolean collectorPresenceFallingEdge = false;
     private boolean collectorOverCapacity = false;
     private int collectorEstimatedBallCount = 0;
+    private double intakePowerSmoothed = 0.0;
     private double lastCollectorPresence = 0.0;
     private double lastColor1ProximityInches = 0.0;
     private double lastColor2ProximityInches = 0.0;
@@ -249,6 +253,9 @@ public class DecodeRobotControl {
     private ShootCommandState shootCommandState = ShootCommandState.IDLE;
     private final ElapsedTime shootCommandTimer = new ElapsedTime();
     private final ElapsedTime spindexerSettleTimer = new ElapsedTime();
+    private final ElapsedTime slotScanTimer = new ElapsedTime();
+    private boolean slotScanActive = false;
+    private int slotScanCursor = 0;
     private boolean shooterEnabled = true;
     private double shooterDesiredExitVelocityIps = 0.0;
     private double shooterDesiredWheelTicksPerSecond = 0.0;
@@ -805,11 +812,31 @@ public class DecodeRobotControl {
             lastShotBlockedByRim = false;
         }
         lastShotSolution = shotSolution;
-        double collectorPresence = sampleCollectorPresence();
-        updateCollectedSlotSensor();
 
-        if (a2ActivatedEvaluator.evaluate() && shootCommandState == ShootCommandState.IDLE) {
+        boolean slotScanHeld = gamepad2.dpad_up;
+        if (slotScanHeld && !slotScanActive && shootCommandState == ShootCommandState.IDLE) {
+            slotScanActive = true;
+            slotScanCursor = 0;
+            slotScanTimer.reset();
+        } else if (!slotScanHeld && slotScanActive) {
+            slotScanActive = false;
+        }
+
+        double collectorPresence = sampleCollectorPresence();
+        if (!slotScanActive) {
+            updateCollectedSlotSensor();
+        } else {
+            color3PresenceLatched = false; // avoid latching while we intentionally poll slots
+        }
+
+        if (!slotScanActive && a2ActivatedEvaluator.evaluate() && shootCommandState == ShootCommandState.IDLE) {
             startShootCommand();
+        }
+
+        if (slotScanActive && shootCommandState == ShootCommandState.IDLE) {
+            spindexerMode = SpindexerMode.COLLECT;
+            spindexerSlot = slotScanCursor;
+            retargetSpindexer();
         }
 
         spindexerInTransit = Math.abs(spindexerTargetPosition - spindexerCommandPosition) > SPIN_IN_TRANSIT_THRESHOLD;
@@ -818,6 +845,35 @@ public class DecodeRobotControl {
 
         updateSpindexerPosition(dtMillis / 1000.0);
         spindexerInTransit = Math.abs(spindexerTargetPosition - spindexerCommandPosition) > SPIN_IN_TRANSIT_THRESHOLD;
+
+        if (slotScanActive && shootCommandState == ShootCommandState.IDLE) {
+            if (!isSpindexerAtTarget()) {
+                slotScanTimer.reset();
+            } else if (slotScanTimer.seconds() >= SLOT_SCAN_DWELL_SEC) {
+                BallColor sensed = sampleSlotSensorInstant();
+                setSlotColor(spindexerSlot, sensed);
+                slotScanCursor = (slotScanCursor + 1) % SPINDEXER_SLOT_COUNT;
+                slotScanTimer.reset();
+                spindexerMode = SpindexerMode.COLLECT;
+                spindexerSlot = slotScanCursor;
+                retargetSpindexer();
+            }
+        }
+
+        // Debug: jump to full-range endpoints to measure the physical travel for calibration.
+        if (y2ActivatedEvaluator.evaluate()) { // gamepad2.y -> drive to max
+            spindexerMode = SpindexerMode.COLLECT;
+            spindexerTargetPosition = 1.0;
+            spindexerCommandPosition = spindexerTargetPosition;
+            spin.setPosition(spindexerCommandPosition);
+            spindexerInTransit = false;
+        } else if (b2ActivatedEvaluator.evaluate()) { // gamepad2.b -> drive to min
+            spindexerMode = SpindexerMode.COLLECT;
+            spindexerTargetPosition = 0.0;
+            spindexerCommandPosition = spindexerTargetPosition;
+            spin.setPosition(spindexerCommandPosition);
+            spindexerInTransit = false;
+        }
 
         if (liftToggleEvaluator.evaluate()) {
             lifted = !lifted;
@@ -844,15 +900,18 @@ public class DecodeRobotControl {
             intakeState = IntakeState.STOPPED;
         }
         updateIntakeStateMachine(intakeSuppressed);
-        double intakePower = 0.0;
+        double intakePowerTarget = 0.0;
         if (!intakeSuppressed) {
             if (intakeState == IntakeState.FORWARD) {
-                intakePower = INTAKE_MOTOR_POWER;
+                intakePowerTarget = INTAKE_MOTOR_POWER;
             } else if (intakeState == IntakeState.REVERSE_REJECT) {
-                intakePower = -INTAKE_MOTOR_POWER;
+                intakePowerTarget = -INTAKE_MOTOR_POWER;
             }
         }
-        intakeMotor.setPower(intakePower);
+        double maxDelta = INTAKE_POWER_SLEW_PER_SEC * (dtMillis / 1000.0);
+        double delta = Range.clip(intakePowerTarget - intakePowerSmoothed, -maxDelta, maxDelta);
+        intakePowerSmoothed = Range.clip(intakePowerSmoothed + delta, -1.0, 1.0);
+        intakeMotor.setPower(intakePowerSmoothed);
 
         boolean fastMode = gamepad1.left_bumper;
 
@@ -1078,6 +1137,44 @@ public class DecodeRobotControl {
         } else if (color3PresenceLatched && slotPresence <= SLOT_SENSOR_EXIT_THRESHOLD) {
             color3PresenceLatched = false;
         }
+    }
+
+    private BallColor sampleSlotSensorInstant() {
+        int colorReadingMaxInt = 2 << 11;
+        double red3 = (double) color3.red() / colorReadingMaxInt;
+        double green3 = (double) color3.green() / colorReadingMaxInt;
+        double blue3 = (double) color3.blue() / colorReadingMaxInt;
+        double color3ProximityInches = color3.getDistance(DistanceUnit.INCH);
+
+        double proxSoft = 0.5;
+        double matchSoft = 0.15;
+        double greenPresence3 = colorPresence(
+                color3ProximityInches,
+                greenResonance(red3, green3, blue3),
+                SLOT_SENSOR_PROXIMITY_THRESHOLD_INCHES, GREEN_MATCH_THRESHOLD,
+                proxSoft, matchSoft
+        );
+        double purplePresence3 = colorPresence(
+                color3ProximityInches,
+                purpleResonance(red3, green3, blue3),
+                SLOT_SENSOR_PROXIMITY_THRESHOLD_INCHES, PURPLE_MATCH_THRESHOLD,
+                proxSoft, matchSoft
+        );
+
+        boolean greenHit = greenPresence3 >= SLOT_SENSOR_ENTER_THRESHOLD_GREEN;
+        boolean purpleHit = purplePresence3 >= SLOT_SENSOR_ENTER_THRESHOLD_PURPLE;
+        double slotPresence = Math.max(greenPresence3, purplePresence3);
+
+        if (greenHit && (!purpleHit || greenPresence3 >= purplePresence3)) {
+            return BallColor.GREEN;
+        }
+        if (purpleHit) {
+            return BallColor.PURPLE;
+        }
+        if (slotPresence >= SLOT_SENSOR_EXIT_THRESHOLD) {
+            return BallColor.UNKNOWN; // present but ambiguous color
+        }
+        return BallColor.EMPTY;
     }
 
     private void startShootCommand() {
