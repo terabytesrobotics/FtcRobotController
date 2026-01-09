@@ -465,35 +465,44 @@ public class DecodeRobotControl {
 
         Canvas overlay = packet.fieldOverlay();
         Pose2d shooterPose = getShooterPoseEstimate();
-        double sx = shooterPose != null ? shooterPose.getX() : x;
-        double sy = shooterPose != null ? shooterPose.getY() : y;
-        double sheading = shooterPose != null ? shooterPose.getHeading() : heading;
+        // Draw robot from the current pose estimate, and camera separately; tag pose is shown as the camera point.
+        Pose2d poseForOverlay = latestPoseEstimate;
+        double sx = poseForOverlay != null ? poseForOverlay.getX() : 0.0;
+        double sy = poseForOverlay != null ? poseForOverlay.getY() : 0.0;
+        double sheading = poseForOverlay != null ? poseForOverlay.getHeading() : 0.0;
         double shotLen = 12;
         double shx = sx + shotLen * Math.cos(sheading);
         double shy = sy + shotLen * Math.sin(sheading);
+
+        // Predicted camera pose from robot pose + known offsets (for comparison against tag-derived camera pose).
+        double predictedCamX = Double.NaN;
+        double predictedCamY = Double.NaN;
+        if (latestPoseEstimate != null) {
+            double ch = latestPoseEstimate.getHeading();
+            double offsetFieldX = (FRONT_CAMERA_OFFSET_INCHES * Math.cos(ch)) -
+                    (FRONT_CAMERA_LATERAL_OFFSET_INCHES * Math.sin(ch));
+            double offsetFieldY = (FRONT_CAMERA_OFFSET_INCHES * Math.sin(ch)) +
+                    (FRONT_CAMERA_LATERAL_OFFSET_INCHES * Math.cos(ch));
+            predictedCamX = latestPoseEstimate.getX() + offsetFieldX;
+            predictedCamY = latestPoseEstimate.getY() + offsetFieldY;
+        }
 
         if (!Double.isNaN(lastTagFieldX) && !Double.isNaN(lastTagFieldY)) {
             overlay.strokeCircle(lastTagFieldX, lastTagFieldY, 3);
         }
         if (!Double.isNaN(lastCameraFieldX) && !Double.isNaN(lastCameraFieldY)) {
-            overlay.strokeCircle(lastCameraFieldX, lastCameraFieldY, 4);
-            overlay.strokeLine(lastCameraFieldX, lastCameraFieldY, x, y);
+            double camLen = 8;
+            double camHx = lastCameraFieldX + camLen * Math.cos(lastCameraFieldHeading);
+            double camHy = lastCameraFieldY + camLen * Math.sin(lastCameraFieldHeading);
+            overlay.strokeCircle(lastCameraFieldX, lastCameraFieldY, 4)
+                    .strokeLine(lastCameraFieldX, lastCameraFieldY, camHx, camHy);
+        }
+        if (!Double.isNaN(predictedCamX) && !Double.isNaN(predictedCamY)) {
+            overlay.strokeCircle(predictedCamX, predictedCamY, 3);
         }
 
         overlay.fillCircle(sx, sy, 5)
                 .strokeLine(sx, sy, shx, shy);
-        if (lastShotSolution != null) {
-            overlay.strokeLine(sx, sy, lastShotSolution.interceptX, lastShotSolution.interceptY)
-                    .strokeCircle(lastShotSolution.interceptX, lastShotSolution.interceptY, 3)
-                    .fillCircle(lastShotSolution.interceptX, lastShotSolution.interceptY, 2);
-        } else if (lastShotBlockedByRim) {
-            Vector2d basket = getActiveBasketPosition();
-            double bx = basket.getX();
-            double by = basket.getY();
-            double r = 4;
-            overlay.strokeLine(bx - r, by - r, bx + r, by + r)
-                    .strokeLine(bx - r, by + r, bx + r, by - r);
-        }
         drawSpindexerInventoryIcons(overlay, sx, sy);
 
         packet.put("loopTime", loopTime.milliseconds());
@@ -520,6 +529,12 @@ public class DecodeRobotControl {
         packet.put("lastCameraFieldY", lastCameraFieldY);
         packet.put("lastCameraFieldZ", lastCameraFieldZ);
         packet.put("lastCameraFieldHeading", lastCameraFieldHeading);
+        packet.put("PredictedCameraX", predictedCamX);
+        packet.put("PredictedCameraY", predictedCamY);
+        if (!Double.isNaN(predictedCamX) && !Double.isNaN(lastCameraFieldX)) {
+            packet.put("CameraXError", lastCameraFieldX - predictedCamX);
+            packet.put("CameraYError", lastCameraFieldY - predictedCamY);
+        }
 
         packet.put("G2_RSX", gamepad2.right_stick_x);
         packet.put("WheelCurrent", wheel.getCurrent(CurrentUnit.MILLIAMPS));
@@ -568,24 +583,10 @@ public class DecodeRobotControl {
         }
         packet.put("KickerTargetPosition", kickerKicked ? KICKER_KICKED_POSITION : KICKER_UNKICKED_POSITION);
         packet.put("KickerServoPosition", kicker.getPosition());
-        packet.put("ShotSolutionAvailable", lastShotSolution != null);
-        packet.put("ShotBlockedByRim", lastShotBlockedByRim);
+        // Shot solution telemetry removed for clarity.
         packet.put("ShooterTransferRatio", shooterTransferRatio);
         packet.put("ShooterLossTrim", shooterLossTrim);
         packet.put("ShootAimError", getShooterHeadingError());
-        if (lastShotSolution != null) {
-            packet.put("ShotSolutionVelocityIps", lastShotSolution.exitVelocityIps);
-            packet.put("ShotSolutionWheelTicksPerSecond", lastShotSolution.wheelTicksPerSecond);
-            packet.put("ShotSolutionHorizontalDistance", lastShotSolution.horizontalDistance);
-            packet.put("ShotSolutionVerticalDelta", lastShotSolution.verticalDelta);
-            packet.put("ShotSolutionTimeOfFlightSec", lastShotSolution.timeOfFlightSec);
-            packet.put("ShotSolutionInterceptX", lastShotSolution.interceptX);
-            packet.put("ShotSolutionInterceptY", lastShotSolution.interceptY);
-            packet.put("ShotSolutionEffectiveGravity", lastShotSolution.effectiveGravity);
-            packet.put("ShotSolutionTopSpinRadPerSec", lastShotSolution.topSpinRadPerSec);
-            packet.put("ShotSolutionTransferRatio", lastShotSolution.transferRatio);
-            packet.put("ShotSolutionTangentialSpeedIps", lastShotSolution.tangentialSpeedIps);
-        }
 
         packet.put("PinpointHeading", pinpoint.getHeading(UnnormalizedAngleUnit.RADIANS));
         packet.put("PinpointX", pinpoint.getEncoderX());
@@ -1658,9 +1659,9 @@ public class DecodeRobotControl {
         double cameraFieldX = tagFieldX + (horizontalRange * Math.cos(tagToCameraHeading));
         double cameraFieldY = tagFieldY + (horizontalRange * Math.sin(tagToCameraHeading));
         double cameraFieldZ = tagFieldZ + verticalOffset;
-        // Camera heading in field frame: tag heading adjusted by observed yaw (no 180 flip, since yaw is tag->camera)
+        // Camera heading in field frame: robot is looking at the tag, so flip 180 deg from the tag normal and apply observed yaw.
         double cameraFieldHeading = Angle.norm(
-                tagFieldHeading + cameraRobotHeadingOffset - yaw);
+                tagFieldHeading + Math.PI + cameraRobotHeadingOffset - yaw);
 
         double offsetFieldX = (cameraRobotForwardOffset * Math.cos(cameraFieldHeading)) -
                 (cameraRobotLateralOffset * Math.sin(cameraFieldHeading));
@@ -1675,9 +1676,10 @@ public class DecodeRobotControl {
         lastTagFieldX = tagFieldX;
         lastTagFieldY = tagFieldY;
         lastTagFieldZ = tagFieldZ;
-        lastCameraFieldX = cameraFieldX;
-        lastCameraFieldY = cameraFieldY;
-        lastCameraFieldZ = cameraFieldZ;
+        // For telemetry, anchor the camera overlay to the robot pose plus the rotated offset so it stays consistent in robot frame.
+        lastCameraFieldX = robotFieldX + offsetFieldX;
+        lastCameraFieldY = robotFieldY + offsetFieldY;
+        lastCameraFieldZ = robotFieldZ + offsetFieldZ;
         lastCameraFieldHeading = cameraFieldHeading;
 
         return new Pose2d(robotFieldX, robotFieldY, cameraFieldHeading);
