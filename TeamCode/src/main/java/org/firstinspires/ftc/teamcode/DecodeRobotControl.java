@@ -1813,7 +1813,7 @@ public class DecodeRobotControl {
                     variancePose.getY() <= APRIL_TAG_VARIANCE_TRANSLATION_THRESHOLD &&
                     variancePose.getHeading() <= APRIL_TAG_VARIANCE_HEADING_THRESHOLD;
 
-            if (varianceAcceptable && !isAutonomous) {
+            if (varianceAcceptable) {
                 Pose2d fusedPose = averagePose;
                 Pose2d basePose = latestPoseEstimate;
 
