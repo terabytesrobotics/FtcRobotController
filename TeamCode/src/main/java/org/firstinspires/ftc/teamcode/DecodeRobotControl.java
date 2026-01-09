@@ -177,6 +177,14 @@ public class DecodeRobotControl {
     // Obelisk faces +X on the -X perimeter; keep a tolerance so slight skew still counts.
     private static final double OBELISK_TARGET_HEADING_RADIANS = 0.0;
     private static final double OBELISK_HEADING_TOLERANCE_RADIANS = Math.toRadians(20.0);
+    // Simple leave-autonomous starting/target definitions (base on red side; blue mirrors Y/heading).
+    private static final double LEAVE_START_X = -60.0;
+    private static final double LEAVE_START_Y = 50.0;
+    private static final int LEAVE_RED_START_TAG_ID = 20;
+    private static final int LEAVE_BLUE_START_TAG_ID = 24;
+    private static final double LEAVE_TARGET_X = 12.0;
+    private static final double LEAVE_TARGET_Y = 12.0;
+    private static final double LEAVE_TARGET_HEADING = Math.toRadians(270.0);
 
     static double clamp01(double v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
 
@@ -658,8 +666,10 @@ public class DecodeRobotControl {
     public void autonomousInit(AutonomousPlan autonomousPlan) {
         timeSinceInit.reset();
         isAutonomous = true;
-        drive.setPoseEstimate(new Pose2d());
-        setCommandSequence(new ArrayList());
+        Pose2d startPose = getStartPoseForPlan(autonomousPlan);
+        drive.setPoseEstimate(startPose);
+        lastAprilTagFieldPosition = startPose;
+        setCommandSequence(buildAutonomousCommands(autonomousPlan));
     }
 
     public void teleopInit(Pose2d startPose) {
@@ -2084,6 +2094,34 @@ public class DecodeRobotControl {
         }
 
         return Angle.norm(Math.atan2(forwardY, forwardX));
+    }
+
+    private Pose2d mirrorPoseForBlue(Pose2d pose) {
+        return new Pose2d(pose.getX(), -pose.getY(), Angle.norm(-pose.getHeading()));
+    }
+
+    private Pose2d getLeaveStartPose(AllianceColor alliance) {
+        int tagId = alliance == AllianceColor.RED ? LEAVE_RED_START_TAG_ID : LEAVE_BLUE_START_TAG_ID;
+        double heading = Angle.norm(getTagFieldHeading(tagId) + Math.PI);
+        double y = alliance == AllianceColor.RED ? LEAVE_START_Y : -LEAVE_START_Y;
+        return new Pose2d(LEAVE_START_X, y, heading);
+    }
+
+    private Pose2d getLeaveTargetPose(AllianceColor alliance) {
+        Pose2d base = new Pose2d(LEAVE_TARGET_X, LEAVE_TARGET_Y, LEAVE_TARGET_HEADING);
+        return alliance == AllianceColor.RED ? base : mirrorPoseForBlue(base);
+    }
+
+    private Pose2d getStartPoseForPlan(AutonomousPlan plan) {
+        // One simple plan; alliance selection comes from the opmode.
+        return getLeaveStartPose(allianceColor);
+    }
+
+    private List<OpModeCommand> buildAutonomousCommands(AutonomousPlan plan) {
+        List<OpModeCommand> commands = new ArrayList<>();
+        // Single-move leave: target depends on alliance.
+        commands.add(OpModeCommand.driveDirectToPoseCommand(getLeaveTargetPose(allianceColor)));
+        return commands;
     }
 
     private void setCommandSequence(List<OpModeCommand> commands) {
