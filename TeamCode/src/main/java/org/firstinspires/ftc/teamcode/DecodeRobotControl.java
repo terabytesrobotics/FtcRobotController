@@ -78,8 +78,8 @@ public class DecodeRobotControl {
     // Ball exit height: bottom of ball at 13" above carpet -> center at 13" + radius.
     private static final double SHOOTER_EXIT_HEIGHT_INCHES = 13.0 + BALL_RADIUS_INCHES;
     // Shooter exit point relative to the robot center; +lateral is to the left, so right offset is negative.
-    private static final double SHOOTER_FORWARD_OFFSET_INCHES = 0.0;
-    private static final double SHOOTER_LATERAL_OFFSET_INCHES = -5.0;
+    private static final double SHOOTER_FORWARD_OFFSET_INCHES = -2.0; // shooter exit sits 2" behind robot center
+    private static final double SHOOTER_LATERAL_OFFSET_INCHES = -5.0; // shooter exit sits 5" to the right of robot center
     private static final double BALLISTIC_GRAVITY_IN_PER_S2 = 386.0886; // in/s^2
     // Simple top-spin model: extra downward load scales with spin rate; reduced to lighten long-shot drop.
     private static final double TOPSPIN_DROP_PER_RAD_PER_SEC = 0.002;
@@ -117,6 +117,7 @@ public class DecodeRobotControl {
     private static final double KICKER_PULSE_SEC = 0.25;
     private static final double SHOOT_RECOVER_SEC = 0.1;
     private static final double SPIN_SETTLE_BEFORE_KICK_SEC = 0.25; // inflated to validate no premature kicks
+    private static final double KICKER_SETTLE_AFTER_UNKICK_SEC = 0.15; // time to let the kicker clear the slot before motion
 
     private static final double GREEN_PRESENCE_THRESHOLD = 0.15;
     private static final double PURPLE_PRESENCE_THRESHOLD = 0.15;
@@ -148,6 +149,8 @@ public class DecodeRobotControl {
     private static final double SPIN_MAX_DEG_PER_SEC = 240.0;
     private static final double SPIN_MAX_POS_PER_SEC = (SPIN_MAX_DEG_PER_SEC / 360.0) * SPIN_SERVO_FULL_TURN; // 1.0 = full servo range
     private static final double SLOT_SCAN_DWELL_SEC = 0.35;
+    private static final double SHOOT_AIM_HEADING_TOLERANCE_RADIANS = Math.toRadians(3.0);
+    private static final double SHOOT_AIM_TURN_GAIN = 2.25; // scales heading error into rotation power while aiming
 
     // Only trust the large field tags for localization.
     private static final int[] APRIL_TAG_ALLOWED_IDS = {20, 24};
@@ -202,6 +205,7 @@ public class DecodeRobotControl {
     private final Gamepad gamepad2;
     private final OnActivatedEvaluator rb1ActivatedEvaluator;
     private final OnActivatedEvaluator lb1ActivatedEvaluator;
+    private final OnActivatedEvaluator a1ActivatedEvaluator;
     private final OnActivatedEvaluator liftToggleEvaluator;
     private final OnActivatedEvaluator b2ActivatedEvaluator;
     private final OnActivatedEvaluator x2ActivatedEvaluator;
@@ -209,8 +213,6 @@ public class DecodeRobotControl {
     private final OnActivatedEvaluator rb2ActivatedEvaluator;
     private final OnActivatedEvaluator lb2ActivatedEvaluator;
     private final OnActivatedEvaluator y2ActivatedEvaluator;
-    private final OnActivatedEvaluator dpu2ActivatedEvaluator;
-    private final OnActivatedEvaluator dpd2ActivatedEvaluator;
     private final DcMotorEx wheel;
     private final DcMotorEx intakeMotor;
     private final SampleMecanumDrive drive;
@@ -251,9 +253,13 @@ public class DecodeRobotControl {
     private boolean intakeSuppressed = false;
     private IntakeState intakeState = IntakeState.FORWARD;
     private ShootCommandState shootCommandState = ShootCommandState.IDLE;
+    private boolean shootHoldActive = false;
+    private int queuedShots = 0;
     private final ElapsedTime shootCommandTimer = new ElapsedTime();
     private final ElapsedTime spindexerSettleTimer = new ElapsedTime();
+    private final ElapsedTime kickerSettleTimer = new ElapsedTime();
     private final ElapsedTime slotScanTimer = new ElapsedTime();
+    private boolean slotScanEnabled = true;
     private boolean slotScanActive = false;
     private int slotScanCursor = 0;
     private boolean shooterEnabled = true;
@@ -262,6 +268,7 @@ public class DecodeRobotControl {
     private double shooterLossTrim = 0.0;
     private double shooterTransferRatio = SHOOTER_EXIT_VELOCITY_TRANSFER_BASE;
     private boolean kickerKicked = false;
+    private boolean kickerSettling = false;
     private ShotSolution lastShotSolution = null;
     private boolean lastShotBlockedByRim = false;
 
@@ -323,6 +330,7 @@ public class DecodeRobotControl {
         //drive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
         rb1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.right_bumper);
+        a1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.a);
         liftToggleEvaluator = new OnActivatedEvaluator(() -> gamepad2.left_stick_button && gamepad2.right_stick_button);
         b2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.b);
         x2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.x);
@@ -330,8 +338,6 @@ public class DecodeRobotControl {
         a2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.a);
         lb2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.left_bumper);
         y2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.y);
-        dpu2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.dpad_up);
-        dpd2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.dpad_down);
         lb1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.left_bumper);
 
         drive = new SampleMecanumDrive(hardwareMap);
@@ -536,6 +542,10 @@ public class DecodeRobotControl {
         packet.put("SpindexerServoPosition", spin.getPosition());
         packet.put("SpindexerDelta", spindexerTargetPosition - spindexerCommandPosition);
         packet.put("SpindexerInTransit", spindexerInTransit);
+        packet.put("SlotScanEnabled", slotScanEnabled);
+        packet.put("SlotScanActive", slotScanActive);
+        packet.put("ShootHoldActive", shootHoldActive);
+        packet.put("QueuedShots", queuedShots);
         for (int i = 0; i < SPINDEXER_SLOT_COUNT; i++) {
             packet.put("SpindexerSlot" + (i + 1) + "Color", spindexerInventory[i].name());
         }
@@ -545,6 +555,7 @@ public class DecodeRobotControl {
         packet.put("ShotBlockedByRim", lastShotBlockedByRim);
         packet.put("ShooterTransferRatio", shooterTransferRatio);
         packet.put("ShooterLossTrim", shooterLossTrim);
+        packet.put("ShootAimError", getShooterHeadingError());
         if (lastShotSolution != null) {
             packet.put("ShotSolutionVelocityIps", lastShotSolution.exitVelocityIps);
             packet.put("ShotSolutionWheelTicksPerSecond", lastShotSolution.wheelTicksPerSecond);
@@ -813,12 +824,19 @@ public class DecodeRobotControl {
         }
         lastShotSolution = shotSolution;
 
-        boolean slotScanHeld = gamepad2.dpad_up;
-        if (slotScanHeld && !slotScanActive && shootCommandState == ShootCommandState.IDLE) {
+        if (y2ActivatedEvaluator.evaluate()) {
+            slotScanEnabled = !slotScanEnabled;
+            if (!slotScanEnabled) {
+                slotScanActive = false;
+            }
+        }
+
+        boolean slotScanAllowed = slotScanEnabled && shootCommandState == ShootCommandState.IDLE;
+        if (slotScanAllowed && !slotScanActive) {
             slotScanActive = true;
             slotScanCursor = 0;
             slotScanTimer.reset();
-        } else if (!slotScanHeld && slotScanActive) {
+        } else if (!slotScanAllowed && slotScanActive) {
             slotScanActive = false;
         }
 
@@ -829,8 +847,34 @@ public class DecodeRobotControl {
             color3PresenceLatched = false; // avoid latching while we intentionally poll slots
         }
 
-        if (!slotScanActive && a2ActivatedEvaluator.evaluate() && shootCommandState == ShootCommandState.IDLE) {
-            startShootCommand();
+        boolean shootButtonHeld = gamepad2.a;
+        if (!shootButtonHeld && shootHoldActive && shootCommandState == ShootCommandState.IDLE) {
+            shootHoldActive = false;
+            queuedShots = 0;
+        }
+
+        if (shootButtonHeld && !shootHoldActive && shootCommandState == ShootCommandState.IDLE) {
+            int knownBalls = getKnownBallCount();
+            if (knownBalls > 0) {
+                slotScanActive = false;
+                shootHoldActive = true;
+                queuedShots = knownBalls;
+                if (startShootCommand()) {
+                    queuedShots = Math.max(0, queuedShots - 1);
+                }
+            }
+        }
+
+        if (shootCommandState == ShootCommandState.IDLE && shootHoldActive) {
+            int available = getKnownBallCount();
+            if (queuedShots > 0 && available > 0) {
+                if (startShootCommand()) {
+                    queuedShots = Math.max(0, queuedShots - 1);
+                }
+            } else if (!shootButtonHeld || available == 0) {
+                shootHoldActive = false;
+                queuedShots = 0;
+            }
         }
 
         if (slotScanActive && shootCommandState == ShootCommandState.IDLE) {
@@ -839,9 +883,17 @@ public class DecodeRobotControl {
             retargetSpindexer();
         }
 
-        spindexerInTransit = Math.abs(spindexerTargetPosition - spindexerCommandPosition) > SPIN_IN_TRANSIT_THRESHOLD;
-        boolean allowSpindexerRetarget = !kickerKicked && shootCommandState == ShootCommandState.IDLE;
         updateShootCommand();
+
+        if (lb2ActivatedEvaluator.evaluate()) {
+            if (!kickerKicked) {
+                boolean canKick = (spindexerMode == SpindexerMode.SHOOT) && isSpindexerSettled() && shootCommandState == ShootCommandState.IDLE;
+                setKickerKicked(canKick);
+            } else {
+                setKickerKicked(false);
+            }
+        }
+        updateKickerSettling();
 
         updateSpindexerPosition(dtMillis / 1000.0);
         spindexerInTransit = Math.abs(spindexerTargetPosition - spindexerCommandPosition) > SPIN_IN_TRANSIT_THRESHOLD;
@@ -881,27 +933,24 @@ public class DecodeRobotControl {
 
         lift.setPosition(lifted ? 0.0 : 1.0);
 
-        if (lb2ActivatedEvaluator.evaluate()) {
-            if (!kickerKicked) {
-                boolean canKick = (spindexerMode == SpindexerMode.SHOOT) && isSpindexerSettled() && shootCommandState == ShootCommandState.IDLE;
-                kickerKicked = canKick;
-            } else {
-                kickerKicked = false;
-            }
-        }
-
         double kickerTarget = (spindexerMode == SpindexerMode.SHOOT && kickerKicked)
                 ? KICKER_KICKED_POSITION
                 : KICKER_UNKICKED_POSITION;
         kicker.setPosition(Range.clip(kickerTarget, 0.0, 1.0));
 
+        boolean manualIntakeReverse = gamepad2.b;
         intakeSuppressed = spindexerInTransit || kickerKicked || shootCommandState == ShootCommandState.KICKING;
-        if (intakeSuppressed) {
+        boolean applySuppression = intakeSuppressed && !manualIntakeReverse;
+        if (applySuppression) {
             intakeState = IntakeState.STOPPED;
         }
-        updateIntakeStateMachine(intakeSuppressed);
+        if (manualIntakeReverse) {
+            intakeState = IntakeState.REVERSE_REJECT;
+        } else {
+            updateIntakeStateMachine(applySuppression);
+        }
         double intakePowerTarget = 0.0;
-        if (!intakeSuppressed) {
+        if (!applySuppression) {
             if (intakeState == IntakeState.FORWARD) {
                 intakePowerTarget = INTAKE_MOTOR_POWER;
             } else if (intakeState == IntakeState.REVERSE_REJECT) {
@@ -920,7 +969,10 @@ public class DecodeRobotControl {
         double divisor = fastMode ? 1.5 : 2.25;
         driveInput = driveInput.div(divisor);
 
-        setDrivePower(driveInput);
+        boolean autoAimActive = shootCommandState == ShootCommandState.AIMING || shootCommandState == ShootCommandState.ARMING;
+        Pose2d driveCommand = autoAimActive ? getShootAimDrivePower() : driveInput;
+
+        setDrivePower(driveCommand);
         return OpModeState.MANUAL_CONTROL;
     }
 
@@ -1004,13 +1056,34 @@ public class DecodeRobotControl {
         spin.setPosition(spindexerCommandPosition);
     }
 
+    private void setKickerKicked(boolean kicked) {
+        boolean wasKicked = kickerKicked;
+        kickerKicked = kicked;
+        if (kickerKicked) {
+            kickerSettling = false;
+        } else if (wasKicked) {
+            kickerSettling = true;
+            kickerSettleTimer.reset();
+        }
+    }
+
+    private void updateKickerSettling() {
+        if (kickerSettling && kickerSettleTimer.seconds() >= KICKER_SETTLE_AFTER_UNKICK_SEC) {
+            kickerSettling = false;
+        }
+    }
+
+    private boolean isSpindexerMotionAllowed() {
+        return !kickerKicked && !kickerSettling;
+    }
+
     private void updateSpindexerPosition(double dtSeconds) {
         spindexerTargetPosition = Range.clip(spindexerTargetPosition, 0.0, 1.0);
         double maxStep = SPIN_MAX_POS_PER_SEC * dtSeconds;
         double error = spindexerTargetPosition - spindexerCommandPosition;
         double step = Range.clip(error, -maxStep, maxStep);
         double nextPos = Range.clip(spindexerCommandPosition + step, 0.0, 1.0);
-        if (!kickerKicked) { // do not move when kicker is engaged
+        if (isSpindexerMotionAllowed()) { // do not move when kicker is engaged or settling
             spindexerCommandPosition = nextPos;
             spin.setPosition(spindexerCommandPosition);
         }
@@ -1018,7 +1091,7 @@ public class DecodeRobotControl {
 
     private void updateSpindexerPosition() {
         spindexerTargetPosition = Range.clip(spindexerTargetPosition, 0.0, 1.0);
-        if (!kickerKicked) { // do not move when kicker is engaged
+        if (isSpindexerMotionAllowed()) { // do not move when kicker is engaged or settling
             spindexerCommandPosition = spindexerTargetPosition;
             spin.setPosition(spindexerCommandPosition);
         }
@@ -1177,31 +1250,53 @@ public class DecodeRobotControl {
         return BallColor.EMPTY;
     }
 
-    private void startShootCommand() {
+    private double getShooterHeadingError() {
+        Pose2d shooterPose = getShooterPoseEstimate();
+        Vector2d basket = getActiveBasketPosition();
+        if (shooterPose == null || basket == null) {
+            return 0.0;
+        }
+        double desiredHeading = Math.atan2(
+                basket.getY() - shooterPose.getY(),
+                basket.getX() - shooterPose.getX());
+        double robotHeading = latestPoseEstimate != null ? latestPoseEstimate.getHeading() : shooterPose.getHeading();
+        return Angle.normDelta(desiredHeading - robotHeading);
+    }
+
+    private boolean startShootCommand() {
         int filledSlot = findNextFilledSlot(spindexerSlot);
         if (filledSlot == -1) {
             shootCommandState = ShootCommandState.IDLE;
-            return;
+            return false;
         }
         spindexerSlot = filledSlot;
-        shootCommandState = ShootCommandState.ARMING;
+        shootCommandState = ShootCommandState.AIMING;
         shootCommandTimer.reset();
         spindexerMode = SpindexerMode.SHOOT;
         retargetSpindexer();
-        kickerKicked = false;
+        setKickerKicked(false);
         spindexerSettleTimer.reset();
+        return true;
     }
 
     private void updateShootCommand() {
         switch (shootCommandState) {
             case IDLE:
                 return;
+            case AIMING:
+                spindexerMode = SpindexerMode.SHOOT;
+                retargetSpindexer();
+                if (isShooterAimed()) {
+                    shootCommandState = ShootCommandState.ARMING;
+                    spindexerSettleTimer.reset();
+                }
+                break;
             case ARMING:
                 spindexerMode = SpindexerMode.SHOOT;
                 retargetSpindexer();
                 if (isSpindexerSettled()) {
                     if (spindexerSettleTimer.seconds() >= SPIN_SETTLE_BEFORE_KICK_SEC) {
-                        kickerKicked = true;
+                        setKickerKicked(true);
                         shootCommandState = ShootCommandState.KICKING;
                         shootCommandTimer.reset();
                     }
@@ -1211,7 +1306,7 @@ public class DecodeRobotControl {
                 break;
             case KICKING:
                 if (shootCommandTimer.seconds() >= KICKER_PULSE_SEC) {
-                    kickerKicked = false;
+                    setKickerKicked(false);
                     setSlotColor(spindexerSlot, BallColor.EMPTY);
                     shootCommandState = ShootCommandState.RECOVERING;
                     shootCommandTimer.reset();
@@ -1232,7 +1327,13 @@ public class DecodeRobotControl {
     }
 
     private boolean isSpindexerSettled() {
-        return !spindexerInTransit && isSpindexerAtTarget();
+        double error = Math.abs(spindexerTargetPosition - spindexerCommandPosition);
+        boolean inTransit = error > SPIN_IN_TRANSIT_THRESHOLD;
+        return !inTransit && isSpindexerAtTarget();
+    }
+
+    private boolean isShooterAimed() {
+        return Math.abs(getShooterHeadingError()) <= SHOOT_AIM_HEADING_TOLERANCE_RADIANS;
     }
 
     private void registerCollectedBallWithColor(BallColor color) {
@@ -1296,6 +1397,12 @@ public class DecodeRobotControl {
         }
     }
 
+    private Pose2d getShootAimDrivePower() {
+        double headingError = getShooterHeadingError();
+        double rotation = Range.clip(headingError * SHOOT_AIM_TURN_GAIN, -1.0, 1.0);
+        return new Pose2d(0.0, 0.0, rotation);
+    }
+
     private enum SpindexerMode {
         COLLECT,
         SHOOT
@@ -1309,6 +1416,7 @@ public class DecodeRobotControl {
 
     private enum ShootCommandState {
         IDLE,
+        AIMING,
         ARMING,
         KICKING,
         RECOVERING
@@ -1524,24 +1632,26 @@ public class DecodeRobotControl {
     }
 
     private double getTagFieldHeading(int tagId) {
-        switch (tagId) {
-            case 11:
-            case 16:
-                return 0;
-            case 12:
-                return -Math.PI / 2;
-            case 13:
-            case 14:
-                return Math.PI;
-            case 15:
-                return Math.PI / 2;
-            case 20:
-                return 0.942;
-            case 24:
-                return -0.942;
-            default:
-                return 0;
+        AprilTagMetadata tag = APRIL_TAG_LIBRARY.lookupTag(tagId);
+        if (tag == null || tag.fieldOrientation == null) {
+            return 0;
         }
+
+        // Derive the heading from the tag's field orientation so we stay consistent with the SDK's quaternion.
+        // Treat the tag's +Z axis as the facing direction and project it onto the field XY plane.
+        double w = tag.fieldOrientation.w;
+        double x = tag.fieldOrientation.x;
+        double y = tag.fieldOrientation.y;
+        double z = tag.fieldOrientation.z;
+
+        double forwardX = 2.0 * ((x * z) + (y * w));
+        double forwardY = 2.0 * ((y * z) - (x * w));
+
+        if (forwardX == 0.0 && forwardY == 0.0) {
+            return 0;
+        }
+
+        return Angle.norm(Math.atan2(forwardY, forwardX));
     }
 
     private void setCommandSequence(List<OpModeCommand> commands) {
