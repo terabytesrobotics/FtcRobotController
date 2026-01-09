@@ -100,7 +100,7 @@ public class DecodeRobotControl {
     private static final double WHEEL_PPR = ((1+(46.0/17)) * 28);
     private static final double PRESENCE_PROXIMITY_THRESHOLD_INCHES = 1.85;
     private static final double GREEN_MATCH_THRESHOLD = 0.63;
-    private static final double PURPLE_MATCH_THRESHOLD = 0.5;
+    private static final double PURPLE_MATCH_THRESHOLD = 0.4;
     private static final double COLLECTOR_PRESENCE_ENTER_THRESHOLD = 0.125;
     private static final double COLLECTOR_PRESENCE_EXIT_THRESHOLD = 0.05;
     private static final double COLLECTOR_TRAVEL_DISTANCE_INCHES = 11.0;
@@ -354,7 +354,8 @@ public class DecodeRobotControl {
 
     static double purpleResonance(double r, double g, double b) {
         double eps = 1e-12;
-        double ratio = (0.5*(r + b)) / (g + eps);    // >1 means magenta/purple-dominant
+        // Weight blue more than red to better favor purple samples over green spill/ambient.
+        double ratio = ((0.3 * r) + (0.7 * b)) / (g + eps);    // >1 means magenta/purple-dominant
         return ratio / (ratio + 1.0);
     }
 
@@ -375,7 +376,7 @@ public class DecodeRobotControl {
         double purpleMatch2 = purpleResonance(red2, green2, blue2);
 
         double proxSoft = 0.5;   // inches past threshold to fade out
-        double matchSoft = 0.15; // match past threshold to fade in
+        double matchSoft = 0.2;  // match past threshold to fade in
 
         double greenPresence = colorPresence(
                 color1ProximityInches, greenMatch,
@@ -1038,7 +1039,7 @@ public class DecodeRobotControl {
         double color3ProximityInches = color3.getDistance(DistanceUnit.INCH);
 
         double proxSoft = 0.5;
-        double matchSoft = 0.15;
+        double matchSoft = 0.2;
         double greenPresence3 = colorPresence(
                 color3ProximityInches,
                 greenResonance(red3, green3, blue3),
@@ -1055,7 +1056,8 @@ public class DecodeRobotControl {
         boolean purpleHit = purplePresence3 >= SLOT_SENSOR_ENTER_THRESHOLD_PURPLE;
         double slotPresence = Math.max(greenPresence3, purplePresence3);
         BallColor detectedColor = null;
-        if (greenHit && (!purpleHit || greenPresence3 >= purplePresence3)) {
+        double greenPreferenceMargin = 0.05; // require some separation before preferring green over a purple hit
+        if (greenHit && (!purpleHit || greenPresence3 >= purplePresence3 + greenPreferenceMargin)) {
             detectedColor = BallColor.GREEN;
         } else if (purpleHit) {
             detectedColor = BallColor.PURPLE;
