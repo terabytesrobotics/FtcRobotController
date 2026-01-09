@@ -199,7 +199,7 @@ public class DecodeRobotControl {
     private final Gamepad gamepad2;
     private final OnActivatedEvaluator rb1ActivatedEvaluator;
     private final OnActivatedEvaluator lb1ActivatedEvaluator;
-    private final OnActivatedEvaluator a1ActivatedEvaluator;
+    private final OnActivatedEvaluator liftToggleEvaluator;
     private final OnActivatedEvaluator b2ActivatedEvaluator;
     private final OnActivatedEvaluator x2ActivatedEvaluator;
     private final OnActivatedEvaluator a2ActivatedEvaluator;
@@ -316,7 +316,7 @@ public class DecodeRobotControl {
         //drive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
         rb1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.right_bumper);
-        a1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.a);
+        liftToggleEvaluator = new OnActivatedEvaluator(() -> gamepad2.left_stick_button && gamepad2.right_stick_button);
         b2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.b);
         x2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.x);
         rb2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_bumper);
@@ -818,7 +818,7 @@ public class DecodeRobotControl {
         updateSpindexerPosition(dtMillis / 1000.0);
         spindexerInTransit = Math.abs(spindexerTargetPosition - spindexerCommandPosition) > SPIN_IN_TRANSIT_THRESHOLD;
 
-        if (a1ActivatedEvaluator.evaluate()) {
+        if (liftToggleEvaluator.evaluate()) {
             lifted = !lifted;
         }
 
