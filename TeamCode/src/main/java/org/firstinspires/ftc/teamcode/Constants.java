@@ -15,6 +15,14 @@ public class Constants {
     public static double APRIL_TAG_RECOGNITION_YAW_THRESHOLD = Math.PI / 6;
     public static double APRIL_TAG_RECOGNITION_BEARING_THRESHOLD = Math.PI / 6;
     public static final int APRIL_TAG_QUEUE_CAPACITY = 8;
+    public static double APRIL_TAG_VARIANCE_TRANSLATION_THRESHOLD = 2.0;
+    public static double APRIL_TAG_VARIANCE_HEADING_THRESHOLD = Math.PI / 16.0;
+    // How aggressively to blend AprilTag measurements toward the odometry estimate.
+    public static double APRIL_TAG_BLEND_TRANSLATION_WEIGHT = 0.35;
+    public static double APRIL_TAG_BLEND_HEADING_WEIGHT = 0.25;
+    // Snap to the tag outright if odometry drifts beyond these limits.
+    public static double APRIL_TAG_MAX_CORRECTION_DISTANCE = 18.0;
+    public static double APRIL_TAG_MAX_CORRECTION_HEADING = Math.toRadians(25.0);
     public static final double SLOW_MODE_SCALE = 0.3;
     public static final double FAST_MODE_SCALE = 1;
     public static final boolean INVERT_TILT_SERVO = true; // Switches direction for new servo Set to false if switching back

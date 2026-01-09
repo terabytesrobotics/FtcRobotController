@@ -5,6 +5,12 @@ import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_RECOGNITION_BEA
 import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_RECOGNITION_MAX_RANGE;
 import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_RECOGNITION_MIN_RANGE;
 import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_RECOGNITION_YAW_THRESHOLD;
+import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_BLEND_HEADING_WEIGHT;
+import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_BLEND_TRANSLATION_WEIGHT;
+import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_MAX_CORRECTION_DISTANCE;
+import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_MAX_CORRECTION_HEADING;
+import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_VARIANCE_HEADING_THRESHOLD;
+import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_VARIANCE_TRANSLATION_THRESHOLD;
 import static org.firstinspires.ftc.teamcode.Constants.DRIVE_TO_POSE_THRESHOLD;
 import static org.firstinspires.ftc.teamcode.Constants.FRONT_CAMERA_LATERAL_OFFSET_INCHES;
 import static org.firstinspires.ftc.teamcode.Constants.FRONT_CAMERA_HEIGHT_INCHES;
@@ -1518,14 +1524,34 @@ public class DecodeRobotControl {
             Pose2d averagePose = calculateAveragePose(poseQueue);
             Pose2d variancePose = calculateVariancePose(poseQueue, averagePose);
 
-            double translationVarianceThreshold = 2.0;
-            double headingVarianceThreshold = Math.PI / 16;
-            if (variancePose.getX() <= translationVarianceThreshold &&
-                    variancePose.getY() <= translationVarianceThreshold &&
-                    variancePose.getHeading() <= headingVarianceThreshold &&
-                    !isAutonomous) {
-                drive.setPoseEstimate(averagePose);
-                lastAprilTagFieldPosition = averagePose;
+            boolean varianceAcceptable = variancePose.getX() <= APRIL_TAG_VARIANCE_TRANSLATION_THRESHOLD &&
+                    variancePose.getY() <= APRIL_TAG_VARIANCE_TRANSLATION_THRESHOLD &&
+                    variancePose.getHeading() <= APRIL_TAG_VARIANCE_HEADING_THRESHOLD;
+
+            if (varianceAcceptable && !isAutonomous) {
+                Pose2d fusedPose = averagePose;
+                Pose2d basePose = latestPoseEstimate;
+
+                if (basePose != null) {
+                    double dx = averagePose.getX() - basePose.getX();
+                    double dy = averagePose.getY() - basePose.getY();
+                    double headingDelta = Angle.normDelta(averagePose.getHeading() - basePose.getHeading());
+                    double distanceDelta = Math.hypot(dx, dy);
+                    double headingDeltaAbs = Math.abs(headingDelta);
+
+                    boolean snapToTag = distanceDelta > APRIL_TAG_MAX_CORRECTION_DISTANCE ||
+                            headingDeltaAbs > APRIL_TAG_MAX_CORRECTION_HEADING;
+
+                    if (!snapToTag) {
+                        double blendedX = basePose.getX() + (dx * APRIL_TAG_BLEND_TRANSLATION_WEIGHT);
+                        double blendedY = basePose.getY() + (dy * APRIL_TAG_BLEND_TRANSLATION_WEIGHT);
+                        double blendedHeading = Angle.norm(basePose.getHeading() + (headingDelta * APRIL_TAG_BLEND_HEADING_WEIGHT));
+                        fusedPose = new Pose2d(blendedX, blendedY, blendedHeading);
+                    }
+                }
+
+                drive.setPoseEstimate(fusedPose);
+                lastAprilTagFieldPosition = fusedPose;
                 poseQueue.clear();
             }
         }
