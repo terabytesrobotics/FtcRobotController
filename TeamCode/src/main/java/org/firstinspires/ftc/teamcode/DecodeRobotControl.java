@@ -167,6 +167,11 @@ public class DecodeRobotControl {
 
     // Only trust the large field tags for localization.
     private static final int[] APRIL_TAG_ALLOWED_IDS = {20, 24};
+    // Obelisk tags encode the green-ball position in the fixed 3-ball pattern.
+    private static final int[] OBELISK_PATTERN_TAG_IDS = {21, 22, 33};
+    // Obelisk faces +X on the -X perimeter; keep a tolerance so slight skew still counts.
+    private static final double OBELISK_TARGET_HEADING_RADIANS = 0.0;
+    private static final double OBELISK_HEADING_TOLERANCE_RADIANS = Math.toRadians(20.0);
 
     static double clamp01(double v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
 
@@ -220,7 +225,6 @@ public class DecodeRobotControl {
     private final OnActivatedEvaluator lb1ActivatedEvaluator;
     private final OnActivatedEvaluator a1ActivatedEvaluator;
     private final OnActivatedEvaluator liftToggleEvaluator;
-    private final OnActivatedEvaluator b2ActivatedEvaluator;
     private final OnActivatedEvaluator x2ActivatedEvaluator;
     private final OnActivatedEvaluator a2ActivatedEvaluator;
     private final OnActivatedEvaluator rb2ActivatedEvaluator;
@@ -285,6 +289,13 @@ public class DecodeRobotControl {
     private boolean lastShotBlockedByRim = false;
     private double lastDriveTranslationCap = DRIVE_NORMAL_TRANSLATION_CAP;
     private double lastDriveTurnCap = DRIVE_NORMAL_TURN_CAP;
+    private ObeliskPattern obeliskPattern = ObeliskPattern.UNKNOWN;
+    private final int[] obeliskPatternVotes = new int[ObeliskPattern.values().length];
+    private int lastObeliskTagId = -1;
+    private double lastObeliskTagHeading = Double.NaN;
+    private double lastObeliskTagX = Double.NaN;
+    // Keep the bulk A-button shooting logic available but opt-in; defaults off for teleop.
+    private boolean bulkShootInputEnabled = false;
 
     public DecodeRobotControl(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, boolean debugMode) {
         this.allianceColor = allianceColor;
@@ -346,7 +357,6 @@ public class DecodeRobotControl {
         rb1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.right_bumper);
         a1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.a);
         liftToggleEvaluator = new OnActivatedEvaluator(() -> gamepad2.left_stick_button && gamepad2.right_stick_button);
-        b2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.b);
         x2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.x);
         rb2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_bumper);
         a2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.a);
@@ -592,6 +602,13 @@ public class DecodeRobotControl {
         packet.put("SlotScanActive", slotScanActive);
         packet.put("ShootHoldActive", shootHoldActive);
         packet.put("QueuedShots", queuedShots);
+        packet.put("ObeliskPattern", obeliskPattern.name());
+        packet.put("ObeliskTagId", lastObeliskTagId);
+        packet.put("ObeliskTagHeading", lastObeliskTagHeading);
+        packet.put("ObeliskTagX", lastObeliskTagX);
+        packet.put("ObeliskVotesGreenFirst", obeliskPatternVotes[ObeliskPattern.GREEN_FIRST.ordinal()]);
+        packet.put("ObeliskVotesGreenMiddle", obeliskPatternVotes[ObeliskPattern.GREEN_MIDDLE.ordinal()]);
+        packet.put("ObeliskVotesGreenLast", obeliskPatternVotes[ObeliskPattern.GREEN_LAST.ordinal()]);
         for (int i = 0; i < SPINDEXER_SLOT_COUNT; i++) {
             packet.put("SpindexerSlot" + (i + 1) + "Color", spindexerInventory[i].name());
         }
@@ -874,7 +891,24 @@ public class DecodeRobotControl {
             color3PresenceLatched = false; // avoid latching while we intentionally poll slots
         }
 
-        boolean shootButtonHeld = gamepad2.a;
+        BallColor[] patternOrder = getPatternShootOrder();
+        boolean shootGreenRequest = a2ActivatedEvaluator.evaluate();
+        boolean shootPurpleRequest = x2ActivatedEvaluator.evaluate();
+        boolean shootButtonHeld = bulkShootInputEnabled && gamepad2.a && !shootGreenRequest && !shootPurpleRequest;
+
+        if (shootGreenRequest || shootPurpleRequest) {
+            shootHoldActive = false;
+            queuedShots = 0;
+        }
+
+        if ((shootGreenRequest || shootPurpleRequest) && shootCommandState == ShootCommandState.IDLE) {
+            slotScanActive = false;
+            BallColor[] preferred = shootGreenRequest
+                    ? new BallColor[]{BallColor.GREEN}
+                    : new BallColor[]{BallColor.PURPLE};
+            startShootCommand(preferred, false);
+        }
+
         if (!shootButtonHeld && shootHoldActive && shootCommandState == ShootCommandState.IDLE) {
             shootHoldActive = false;
             queuedShots = 0;
@@ -886,7 +920,7 @@ public class DecodeRobotControl {
                 slotScanActive = false;
                 shootHoldActive = true;
                 queuedShots = knownBalls;
-                if (startShootCommand()) {
+                if (startShootCommand(patternOrder, true)) {
                     queuedShots = Math.max(0, queuedShots - 1);
                 }
             }
@@ -895,8 +929,11 @@ public class DecodeRobotControl {
         if (shootCommandState == ShootCommandState.IDLE && shootHoldActive) {
             int available = getKnownBallCount();
             if (queuedShots > 0 && available > 0) {
-                if (startShootCommand()) {
+                if (startShootCommand(patternOrder, true)) {
                     queuedShots = Math.max(0, queuedShots - 1);
+                } else {
+                    shootHoldActive = false;
+                    queuedShots = 0;
                 }
             } else if (!shootButtonHeld || available == 0) {
                 shootHoldActive = false;
@@ -939,15 +976,6 @@ public class DecodeRobotControl {
             }
         }
 
-        // Debug: jump to full-range endpoints to measure the physical travel for calibration.
-        if (b2ActivatedEvaluator.evaluate()) { // gamepad2.b -> drive to min
-            spindexerMode = SpindexerMode.COLLECT;
-            spindexerTargetPosition = 0.0;
-            spindexerCommandPosition = spindexerTargetPosition;
-            spin.setPosition(spindexerCommandPosition);
-            spindexerInTransit = false;
-        }
-
         if (liftToggleEvaluator.evaluate()) {
             lifted = !lifted;
         }
@@ -959,7 +987,7 @@ public class DecodeRobotControl {
                 : KICKER_UNKICKED_POSITION;
         kicker.setPosition(Range.clip(kickerTarget, 0.0, 1.0));
 
-        boolean manualIntakeReverse = gamepad2.b;
+        boolean manualIntakeReverse = gamepad2.dpad_down;
         intakeSuppressed = spindexerInTransit || kickerKicked || shootCommandState == ShootCommandState.KICKING;
         boolean applySuppression = intakeSuppressed && !manualIntakeReverse;
         if (applySuppression) {
@@ -1313,7 +1341,11 @@ public class DecodeRobotControl {
     }
 
     private boolean startShootCommand() {
-        int filledSlot = findNextFilledSlot(spindexerSlot);
+        return startShootCommand(null, true);
+    }
+
+    private boolean startShootCommand(BallColor[] preferredColors, boolean allowAnyFallback) {
+        int filledSlot = findNextFilledSlot(spindexerSlot, preferredColors, allowAnyFallback);
         if (filledSlot == -1) {
             shootCommandState = ShootCommandState.IDLE;
             return false;
@@ -1385,6 +1417,19 @@ public class DecodeRobotControl {
         return Math.abs(getShooterHeadingError()) <= SHOOT_AIM_HEADING_TOLERANCE_RADIANS;
     }
 
+    private BallColor[] getPatternShootOrder() {
+        switch (obeliskPattern) {
+            case GREEN_FIRST:
+                return new BallColor[]{BallColor.GREEN, BallColor.PURPLE, BallColor.PURPLE};
+            case GREEN_MIDDLE:
+                return new BallColor[]{BallColor.PURPLE, BallColor.GREEN, BallColor.PURPLE};
+            case GREEN_LAST:
+                return new BallColor[]{BallColor.PURPLE, BallColor.PURPLE, BallColor.GREEN};
+            default:
+                return null;
+        }
+    }
+
     private void registerCollectedBallWithColor(BallColor color) {
         if (color != BallColor.GREEN && color != BallColor.PURPLE) {
             return; // only register on a confident color hit
@@ -1407,7 +1452,31 @@ public class DecodeRobotControl {
         return startSlot;
     }
 
-    private int findNextFilledSlot(int startSlot) {
+    private int findNextSlotWithColor(int startSlot, BallColor desiredColor) {
+        if (desiredColor == null || desiredColor == BallColor.EMPTY) {
+            return -1;
+        }
+        for (int i = 0; i < SPINDEXER_SLOT_COUNT; i++) {
+            int candidate = Math.floorMod(startSlot + i, SPINDEXER_SLOT_COUNT);
+            if (spindexerInventory[candidate] == desiredColor) {
+                return candidate;
+            }
+        }
+        return -1;
+    }
+
+    private int findNextFilledSlot(int startSlot, BallColor[] preferredColors, boolean allowAnyFallback) {
+        if (preferredColors != null) {
+            for (BallColor preferred : preferredColors) {
+                int candidate = findNextSlotWithColor(startSlot, preferred);
+                if (candidate != -1) {
+                    return candidate;
+                }
+            }
+            if (!allowAnyFallback) {
+                return -1;
+            }
+        }
         for (int i = 0; i < SPINDEXER_SLOT_COUNT; i++) {
             int candidate = Math.floorMod(startSlot + i, SPINDEXER_SLOT_COUNT);
             if (spindexerInventory[candidate] != BallColor.EMPTY) {
@@ -1415,6 +1484,10 @@ public class DecodeRobotControl {
             }
         }
         return -1;
+    }
+
+    private int findNextFilledSlot(int startSlot) {
+        return findNextFilledSlot(startSlot, null, true);
     }
 
     private void drawSpindexerInventoryIcons(Canvas overlay, double originX, double originY) {
@@ -1478,6 +1551,13 @@ public class DecodeRobotControl {
         PURPLE
     }
 
+    private enum ObeliskPattern {
+        UNKNOWN,
+        GREEN_FIRST,
+        GREEN_MIDDLE,
+        GREEN_LAST
+    }
+
     private OpModeState evaluateCommandSequence() {
         if (commandSequence.isEmpty()) {
             OpModeState _continuationState = continuationState;
@@ -1530,6 +1610,8 @@ public class DecodeRobotControl {
         List<AprilTagDetection> detections = aprilTagProcessor.getFreshDetections();
         if (detections != null) {
             for (AprilTagDetection detection : detections) {
+                maybeUpdateObeliskPattern(detection);
+
                 if (!isAllowedAprilTag(detection.id)) {
                     continue;
                 }
@@ -1603,6 +1685,92 @@ public class DecodeRobotControl {
             if (allowedId == tagId) return true;
         }
         return false;
+    }
+
+    private boolean isObeliskTag(int tagId) {
+        for (int obeliskId : OBELISK_PATTERN_TAG_IDS) {
+            if (obeliskId == tagId) return true;
+        }
+        return false;
+    }
+
+    private void recordObeliskVote(ObeliskPattern pattern) {
+        if (pattern == null || pattern == ObeliskPattern.UNKNOWN) {
+            return;
+        }
+        obeliskPatternVotes[pattern.ordinal()]++;
+        ObeliskPattern leader = getObeliskLeader(obeliskPattern);
+        if (leader != ObeliskPattern.UNKNOWN) {
+            obeliskPattern = leader;
+        }
+    }
+
+    private ObeliskPattern getObeliskLeader(ObeliskPattern current) {
+        int bestVotes = 0;
+        ObeliskPattern leader = current;
+        for (ObeliskPattern pattern : ObeliskPattern.values()) {
+            if (pattern == ObeliskPattern.UNKNOWN) {
+                continue;
+            }
+            int votes = obeliskPatternVotes[pattern.ordinal()];
+            if (votes > bestVotes || (votes == bestVotes && pattern == current)) {
+                bestVotes = votes;
+                leader = pattern;
+            }
+        }
+        return leader;
+    }
+
+    private ObeliskPattern patternFromTagId(int tagId) {
+        switch (tagId) {
+            case 21:
+                return ObeliskPattern.GREEN_FIRST;
+            case 22:
+                return ObeliskPattern.GREEN_MIDDLE;
+            case 33:
+                return ObeliskPattern.GREEN_LAST;
+            default:
+                return ObeliskPattern.UNKNOWN;
+        }
+    }
+
+    private void maybeUpdateObeliskPattern(AprilTagDetection detection) {
+        if (!isObeliskTag(detection.id)) {
+            return;
+        }
+        AprilTagMetadata tag = APRIL_TAG_LIBRARY.lookupTag(detection.id);
+        if (tag == null || tag.fieldPosition == null) {
+            return;
+        }
+
+        lastObeliskTagId = detection.id;
+        lastObeliskTagHeading = getTagFieldHeading(detection.id);
+        lastObeliskTagX = tag.fieldPosition.get(0);
+
+        if (detection.ftcPose == null) {
+            return;
+        }
+
+        if (lastObeliskTagX >= 0) {
+            return; // must live on -X side
+        }
+
+        double headingError = Math.abs(Angle.normDelta(lastObeliskTagHeading - OBELISK_TARGET_HEADING_RADIANS));
+        if (headingError > OBELISK_HEADING_TOLERANCE_RADIANS) {
+            return; // not facing +X
+        }
+
+        if (detection.ftcPose.range > APRIL_TAG_RECOGNITION_MAX_RANGE ||
+                detection.ftcPose.range < APRIL_TAG_RECOGNITION_MIN_RANGE ||
+                Math.abs(Math.toRadians(detection.ftcPose.bearing)) > APRIL_TAG_RECOGNITION_BEARING_THRESHOLD ||
+                Math.abs(Math.toRadians(detection.ftcPose.yaw)) > APRIL_TAG_RECOGNITION_YAW_THRESHOLD) {
+            return;
+        }
+
+        ObeliskPattern observedPattern = patternFromTagId(detection.id);
+        if (observedPattern != ObeliskPattern.UNKNOWN) {
+            recordObeliskVote(observedPattern);
+        }
     }
 
     private Pose2d calculateAveragePose(Queue<Pose2d> poses) {
@@ -1771,6 +1939,11 @@ public class DecodeRobotControl {
         commandSequence.clear();
         commandSequence.addAll(commands);
         continuationState = _continuationState;
+    }
+
+    // Optional opt-in for bulk A-button shooting; remains disabled by default for teleop.
+    public void setBulkShootInputEnabled(boolean enabled) {
+        bulkShootInputEnabled = enabled;
     }
 
     private boolean hasPositionEstimate() {
