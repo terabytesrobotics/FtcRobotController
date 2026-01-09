@@ -61,6 +61,7 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagLibrary;
 import org.firstinspires.ftc.vision.apriltag.AprilTagMetadata;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedList;
@@ -116,6 +117,7 @@ public class DecodeRobotControl {
     private static final double SLOT_SENSOR_ENTER_THRESHOLD_GREEN = 0.15;
     private static final double SLOT_SENSOR_ENTER_THRESHOLD_PURPLE = 0.06;
     private static final double SLOT_SENSOR_EXIT_THRESHOLD = 0.03;
+    private static final double SLOT_SENSOR_GREEN_PREFERENCE_MARGIN = 0.05;
     private static final double INTAKE_TICKS_PER_REV = 384.5; // encoder ticks per motor revolution
     private static final double INTAKE_ROLLER_RADIUS_INCHES = 2.5; // effective radius of the compliant roller
     private static final double INTAKE_COMPLIANCE_SLIP = 1.1; // >1 to account for band slip/compliance; tune on robot
@@ -156,7 +158,10 @@ public class DecodeRobotControl {
     private static final double SPIN_MODE_OFFSET_SHOOT = (SPIN_MODE_OFFSET_DEGREES / 360.0) * SPIN_SERVO_FULL_TURN;
     private static final double SPIN_MAX_DEG_PER_SEC = 240.0;
     private static final double SPIN_MAX_POS_PER_SEC = (SPIN_MAX_DEG_PER_SEC / 360.0) * SPIN_SERVO_FULL_TURN; // 1.0 = full servo range
-    private static final double SLOT_SCAN_DWELL_SEC = 0.35;
+    private static final double SLOT_CHECK_SETTLE_SEC = 0.25;
+    private static final double SLOT_CHECK_DWELL_SEC = 0.5;
+    private static final int SLOT_CHECK_BURST_SAMPLES = 5;
+    private static final double SLOT_CHECK_SAMPLE_SPACING_SEC = 0.02;
     private static final double SHOOT_AIM_HEADING_TOLERANCE_RADIANS = Math.toRadians(3.0);
     private static final double SHOOT_AIM_TURN_GAIN = 2.25; // scales heading error into rotation power while aiming
     // Teleop drive scaling: higher caps = more authority; fast mode bumps to full send.
@@ -226,6 +231,8 @@ public class DecodeRobotControl {
     private final OnActivatedEvaluator a1ActivatedEvaluator;
     private final OnActivatedEvaluator liftToggleEvaluator;
     private final OnActivatedEvaluator x2ActivatedEvaluator;
+    private final OnActivatedEvaluator b2ActivatedEvaluator;
+    private final OnActivatedEvaluator y2ActivatedEvaluator;
     private final OnActivatedEvaluator a2ActivatedEvaluator;
     private final OnActivatedEvaluator rb2ActivatedEvaluator;
     private final OnActivatedEvaluator lb2ActivatedEvaluator;
@@ -269,15 +276,23 @@ public class DecodeRobotControl {
     private boolean intakeSuppressed = false;
     private IntakeState intakeState = IntakeState.FORWARD;
     private ShootCommandState shootCommandState = ShootCommandState.IDLE;
-    private boolean shootHoldActive = false;
-    private int queuedShots = 0;
     private final ElapsedTime shootCommandTimer = new ElapsedTime();
     private final ElapsedTime spindexerSettleTimer = new ElapsedTime();
     private final ElapsedTime kickerSettleTimer = new ElapsedTime();
-    private final ElapsedTime slotScanTimer = new ElapsedTime();
-    private boolean slotScanEnabled = false;
-    private boolean slotScanActive = false;
-    private int slotScanCursor = 0;
+    private final ElapsedTime slotCheckPhaseTimer = new ElapsedTime();
+    private final ElapsedTime slotCheckSampleTimer = new ElapsedTime();
+    private SlotCheckPhase slotCheckPhase = SlotCheckPhase.IDLE;
+    private int slotCheckActiveSlot = -1;
+    private int slotCheckSamplesCollected = 0;
+    private double slotCheckMaxGreenPresence = 0.0;
+    private double slotCheckMaxPurplePresence = 0.0;
+    private final double[] slotLastCheckTimeSeconds = new double[SPINDEXER_SLOT_COUNT];
+    private final BallColor[] slotLastCheckColor = new BallColor[SPINDEXER_SLOT_COUNT];
+    private final boolean[] slotLastCheckPresence = new boolean[SPINDEXER_SLOT_COUNT];
+    private final int[] slotLastCheckSamples = new int[SPINDEXER_SLOT_COUNT];
+    private final double[] slotLastCheckMaxGreen = new double[SPINDEXER_SLOT_COUNT];
+    private final double[] slotLastCheckMaxPurple = new double[SPINDEXER_SLOT_COUNT];
+    private final ArrayDeque<Integer> slotCheckQueue = new ArrayDeque<>();
     private boolean shooterEnabled = true;
     private double shooterDesiredExitVelocityIps = 0.0;
     private double shooterDesiredWheelTicksPerSecond = 0.0;
@@ -296,6 +311,7 @@ public class DecodeRobotControl {
     private double lastObeliskTagX = Double.NaN;
     // Keep the bulk A-button shooting logic available but opt-in; defaults off for teleop.
     private boolean bulkShootInputEnabled = false;
+    private final ArrayDeque<ShotRequest> shotRequestQueue = new ArrayDeque<>();
 
     public DecodeRobotControl(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, boolean debugMode) {
         this.allianceColor = allianceColor;
@@ -313,6 +329,7 @@ public class DecodeRobotControl {
         kicker = hardwareMap.get(Servo.class, "kicker");
         kicker.setPosition(Range.clip(KICKER_UNKICKED_POSITION, 0.0, 1.0));
         resetSpindexerInventory();
+        initializeSlotCheckMetadata();
         initializeSpindexerToMidrange();
         wheel = hardwareMap.get(DcMotorEx.class, "wheel");
         wheel.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
@@ -358,6 +375,8 @@ public class DecodeRobotControl {
         a1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.a);
         liftToggleEvaluator = new OnActivatedEvaluator(() -> gamepad2.left_stick_button && gamepad2.right_stick_button);
         x2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.x);
+        b2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.b);
+        y2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.y);
         rb2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_bumper);
         a2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.a);
         lb2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.left_bumper);
@@ -598,10 +617,13 @@ public class DecodeRobotControl {
         packet.put("SpindexerServoPosition", spin.getPosition());
         packet.put("SpindexerDelta", spindexerTargetPosition - spindexerCommandPosition);
         packet.put("SpindexerInTransit", spindexerInTransit);
-        packet.put("SlotScanEnabled", slotScanEnabled);
-        packet.put("SlotScanActive", slotScanActive);
-        packet.put("ShootHoldActive", shootHoldActive);
-        packet.put("QueuedShots", queuedShots);
+        packet.put("SlotCheckPhase", slotCheckPhase.name());
+        packet.put("SlotCheckActiveSlot", slotCheckActiveSlot >= 0 ? slotCheckActiveSlot + 1 : -1);
+        packet.put("SlotCheckQueueSize", slotCheckQueue.size());
+        packet.put("SlotCheckSamples", slotCheckSamplesCollected);
+        packet.put("SlotCheckMaxGreen", slotCheckMaxGreenPresence);
+        packet.put("SlotCheckMaxPurple", slotCheckMaxPurplePresence);
+        packet.put("ShotRequestQueueSize", shotRequestQueue.size());
         packet.put("ObeliskPattern", obeliskPattern.name());
         packet.put("ObeliskTagId", lastObeliskTagId);
         packet.put("ObeliskTagHeading", lastObeliskTagHeading);
@@ -611,6 +633,12 @@ public class DecodeRobotControl {
         packet.put("ObeliskVotesGreenLast", obeliskPatternVotes[ObeliskPattern.GREEN_LAST.ordinal()]);
         for (int i = 0; i < SPINDEXER_SLOT_COUNT; i++) {
             packet.put("SpindexerSlot" + (i + 1) + "Color", spindexerInventory[i].name());
+            packet.put("SpindexerSlot" + (i + 1) + "LastCheckTimeSec", slotLastCheckTimeSeconds[i]);
+            packet.put("SpindexerSlot" + (i + 1) + "LastCheckPresence", slotLastCheckPresence[i]);
+            packet.put("SpindexerSlot" + (i + 1) + "LastCheckSamples", slotLastCheckSamples[i]);
+            packet.put("SpindexerSlot" + (i + 1) + "LastCheckMaxGreen", slotLastCheckMaxGreen[i]);
+            packet.put("SpindexerSlot" + (i + 1) + "LastCheckMaxPurple", slotLastCheckMaxPurple[i]);
+            packet.put("SpindexerSlot" + (i + 1) + "LastCheckColor", slotLastCheckColor[i].name());
         }
         packet.put("KickerTargetPosition", kickerKicked ? KICKER_KICKED_POSITION : KICKER_UNKICKED_POSITION);
         packet.put("KickerServoPosition", kicker.getPosition());
@@ -822,6 +850,12 @@ public class DecodeRobotControl {
         return -1;
     }
 
+    private static class SlotSensorSample {
+        double proximityInches;
+        double greenPresence;
+        double purplePresence;
+    }
+
     private static class ShotSolution {
         double exitVelocityIps;
         double wheelTicksPerSecond;
@@ -835,6 +869,11 @@ public class DecodeRobotControl {
         double topSpinRadPerSec;
         double transferRatio;
         double tangentialSpeedIps;
+    }
+
+    private static class ShotRequest {
+        BallColor[] preferredColors;
+        boolean allowAnyFallback;
     }
 
     private OpModeState evaluateManualControl(double dtMillis) {
@@ -873,79 +912,28 @@ public class DecodeRobotControl {
         }
         lastShotSolution = shotSolution;
 
-        slotScanEnabled = gamepad2.y;
-
-        boolean slotScanAllowed = slotScanEnabled && shootCommandState == ShootCommandState.IDLE;
-        if (slotScanAllowed && !slotScanActive) {
-            slotScanActive = true;
-            slotScanCursor = 0;
-            slotScanTimer.reset();
-        } else if (!slotScanAllowed && slotScanActive) {
-            slotScanActive = false;
+        if (y2ActivatedEvaluator.evaluate()) {
+            enqueueStalestSlotCheck();
         }
+
+        boolean shotGreenRequest = a2ActivatedEvaluator.evaluate();
+        boolean shotPurpleRequest = x2ActivatedEvaluator.evaluate();
+        boolean shotAnyRequest = b2ActivatedEvaluator.evaluate();
 
         double collectorPresence = sampleCollectorPresence();
-        if (!slotScanActive) {
-            updateCollectedSlotSensor();
-        } else {
-            color3PresenceLatched = false; // avoid latching while we intentionally poll slots
+        updateSlotCheckMachine();
+
+        if (shotGreenRequest) {
+            enqueueShotRequest(new BallColor[]{BallColor.GREEN}, false);
+        }
+        if (shotPurpleRequest) {
+            enqueueShotRequest(new BallColor[]{BallColor.PURPLE}, false);
+        }
+        if (shotAnyRequest) {
+            enqueueShotRequest(null, true);
         }
 
-        BallColor[] patternOrder = getPatternShootOrder();
-        boolean shootGreenRequest = a2ActivatedEvaluator.evaluate();
-        boolean shootPurpleRequest = x2ActivatedEvaluator.evaluate();
-        boolean shootButtonHeld = bulkShootInputEnabled && gamepad2.a && !shootGreenRequest && !shootPurpleRequest;
-
-        if (shootGreenRequest || shootPurpleRequest) {
-            shootHoldActive = false;
-            queuedShots = 0;
-        }
-
-        if ((shootGreenRequest || shootPurpleRequest) && shootCommandState == ShootCommandState.IDLE) {
-            slotScanActive = false;
-            BallColor[] preferred = shootGreenRequest
-                    ? new BallColor[]{BallColor.GREEN}
-                    : new BallColor[]{BallColor.PURPLE};
-            startShootCommand(preferred, false);
-        }
-
-        if (!shootButtonHeld && shootHoldActive && shootCommandState == ShootCommandState.IDLE) {
-            shootHoldActive = false;
-            queuedShots = 0;
-        }
-
-        if (shootButtonHeld && !shootHoldActive && shootCommandState == ShootCommandState.IDLE) {
-            int knownBalls = getKnownBallCount();
-            if (knownBalls > 0) {
-                slotScanActive = false;
-                shootHoldActive = true;
-                queuedShots = knownBalls;
-                if (startShootCommand(patternOrder, true)) {
-                    queuedShots = Math.max(0, queuedShots - 1);
-                }
-            }
-        }
-
-        if (shootCommandState == ShootCommandState.IDLE && shootHoldActive) {
-            int available = getKnownBallCount();
-            if (queuedShots > 0 && available > 0) {
-                if (startShootCommand(patternOrder, true)) {
-                    queuedShots = Math.max(0, queuedShots - 1);
-                } else {
-                    shootHoldActive = false;
-                    queuedShots = 0;
-                }
-            } else if (!shootButtonHeld || available == 0) {
-                shootHoldActive = false;
-                queuedShots = 0;
-            }
-        }
-
-        if (slotScanActive && shootCommandState == ShootCommandState.IDLE) {
-            spindexerMode = SpindexerMode.COLLECT;
-            spindexerSlot = slotScanCursor;
-            retargetSpindexer();
-        }
+        serviceShotRequestQueue();
 
         updateShootCommand();
 
@@ -961,20 +949,6 @@ public class DecodeRobotControl {
 
         updateSpindexerPosition(dtMillis / 1000.0);
         spindexerInTransit = Math.abs(spindexerTargetPosition - spindexerCommandPosition) > SPIN_IN_TRANSIT_THRESHOLD;
-
-        if (slotScanActive && shootCommandState == ShootCommandState.IDLE) {
-            if (!isSpindexerAtTarget()) {
-                slotScanTimer.reset();
-            } else if (slotScanTimer.seconds() >= SLOT_SCAN_DWELL_SEC) {
-                BallColor sensed = sampleSlotSensorInstant();
-                setSlotColor(spindexerSlot, sensed);
-                slotScanCursor = (slotScanCursor + 1) % SPINDEXER_SLOT_COUNT;
-                slotScanTimer.reset();
-                spindexerMode = SpindexerMode.COLLECT;
-                spindexerSlot = slotScanCursor;
-                retargetSpindexer();
-            }
-        }
 
         if (liftToggleEvaluator.evaluate()) {
             lifted = !lifted;
@@ -1240,7 +1214,50 @@ public class DecodeRobotControl {
         }
     }
 
-    private void updateCollectedSlotSensor() {
+    private void initializeSlotCheckMetadata() {
+        Arrays.fill(slotLastCheckTimeSeconds, Double.NEGATIVE_INFINITY);
+        Arrays.fill(slotLastCheckColor, BallColor.EMPTY);
+        Arrays.fill(slotLastCheckPresence, false);
+        Arrays.fill(slotLastCheckSamples, 0);
+        Arrays.fill(slotLastCheckMaxGreen, 0.0);
+        Arrays.fill(slotLastCheckMaxPurple, 0.0);
+    }
+
+    private void resetSlotCheckState() {
+        slotCheckPhase = SlotCheckPhase.IDLE;
+        slotCheckActiveSlot = -1;
+        slotCheckSamplesCollected = 0;
+        slotCheckMaxGreenPresence = 0.0;
+        slotCheckMaxPurplePresence = 0.0;
+        slotCheckPhaseTimer.reset();
+        slotCheckSampleTimer.reset();
+    }
+
+    private void enqueueStalestSlotCheck() {
+        if (slotCheckQueue.size() >= SPINDEXER_SLOT_COUNT) {
+            return; // cap to avoid unbounded queue; 3 slots max
+        }
+        int slot = findStalestSlot();
+        slotCheckQueue.add(slot);
+    }
+
+    private int findStalestSlot() {
+        double oldestTimestamp = Double.POSITIVE_INFINITY;
+        int oldestIndex = 0;
+        for (int i = 0; i < SPINDEXER_SLOT_COUNT; i++) {
+            double ts = slotLastCheckTimeSeconds[i];
+            if (ts == Double.NEGATIVE_INFINITY) {
+                return i; // never checked; highest priority
+            }
+            if (ts < oldestTimestamp) {
+                oldestTimestamp = ts;
+                oldestIndex = i;
+            }
+        }
+        return oldestIndex;
+    }
+
+    private SlotSensorSample readSlotSensor() {
         int colorReadingMaxInt = 2 << 11;
         double red3 = (double) color3.red() / colorReadingMaxInt;
         double green3 = (double) color3.green() / colorReadingMaxInt;
@@ -1261,70 +1278,192 @@ public class DecodeRobotControl {
                 SLOT_SENSOR_PROXIMITY_THRESHOLD_INCHES, PURPLE_MATCH_THRESHOLD,
                 proxSoft, matchSoft
         );
-        boolean greenHit = greenPresence3 >= SLOT_SENSOR_ENTER_THRESHOLD_GREEN;
-        boolean purpleHit = purplePresence3 >= SLOT_SENSOR_ENTER_THRESHOLD_PURPLE;
-        double slotPresence = Math.max(greenPresence3, purplePresence3);
-        BallColor detectedColor = null;
-        double greenPreferenceMargin = 0.05; // require some separation before preferring green over a purple hit
-        if (greenHit && (!purpleHit || greenPresence3 >= purplePresence3 + greenPreferenceMargin)) {
-            detectedColor = BallColor.GREEN;
-        } else if (purpleHit) {
-            detectedColor = BallColor.PURPLE;
-        }
 
         lastColor3ProximityInches = color3ProximityInches;
         lastColor3GreenPresence = greenPresence3;
         lastColor3PurplePresence = purplePresence3;
 
-        boolean slotStable = Math.abs(spindexerTargetPosition - spindexerCommandPosition) <= SPIN_IN_TRANSIT_THRESHOLD;
-        boolean canEvaluate = spindexerMode == SpindexerMode.COLLECT
-                && !kickerKicked
-                && slotStable;
+        SlotSensorSample sample = new SlotSensorSample();
+        sample.proximityInches = color3ProximityInches;
+        sample.greenPresence = greenPresence3;
+        sample.purplePresence = purplePresence3;
+        return sample;
+    }
 
-        if (canEvaluate && !color3PresenceLatched && (greenHit || purpleHit)) {
-            color3PresenceLatched = true;
-            registerCollectedBallWithColor(detectedColor);
-        } else if (color3PresenceLatched && slotPresence <= SLOT_SENSOR_EXIT_THRESHOLD) {
-            color3PresenceLatched = false;
+    private BallColor classifySlotColor(double greenPresence, double purplePresence) {
+        boolean greenHit = greenPresence >= SLOT_SENSOR_ENTER_THRESHOLD_GREEN;
+        boolean purpleHit = purplePresence >= SLOT_SENSOR_ENTER_THRESHOLD_PURPLE;
+        double slotPresence = Math.max(greenPresence, purplePresence);
+        if (slotPresence < SLOT_SENSOR_EXIT_THRESHOLD) {
+            return BallColor.EMPTY;
+        }
+        // Presence detected; pick a color even if thresholds are weak.
+        if (greenPresence >= purplePresence + SLOT_SENSOR_GREEN_PREFERENCE_MARGIN || (greenPresence >= SLOT_SENSOR_ENTER_THRESHOLD_GREEN && !purpleHit)) {
+            return BallColor.GREEN;
+        }
+        if (purplePresence > greenPresence) {
+            return BallColor.PURPLE;
+        }
+        // Tie-break toward green for our green/not-green strategy.
+        return BallColor.GREEN;
+    }
+
+    private void startSlotCheck(int slotIndex) {
+        slotCheckActiveSlot = Math.floorMod(slotIndex, SPINDEXER_SLOT_COUNT);
+        slotCheckPhase = SlotCheckPhase.WAIT_SETTLE;
+        slotCheckSamplesCollected = 0;
+        slotCheckMaxGreenPresence = 0.0;
+        slotCheckMaxPurplePresence = 0.0;
+        slotCheckPhaseTimer.reset();
+        slotCheckSampleTimer.reset();
+        spindexerMode = SpindexerMode.COLLECT;
+        spindexerSlot = slotCheckActiveSlot;
+        retargetSpindexer();
+    }
+
+    private void completeSlotCheckBurst() {
+        BallColor detected = classifySlotColor(slotCheckMaxGreenPresence, slotCheckMaxPurplePresence);
+        recordSlotCheck(slotCheckActiveSlot, slotCheckSamplesCollected, slotCheckMaxGreenPresence, slotCheckMaxPurplePresence, detected);
+        if (!slotCheckQueue.isEmpty() && slotCheckQueue.peek() == slotCheckActiveSlot) {
+            slotCheckQueue.poll();
+        }
+        slotCheckPhase = SlotCheckPhase.DWELL;
+        slotCheckPhaseTimer.reset();
+    }
+
+    private void recordSlotCheck(int slotIndex, int samples, double maxGreen, double maxPurple, BallColor detected) {
+        double nowSeconds = timeSinceStart.seconds();
+        slotLastCheckTimeSeconds[slotIndex] = nowSeconds;
+        slotLastCheckSamples[slotIndex] = samples;
+        slotLastCheckMaxGreen[slotIndex] = maxGreen;
+        slotLastCheckMaxPurple[slotIndex] = maxPurple;
+        slotLastCheckColor[slotIndex] = detected;
+        slotLastCheckPresence[slotIndex] = detected != BallColor.EMPTY;
+
+        BallColor previous = getSlotColor(slotIndex);
+        BallColor resolved = detected;
+        setSlotColor(slotIndex, resolved);
+        color3PresenceLatched = resolved != BallColor.EMPTY;
+
+        boolean becameFilled = previous == BallColor.EMPTY && resolved != BallColor.EMPTY;
+        if (detected == BallColor.GREEN || detected == BallColor.PURPLE) {
+            registerCollectedBallWithColor(detected);
+        } else if (becameFilled && slotCheckQueue.isEmpty()) {
+            int nextEmpty = findNearestEmptySlot(slotIndex);
+            if (nextEmpty != slotIndex && !kickerKicked) {
+                spindexerSlot = nextEmpty;
+                retargetSpindexer();
+            }
         }
     }
 
-    private BallColor sampleSlotSensorInstant() {
-        int colorReadingMaxInt = 2 << 11;
-        double red3 = (double) color3.red() / colorReadingMaxInt;
-        double green3 = (double) color3.green() / colorReadingMaxInt;
-        double blue3 = (double) color3.blue() / colorReadingMaxInt;
-        double color3ProximityInches = color3.getDistance(DistanceUnit.INCH);
-
-        double proxSoft = 0.5;
-        double matchSoft = 0.15;
-        double greenPresence3 = colorPresence(
-                color3ProximityInches,
-                greenResonance(red3, green3, blue3),
-                SLOT_SENSOR_PROXIMITY_THRESHOLD_INCHES, GREEN_MATCH_THRESHOLD,
-                proxSoft, matchSoft
-        );
-        double purplePresence3 = colorPresence(
-                color3ProximityInches,
-                purpleResonance(red3, green3, blue3),
-                SLOT_SENSOR_PROXIMITY_THRESHOLD_INCHES, PURPLE_MATCH_THRESHOLD,
-                proxSoft, matchSoft
-        );
-
-        boolean greenHit = greenPresence3 >= SLOT_SENSOR_ENTER_THRESHOLD_GREEN;
-        boolean purpleHit = purplePresence3 >= SLOT_SENSOR_ENTER_THRESHOLD_PURPLE;
-        double slotPresence = Math.max(greenPresence3, purplePresence3);
-
-        if (greenHit && (!purpleHit || greenPresence3 >= purplePresence3)) {
-            return BallColor.GREEN;
+    private int findNearestEmptySlot(int startSlot) {
+        int bestSlot = startSlot;
+        int bestDistance = SPINDEXER_SLOT_COUNT + 1;
+        for (int i = 0; i < SPINDEXER_SLOT_COUNT; i++) {
+            if (spindexerInventory[i] == BallColor.EMPTY) {
+                int forward = Math.floorMod(i - startSlot, SPINDEXER_SLOT_COUNT);
+                int backward = Math.floorMod(startSlot - i, SPINDEXER_SLOT_COUNT);
+                int distance = Math.min(forward, backward);
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    bestSlot = i;
+                }
+            }
         }
-        if (purpleHit) {
-            return BallColor.PURPLE;
+        return bestSlot;
+    }
+
+    private void updateSlotCheckMachine() {
+        if (!shotRequestQueue.isEmpty()) {
+            resetSlotCheckState();
+            return; // prioritize shooting over slot checks
         }
-        if (slotPresence >= SLOT_SENSOR_EXIT_THRESHOLD) {
-            return BallColor.UNKNOWN; // present but ambiguous color
+        boolean geometryReady = shootCommandState == ShootCommandState.IDLE && !kickerKicked && !kickerSettling;
+        if (!geometryReady) {
+            resetSlotCheckState();
+            return;
         }
-        return BallColor.EMPTY;
+
+        int currentSlot = Math.floorMod(spindexerSlot, SPINDEXER_SLOT_COUNT);
+        int desiredSlot = !slotCheckQueue.isEmpty() ? slotCheckQueue.peek() : currentSlot;
+
+        if (slotCheckPhase == SlotCheckPhase.IDLE || slotCheckActiveSlot != desiredSlot) {
+            startSlotCheck(desiredSlot);
+        }
+
+        if (spindexerSlot != desiredSlot || spindexerMode != SpindexerMode.COLLECT) {
+            spindexerMode = SpindexerMode.COLLECT;
+            spindexerSlot = desiredSlot;
+            retargetSpindexer();
+        }
+
+        boolean settled = isSpindexerSettled();
+        switch (slotCheckPhase) {
+            case WAIT_SETTLE:
+                if (!settled) {
+                    slotCheckPhaseTimer.reset();
+                } else if (slotCheckPhaseTimer.seconds() >= SLOT_CHECK_SETTLE_SEC) {
+                    slotCheckPhase = SlotCheckPhase.SAMPLING;
+                    slotCheckSampleTimer.reset();
+                    slotCheckSamplesCollected = 0;
+                    slotCheckMaxGreenPresence = 0.0;
+                    slotCheckMaxPurplePresence = 0.0;
+                }
+                break;
+            case SAMPLING:
+                if (!settled) {
+                    startSlotCheck(desiredSlot);
+                    break;
+                }
+                if (slotCheckSamplesCollected == 0 || slotCheckSampleTimer.seconds() >= SLOT_CHECK_SAMPLE_SPACING_SEC) {
+                    SlotSensorSample sample = readSlotSensor();
+                    slotCheckMaxGreenPresence = Math.max(slotCheckMaxGreenPresence, sample.greenPresence);
+                    slotCheckMaxPurplePresence = Math.max(slotCheckMaxPurplePresence, sample.purplePresence);
+                    slotCheckSamplesCollected++;
+                    slotCheckSampleTimer.reset();
+                }
+                if (slotCheckSamplesCollected >= SLOT_CHECK_BURST_SAMPLES) {
+                    completeSlotCheckBurst();
+                }
+                break;
+            case DWELL:
+                if (!settled) {
+                    startSlotCheck(desiredSlot);
+                } else if (slotCheckPhaseTimer.seconds() >= SLOT_CHECK_DWELL_SEC) {
+                    slotCheckPhase = SlotCheckPhase.WAIT_SETTLE;
+                    slotCheckPhaseTimer.reset();
+                    slotCheckSamplesCollected = 0;
+                    slotCheckMaxGreenPresence = 0.0;
+                    slotCheckMaxPurplePresence = 0.0;
+                }
+                break;
+            case IDLE:
+            default:
+                startSlotCheck(desiredSlot);
+                break;
+        }
+    }
+
+    private void enqueueShotRequest(BallColor[] preferredColors, boolean allowAnyFallback) {
+        ShotRequest req = new ShotRequest();
+        req.preferredColors = preferredColors;
+        req.allowAnyFallback = allowAnyFallback;
+        shotRequestQueue.add(req);
+    }
+
+    private void serviceShotRequestQueue() {
+        if (shootCommandState != ShootCommandState.IDLE) {
+            return;
+        }
+        while (!shotRequestQueue.isEmpty()) {
+            ShotRequest req = shotRequestQueue.peek();
+            boolean started = startShootCommand(req.preferredColors, req.allowAnyFallback);
+            shotRequestQueue.poll();
+            if (started) {
+                break;
+            }
+        }
     }
 
     private double getShooterHeadingError() {
@@ -1436,7 +1575,7 @@ public class DecodeRobotControl {
         }
         setSlotColor(spindexerSlot, color);
         int nextSlot = findNextEmptySlot(spindexerSlot);
-        if (nextSlot != spindexerSlot && !kickerKicked) {
+        if (nextSlot != spindexerSlot && !kickerKicked && slotCheckQueue.isEmpty()) {
             spindexerSlot = nextSlot;
             retargetSpindexer();
         }
@@ -1525,6 +1664,13 @@ public class DecodeRobotControl {
         return new Pose2d(0.0, 0.0, rotation);
     }
 
+    private enum SlotCheckPhase {
+        IDLE,
+        WAIT_SETTLE,
+        SAMPLING,
+        DWELL
+    }
+
     private enum SpindexerMode {
         COLLECT,
         SHOOT
@@ -1546,7 +1692,6 @@ public class DecodeRobotControl {
 
     private enum BallColor {
         EMPTY,
-        UNKNOWN,
         GREEN,
         PURPLE
     }
