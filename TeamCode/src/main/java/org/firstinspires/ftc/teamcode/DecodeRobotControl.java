@@ -213,7 +213,6 @@ public class DecodeRobotControl {
     private final OnActivatedEvaluator a2ActivatedEvaluator;
     private final OnActivatedEvaluator rb2ActivatedEvaluator;
     private final OnActivatedEvaluator lb2ActivatedEvaluator;
-    private final OnActivatedEvaluator y2ActivatedEvaluator;
     private final DcMotorEx wheel;
     private final DcMotorEx intakeMotor;
     private final SampleMecanumDrive drive;
@@ -260,7 +259,7 @@ public class DecodeRobotControl {
     private final ElapsedTime spindexerSettleTimer = new ElapsedTime();
     private final ElapsedTime kickerSettleTimer = new ElapsedTime();
     private final ElapsedTime slotScanTimer = new ElapsedTime();
-    private boolean slotScanEnabled = true;
+    private boolean slotScanEnabled = false;
     private boolean slotScanActive = false;
     private int slotScanCursor = 0;
     private boolean shooterEnabled = true;
@@ -338,7 +337,6 @@ public class DecodeRobotControl {
         rb2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_bumper);
         a2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.a);
         lb2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.left_bumper);
-        y2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.y);
         lb1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.left_bumper);
 
         drive = new SampleMecanumDrive(hardwareMap);
@@ -842,12 +840,7 @@ public class DecodeRobotControl {
         }
         lastShotSolution = shotSolution;
 
-        if (y2ActivatedEvaluator.evaluate()) {
-            slotScanEnabled = !slotScanEnabled;
-            if (!slotScanEnabled) {
-                slotScanActive = false;
-            }
-        }
+        slotScanEnabled = gamepad2.y;
 
         boolean slotScanAllowed = slotScanEnabled && shootCommandState == ShootCommandState.IDLE;
         if (slotScanAllowed && !slotScanActive) {
@@ -931,13 +924,7 @@ public class DecodeRobotControl {
         }
 
         // Debug: jump to full-range endpoints to measure the physical travel for calibration.
-        if (y2ActivatedEvaluator.evaluate()) { // gamepad2.y -> drive to max
-            spindexerMode = SpindexerMode.COLLECT;
-            spindexerTargetPosition = 1.0;
-            spindexerCommandPosition = spindexerTargetPosition;
-            spin.setPosition(spindexerCommandPosition);
-            spindexerInTransit = false;
-        } else if (b2ActivatedEvaluator.evaluate()) { // gamepad2.b -> drive to min
+        if (b2ActivatedEvaluator.evaluate()) { // gamepad2.b -> drive to min
             spindexerMode = SpindexerMode.COLLECT;
             spindexerTargetPosition = 0.0;
             spindexerCommandPosition = spindexerTargetPosition;
