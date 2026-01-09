@@ -15,6 +15,7 @@ import static org.firstinspires.ftc.teamcode.Constants.DRIVE_TO_POSE_THRESHOLD;
 import static org.firstinspires.ftc.teamcode.Constants.FRONT_CAMERA_LATERAL_OFFSET_INCHES;
 import static org.firstinspires.ftc.teamcode.Constants.FRONT_CAMERA_HEIGHT_INCHES;
 import static org.firstinspires.ftc.teamcode.Constants.FRONT_CAMERA_OFFSET_INCHES;
+import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_MIN_QUEUE_SAMPLES;
 import static org.firstinspires.ftc.teamcode.Constants.SPEED_GAIN;
 import static org.firstinspires.ftc.teamcode.Constants.TURN_ERROR_THRESHOLD;
 import static org.firstinspires.ftc.teamcode.Constants.TURN_GAIN;
@@ -158,6 +159,11 @@ public class DecodeRobotControl {
     private static final double SLOT_SCAN_DWELL_SEC = 0.35;
     private static final double SHOOT_AIM_HEADING_TOLERANCE_RADIANS = Math.toRadians(3.0);
     private static final double SHOOT_AIM_TURN_GAIN = 2.25; // scales heading error into rotation power while aiming
+    // Teleop drive scaling: higher caps = more authority; fast mode bumps to full send.
+    private static final double DRIVE_NORMAL_TRANSLATION_CAP = 0.85;
+    private static final double DRIVE_FAST_TRANSLATION_CAP = 1.0;
+    private static final double DRIVE_NORMAL_TURN_CAP = 0.85;
+    private static final double DRIVE_FAST_TURN_CAP = 1.0;
 
     // Only trust the large field tags for localization.
     private static final int[] APRIL_TAG_ALLOWED_IDS = {20, 24};
@@ -277,6 +283,8 @@ public class DecodeRobotControl {
     private boolean kickerSettling = false;
     private ShotSolution lastShotSolution = null;
     private boolean lastShotBlockedByRim = false;
+    private double lastDriveTranslationCap = DRIVE_NORMAL_TRANSLATION_CAP;
+    private double lastDriveTurnCap = DRIVE_NORMAL_TURN_CAP;
 
     public DecodeRobotControl(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, boolean debugMode) {
         this.allianceColor = allianceColor;
@@ -570,6 +578,8 @@ public class DecodeRobotControl {
         packet.put("ShootCommandState", shootCommandState.name());
         packet.put("DriveInputX", driveInput.getX());
         packet.put("DriveInputY", driveInput.getY());
+        packet.put("DriveTranslationCap", lastDriveTranslationCap);
+        packet.put("DriveTurnCap", lastDriveTurnCap);
         packet.put("SpindexerSlot", Math.floorMod(spindexerSlot, SPINDEXER_SLOT_COUNT) + 1); // human-friendly 1-based
         packet.put("SpindexerMode", spindexerMode == SpindexerMode.SHOOT ? "SHOOT" : "COLLECT");
         packet.put("SpindexerCanonicalTarget", spindexerCanonicalTargetPosition);
@@ -977,8 +987,11 @@ public class DecodeRobotControl {
 
         double driverForwardHeading = HeadlessConfig.forwardHeadingRadians(allianceColor);
         driveInput = getHeadlessDriveInput(gamepad1, driverForwardHeading, latestPoseEstimate.getHeading());
-        double divisor = fastMode ? 1.5 : 2.25;
-        driveInput = driveInput.div(divisor);
+        double translationCap = fastMode ? DRIVE_FAST_TRANSLATION_CAP : DRIVE_NORMAL_TRANSLATION_CAP;
+        double turnCap = fastMode ? DRIVE_FAST_TURN_CAP : DRIVE_NORMAL_TURN_CAP;
+        lastDriveTranslationCap = translationCap;
+        lastDriveTurnCap = turnCap;
+        driveInput = capDriveInput(driveInput, translationCap, turnCap);
 
         boolean autoAimActive = shootCommandState == ShootCommandState.AIMING || shootCommandState == ShootCommandState.ARMING;
         Pose2d driveCommand = autoAimActive ? getShootAimDrivePower() : driveInput;
@@ -1009,6 +1022,31 @@ public class DecodeRobotControl {
         // Right stick X: right = clockwise (negative in CCW-positive math)
         double rotation = -applySignedSquareDeadband(gamepad.right_stick_x, 0.02);
         return new Pose2d(robotTranslation.getX(), robotTranslation.getY(), rotation);
+    }
+
+    // Clamp translation magnitude and turn separately, then blend so the combined command still fits in the motor range.
+    private Pose2d capDriveInput(Pose2d input, double translationCap, double turnCap) {
+        double x = Range.clip(input.getX(), -translationCap, translationCap);
+        double y = Range.clip(input.getY(), -translationCap, translationCap);
+        double h = Range.clip(input.getHeading(), -turnCap, turnCap);
+
+        double transMag = Math.hypot(x, y);
+        if (transMag > translationCap && transMag > 1e-6) {
+            double scale = translationCap / transMag;
+            x *= scale;
+            y *= scale;
+            transMag = translationCap;
+        }
+
+        double combined = transMag + Math.abs(h);
+        if (combined > 1.0) {
+            double scale = 1.0 / combined;
+            x *= scale;
+            y *= scale;
+            h *= scale;
+        }
+
+        return new Pose2d(x, y, h);
     }
 
     private Pose2d getScaledHeadlessDriverABInput(Gamepad gamepad, double driverForwardHeading) {
@@ -1520,7 +1558,7 @@ public class DecodeRobotControl {
             }
         }
 
-        if (poseQueue.size() == APRIL_TAG_QUEUE_CAPACITY) {
+        if (poseQueue.size() >= APRIL_TAG_MIN_QUEUE_SAMPLES) {
             Pose2d averagePose = calculateAveragePose(poseQueue);
             Pose2d variancePose = calculateVariancePose(poseQueue, averagePose);
 
@@ -1552,7 +1590,10 @@ public class DecodeRobotControl {
 
                 drive.setPoseEstimate(fusedPose);
                 lastAprilTagFieldPosition = fusedPose;
-                poseQueue.clear();
+                // Keep the queue so we always have a short smoothing window; trim to capacity to bound latency.
+                while (poseQueue.size() > APRIL_TAG_QUEUE_CAPACITY) {
+                    poseQueue.poll();
+                }
             }
         }
     }
@@ -1748,11 +1789,20 @@ public class DecodeRobotControl {
         double y = -drivePower.getY();
         double h = drivePower.getHeading();
 
-        double sum = Math.abs(x) + Math.abs(y) + Math.abs(h);
-        if (sum > 1) {
-            x /= sum;
-            y /= sum;
-            h /= sum;
+        // Preserve full diagonal magnitude by normalizing translation vector before mixing rotation.
+        double transMag = Math.hypot(x, y);
+        if (transMag > 1.0) {
+            x /= transMag;
+            y /= transMag;
+            transMag = 1.0;
+        }
+
+        double combined = transMag + Math.abs(h);
+        if (combined > 1.0) {
+            double scale = 1.0 / combined;
+            x *= scale;
+            y *= scale;
+            h *= scale;
         }
 
         drive.setDrivePower(new Pose2d(

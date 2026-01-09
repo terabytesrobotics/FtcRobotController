@@ -15,6 +15,8 @@ public class Constants {
     public static double APRIL_TAG_RECOGNITION_YAW_THRESHOLD = Math.PI / 6;
     public static double APRIL_TAG_RECOGNITION_BEARING_THRESHOLD = Math.PI / 6;
     public static final int APRIL_TAG_QUEUE_CAPACITY = 8;
+    // Minimum samples needed before fusing (useful for smoothing but still lets us react quickly).
+    public static final int APRIL_TAG_MIN_QUEUE_SAMPLES = 1;
     public static double APRIL_TAG_VARIANCE_TRANSLATION_THRESHOLD = 2.0;
     public static double APRIL_TAG_VARIANCE_HEADING_THRESHOLD = Math.PI / 16.0;
     // How aggressively to blend AprilTag measurements toward the odometry estimate.
