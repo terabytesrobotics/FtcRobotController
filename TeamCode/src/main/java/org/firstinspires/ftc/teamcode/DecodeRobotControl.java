@@ -7,6 +7,7 @@ import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_RECOGNITION_MIN
 import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_RECOGNITION_YAW_THRESHOLD;
 import static org.firstinspires.ftc.teamcode.Constants.DRIVE_TO_POSE_THRESHOLD;
 import static org.firstinspires.ftc.teamcode.Constants.FRONT_CAMERA_LATERAL_OFFSET_INCHES;
+import static org.firstinspires.ftc.teamcode.Constants.FRONT_CAMERA_HEIGHT_INCHES;
 import static org.firstinspires.ftc.teamcode.Constants.FRONT_CAMERA_OFFSET_INCHES;
 import static org.firstinspires.ftc.teamcode.Constants.SPEED_GAIN;
 import static org.firstinspires.ftc.teamcode.Constants.TURN_ERROR_THRESHOLD;
@@ -471,6 +472,14 @@ public class DecodeRobotControl {
         double shx = sx + shotLen * Math.cos(sheading);
         double shy = sy + shotLen * Math.sin(sheading);
 
+        if (!Double.isNaN(lastTagFieldX) && !Double.isNaN(lastTagFieldY)) {
+            overlay.strokeCircle(lastTagFieldX, lastTagFieldY, 3);
+        }
+        if (!Double.isNaN(lastCameraFieldX) && !Double.isNaN(lastCameraFieldY)) {
+            overlay.strokeCircle(lastCameraFieldX, lastCameraFieldY, 4);
+            overlay.strokeLine(lastCameraFieldX, lastCameraFieldY, x, y);
+        }
+
         overlay.fillCircle(sx, sy, 5)
                 .strokeLine(sx, sy, shx, shy);
         if (lastShotSolution != null) {
@@ -502,7 +511,15 @@ public class DecodeRobotControl {
 
         packet.put("lastDetectionYaw", lastDetectionYaw);
         packet.put("lastDetectionBearing", lastDetectionBearing);
+        packet.put("lastDetectionElevation", lastDetectionElevation);
         packet.put("lastDetectionRange", lastDetectionRange);
+        packet.put("lastTagFieldX", lastTagFieldX);
+        packet.put("lastTagFieldY", lastTagFieldY);
+        packet.put("lastTagFieldZ", lastTagFieldZ);
+        packet.put("lastCameraFieldX", lastCameraFieldX);
+        packet.put("lastCameraFieldY", lastCameraFieldY);
+        packet.put("lastCameraFieldZ", lastCameraFieldZ);
+        packet.put("lastCameraFieldHeading", lastCameraFieldHeading);
 
         packet.put("G2_RSX", gamepad2.right_stick_x);
         packet.put("WheelCurrent", wheel.getCurrent(CurrentUnit.MILLIAMPS));
@@ -1475,6 +1492,7 @@ public class DecodeRobotControl {
     private void evaluatePositioningSystems() {
         double cameraForwardOffset = FRONT_CAMERA_OFFSET_INCHES;
         double cameraLateralOffset = FRONT_CAMERA_LATERAL_OFFSET_INCHES;
+        double cameraHeightOffset = FRONT_CAMERA_HEIGHT_INCHES;
         double cameraAngleOffset = 0;
 
         List<AprilTagDetection> detections = aprilTagProcessor.getFreshDetections();
@@ -1495,7 +1513,12 @@ public class DecodeRobotControl {
                     continue;
                 }
 
-                Pose2d estimatedPose = calculateRobotPose(detection, cameraForwardOffset, cameraLateralOffset, cameraAngleOffset);
+                Pose2d estimatedPose = calculateRobotPose(
+                        detection,
+                        cameraForwardOffset,
+                        cameraLateralOffset,
+                        cameraHeightOffset,
+                        cameraAngleOffset);
                 if (poseQueue.size() >= APRIL_TAG_QUEUE_CAPACITY) {
                     poseQueue.poll();
                 }
@@ -1595,38 +1618,67 @@ public class DecodeRobotControl {
 
     double lastDetectionYaw = 0.0;
     double lastDetectionBearing = 0.0;
+    double lastDetectionElevation = 0.0;
     double lastDetectionRange = 0.0;
+    double lastTagFieldX = Double.NaN;
+    double lastTagFieldY = Double.NaN;
+    double lastTagFieldZ = Double.NaN;
+    double lastCameraFieldX = Double.NaN;
+    double lastCameraFieldY = Double.NaN;
+    double lastCameraFieldZ = Double.NaN;
+    double lastCameraFieldHeading = Double.NaN;
 
     private Pose2d calculateRobotPose(
             AprilTagDetection detection,
             double cameraRobotForwardOffset,
             double cameraRobotLateralOffset,
+            double cameraRobotHeightOffset,
             double cameraRobotHeadingOffset) {
         AprilTagMetadata tag = APRIL_TAG_LIBRARY.lookupTag(detection.id);
         if (tag == null) return null;
 
         double yaw = Math.toRadians(detection.ftcPose.yaw);
         double bearing = Math.toRadians(detection.ftcPose.bearing);
+        double elevation = Math.toRadians(detection.ftcPose.elevation);
         double range = detection.ftcPose.range;
         lastDetectionYaw = yaw;
         lastDetectionBearing = bearing;
+        lastDetectionElevation = elevation;
         lastDetectionRange = range;
 
         double tagFieldHeading = getTagFieldHeading(detection.id);
 
+        double horizontalRange = range * Math.cos(elevation);
+        double verticalOffset = range * Math.sin(elevation);
+
         double tagToCameraHeading = Angle.norm(tagFieldHeading + bearing - yaw);
-        double cameraFieldX = tag.fieldPosition.get(0) + (range * Math.cos(tagToCameraHeading));
-        double cameraFieldY = tag.fieldPosition.get(1) + (range * Math.sin(tagToCameraHeading));
+        double tagFieldX = tag.fieldPosition.get(0);
+        double tagFieldY = tag.fieldPosition.get(1);
+        double tagFieldZ = tag.fieldPosition.get(2);
+        double cameraFieldX = tagFieldX + (horizontalRange * Math.cos(tagToCameraHeading));
+        double cameraFieldY = tagFieldY + (horizontalRange * Math.sin(tagToCameraHeading));
+        double cameraFieldZ = tagFieldZ + verticalOffset;
+        // Camera heading in field frame: tag heading adjusted by observed yaw (no 180 flip, since yaw is tag->camera)
         double cameraFieldHeading = Angle.norm(
-                tagFieldHeading + Math.PI + cameraRobotHeadingOffset - yaw);
+                tagFieldHeading + cameraRobotHeadingOffset - yaw);
 
         double offsetFieldX = (cameraRobotForwardOffset * Math.cos(cameraFieldHeading)) -
                 (cameraRobotLateralOffset * Math.sin(cameraFieldHeading));
         double offsetFieldY = (cameraRobotForwardOffset * Math.sin(cameraFieldHeading)) +
                 (cameraRobotLateralOffset * Math.cos(cameraFieldHeading));
+        double offsetFieldZ = cameraRobotHeightOffset;
 
         double robotFieldX = cameraFieldX - offsetFieldX;
         double robotFieldY = cameraFieldY - offsetFieldY;
+        double robotFieldZ = cameraFieldZ - offsetFieldZ;
+
+        lastTagFieldX = tagFieldX;
+        lastTagFieldY = tagFieldY;
+        lastTagFieldZ = tagFieldZ;
+        lastCameraFieldX = cameraFieldX;
+        lastCameraFieldY = cameraFieldY;
+        lastCameraFieldZ = cameraFieldZ;
+        lastCameraFieldHeading = cameraFieldHeading;
 
         return new Pose2d(robotFieldX, robotFieldY, cameraFieldHeading);
     }
@@ -1637,15 +1689,16 @@ public class DecodeRobotControl {
             return 0;
         }
 
-        // Derive the heading from the tag's field orientation so we stay consistent with the SDK's quaternion.
-        // Treat the tag's +Z axis as the facing direction and project it onto the field XY plane.
+        // Derive the heading from the tag's field orientation (SDK quaternion).
+        // The SDK quaternion uses +Z pointing out the back of the tag, so the visible face normal is -Z.
+        // Project that face normal onto the field XY plane to get heading.
         double w = tag.fieldOrientation.w;
         double x = tag.fieldOrientation.x;
         double y = tag.fieldOrientation.y;
         double z = tag.fieldOrientation.z;
 
-        double forwardX = 2.0 * ((x * z) + (y * w));
-        double forwardY = 2.0 * ((y * z) - (x * w));
+        double forwardX = -2.0 * ((x * z) + (y * w));
+        double forwardY = -2.0 * ((y * z) - (x * w));
 
         if (forwardX == 0.0 && forwardY == 0.0) {
             return 0;
