@@ -159,7 +159,7 @@ public class DecodeRobotControl {
     private static final double SPIN_MAX_DEG_PER_SEC = 240.0;
     private static final double SPIN_MAX_POS_PER_SEC = (SPIN_MAX_DEG_PER_SEC / 360.0) * SPIN_SERVO_FULL_TURN; // 1.0 = full servo range
     private static final double SLOT_CHECK_SETTLE_SEC = 0.25;
-    private static final double SLOT_CHECK_DWELL_SEC = 0.5;
+    private static final double SLOT_CHECK_DWELL_SEC = 0.25;
     private static final int SLOT_CHECK_BURST_SAMPLES = 5;
     private static final double SLOT_CHECK_SAMPLE_SPACING_SEC = 0.02;
     private static final double SHOOT_AIM_HEADING_TOLERANCE_RADIANS = Math.toRadians(3.0);
@@ -292,6 +292,7 @@ public class DecodeRobotControl {
     private final int[] slotLastCheckSamples = new int[SPINDEXER_SLOT_COUNT];
     private final double[] slotLastCheckMaxGreen = new double[SPINDEXER_SLOT_COUNT];
     private final double[] slotLastCheckMaxPurple = new double[SPINDEXER_SLOT_COUNT];
+    private final int[] slotEmptyStrikes = new int[SPINDEXER_SLOT_COUNT];
     private final ArrayDeque<Integer> slotCheckQueue = new ArrayDeque<>();
     private boolean shooterEnabled = true;
     private double shooterDesiredExitVelocityIps = 0.0;
@@ -1221,6 +1222,7 @@ public class DecodeRobotControl {
         Arrays.fill(slotLastCheckSamples, 0);
         Arrays.fill(slotLastCheckMaxGreen, 0.0);
         Arrays.fill(slotLastCheckMaxPurple, 0.0);
+        Arrays.fill(slotEmptyStrikes, 0);
     }
 
     private void resetSlotCheckState() {
@@ -1342,6 +1344,14 @@ public class DecodeRobotControl {
 
         BallColor previous = getSlotColor(slotIndex);
         BallColor resolved = detected;
+        if (detected == BallColor.EMPTY && previous != BallColor.EMPTY) {
+            slotEmptyStrikes[slotIndex] = Math.min(slotEmptyStrikes[slotIndex] + 1, 10);
+            if (slotEmptyStrikes[slotIndex] < 2) {
+                resolved = previous; // require two consecutive empties to clear a known ball
+            }
+        } else {
+            slotEmptyStrikes[slotIndex] = 0;
+        }
         setSlotColor(slotIndex, resolved);
         color3PresenceLatched = resolved != BallColor.EMPTY;
 
