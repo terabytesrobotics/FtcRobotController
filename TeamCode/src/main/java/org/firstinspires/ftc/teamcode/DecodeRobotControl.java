@@ -243,7 +243,6 @@ public class DecodeRobotControl {
     private final OnActivatedEvaluator y2ActivatedEvaluator;
     private final OnActivatedEvaluator a2ActivatedEvaluator;
     private final OnActivatedEvaluator rb2ActivatedEvaluator;
-    private final OnActivatedEvaluator lb2ActivatedEvaluator;
     private final DcMotorEx wheel;
     private final DcMotorEx intakeMotor;
     private final SampleMecanumDrive drive;
@@ -387,7 +386,6 @@ public class DecodeRobotControl {
         y2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.y);
         rb2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_bumper);
         a2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.a);
-        lb2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.left_bumper);
         lb1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.left_bumper);
 
         drive = new SampleMecanumDrive(hardwareMap);
@@ -945,14 +943,6 @@ public class DecodeRobotControl {
 
         updateShootCommand();
 
-        if (lb2ActivatedEvaluator.evaluate()) {
-            if (!kickerKicked) {
-                boolean canKick = (spindexerMode == SpindexerMode.SHOOT) && isSpindexerSettled() && shootCommandState == ShootCommandState.IDLE;
-                setKickerKicked(canKick);
-            } else {
-                setKickerKicked(false);
-            }
-        }
         updateKickerSettling();
 
         updateSpindexerPosition(dtMillis / 1000.0);
