@@ -93,25 +93,27 @@ public abstract class DecodeOpMode extends LinearOpMode {
     private final AllianceColor allianceColor;
     private final OpModeState startupState;
     private AutonomousPlan autonomousPlan = null;
+    private final Pose2d initialPose;
 
     public DecodeOpMode(AllianceColor allianceColor, OpModeState startupState) {
-        super();
-        this.allianceColor = allianceColor;
-        this.startupState = startupState;
+        this(allianceColor, startupState, null, false);
     }
 
     public DecodeOpMode(AllianceColor allianceColor, OpModeState startupState, AutonomousPlan autonomousPlan) {
+        this(allianceColor, startupState, autonomousPlan, false);
+    }
+
+    public DecodeOpMode(AllianceColor allianceColor, OpModeState startupState, boolean debugMode) {
+        this(allianceColor, startupState, null, debugMode);
+    }
+
+    private DecodeOpMode(AllianceColor allianceColor, OpModeState startupState, AutonomousPlan autonomousPlan, boolean debugMode) {
         super();
         this.allianceColor = allianceColor;
         this.startupState = startupState;
         this.autonomousPlan = autonomousPlan;
-    }
-
-    public DecodeOpMode(AllianceColor allianceColor, OpModeState startupState, boolean debugMode) {
-        super();
-        this.allianceColor = allianceColor;
-        this.startupState = startupState;
         this.debugMode = debugMode;
+        this.initialPose = computeInitialPose();
     }
 
     private void savePersistedData(Pose2d pose, int appendageState, int armLTickPosition, int armRTickPosition, int extenderTickPosition) {
@@ -153,30 +155,38 @@ public abstract class DecodeOpMode extends LinearOpMode {
         return persistedData;
     }
 
+    private Pose2d computeInitialPose() {
+        if (autonomousPlan != null) {
+            return DecodeRobotControl.getStartPoseForPlan(allianceColor, autonomousPlan);
+        }
+
+        PersistedData persistedData = readAndDeleteLastPersistedData();
+        long initTime = System.currentTimeMillis();
+        boolean persistedDataIsValid = persistedData != null &&
+                initTime - persistedData.timestamp < EXPIRY_INTERVAL_MS;
+        if (debugMode || !persistedDataIsValid) {
+            // Default to facing across the field; driver-forward is handled in the headless transform.
+            return new Pose2d(0, 0, Math.toRadians(180));
+        }
+        return persistedData.pose;
+    }
+
     @Override
     public void runOpMode() {
         // Hooks up telemetry data to the dashboard
         FtcDashboard dashboard = FtcDashboard.getInstance();
         DecodeRobotControl terabytes = new DecodeRobotControl(
                 allianceColor,
+                initialPose,
                 gamepad1,
                 gamepad2,
                 hardwareMap,
                 debugMode);
         dashboard.startCameraStream(terabytes.visionPortal, 15);
         if (autonomousPlan != null) {
-            terabytes.autonomousInit(autonomousPlan);
+            terabytes.autonomousInit(autonomousPlan, initialPose);
         } else {
-            PersistedData persistedData = readAndDeleteLastPersistedData();
-            long initTime = System.currentTimeMillis();
-            boolean persistedDataIsValid = persistedData != null &&
-                    initTime - persistedData.timestamp < EXPIRY_INTERVAL_MS;
-            if (debugMode || !persistedDataIsValid) {
-                // Default to facing across the field; driver-forward is handled in the headless transform.
-                terabytes.teleopInit(new Pose2d(0, 0, Math.toRadians(180)));
-            } else {
-                terabytes.teleopInit(persistedData.pose);
-            }
+            terabytes.teleopInit(initialPose);
         }
 
         terabytes.initializeMechanicalBlocking();

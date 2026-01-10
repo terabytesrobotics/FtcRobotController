@@ -181,8 +181,8 @@ public class DecodeRobotControl {
     // Simple leave-autonomous starting/target definitions (base on red side; blue mirrors Y/heading).
     private static final double LEAVE_START_X = -60.0;
     private static final double LEAVE_START_Y = 50.0;
-    private static final int LEAVE_RED_START_TAG_ID = 20;
-    private static final int LEAVE_BLUE_START_TAG_ID = 24;
+    private static final int LEAVE_RED_START_TAG_ID = 24;
+    private static final int LEAVE_BLUE_START_TAG_ID = 20;
     private static final double LEAVE_TARGET_X = 12.0;
     private static final double LEAVE_TARGET_Y = 12.0;
     private static final double LEAVE_TARGET_HEADING = Math.toRadians(270.0);
@@ -215,7 +215,7 @@ public class DecodeRobotControl {
         return clamp01(p * m);
     }
 
-    private final AprilTagLibrary APRIL_TAG_LIBRARY = AprilTagGameDatabase.getDecodeTagLibrary();
+    private static final AprilTagLibrary APRIL_TAG_LIBRARY = AprilTagGameDatabase.getDecodeTagLibrary();
     private final boolean debugMode;
     private boolean isAutonomous = false;
     private OpModeState state;
@@ -324,8 +324,11 @@ public class DecodeRobotControl {
     private boolean bulkShootInputEnabled = false;
     private final ArrayDeque<ShotRequest> shotRequestQueue = new ArrayDeque<>();
 
-    public DecodeRobotControl(AllianceColor allianceColor, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, boolean debugMode) {
+    private final Pose2d initialPose;
+
+    public DecodeRobotControl(AllianceColor allianceColor, Pose2d initialPose, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, boolean debugMode) {
         this.allianceColor = allianceColor;
+        this.initialPose = initialPose != null ? initialPose : new Pose2d();
         this.gamepad1 = gamepad1;
         this.gamepad2 = gamepad2;
         this.state = OpModeState.MANUAL_CONTROL;
@@ -400,12 +403,14 @@ public class DecodeRobotControl {
 
         lift = hardwareMap.get(Servo.class, "lift");
 
+        Pose2d startPose = this.initialPose;
         configurePinpoint();
 
-        drive.setLocalizer(new PinpointLocalizer(pinpoint));
-        drive.setPoseEstimate(new Pose2d());
-
-        pinpoint.setPosition(new Pose2D(DistanceUnit.INCH, 0, 0, AngleUnit.RADIANS, 0));
+        drive.setLocalizer(new PinpointLocalizer(pinpoint, startPose));
+        drive.setPoseEstimate(startPose);
+        latestPoseEstimate = startPose;
+        lastAprilTagFieldPosition = startPose;
+        pinpoint.setPosition(new Pose2D(DistanceUnit.INCH, startPose.getX(), startPose.getY(), AngleUnit.RADIANS, startPose.getHeading()));
     }
 
     private Map<String, String> logData = new ArrayMap<>();
@@ -499,6 +504,13 @@ public class DecodeRobotControl {
         double len = 12; // projection length
         double x2 = x + len * Math.cos(heading);
         double y2 = y + len * Math.sin(heading);
+
+        packet.put("PoseX", x);
+        packet.put("PoseY", y);
+        packet.put("PoseHeadingDeg", Math.toDegrees(heading));
+        packet.put("InitialPoseX", initialPose.getX());
+        packet.put("InitialPoseY", initialPose.getY());
+        packet.put("InitialPoseHeadingDeg", Math.toDegrees(initialPose.getHeading()));
 
         packet.put("Color1ProximityInches", lastColor1ProximityInches);
         packet.put("Color1GreenPresence", lastColor1GreenPresence);
@@ -666,19 +678,22 @@ public class DecodeRobotControl {
         return packet;
     }
 
-    public void autonomousInit(AutonomousPlan autonomousPlan) {
+    public void autonomousInit(AutonomousPlan autonomousPlan, Pose2d startPose) {
         timeSinceInit.reset();
         isAutonomous = true;
-        Pose2d startPose = getStartPoseForPlan(autonomousPlan);
-        drive.setPoseEstimate(startPose);
-        lastAprilTagFieldPosition = startPose;
+        Pose2d poseToUse = startPose != null ? startPose : getStartPoseForPlan(allianceColor, autonomousPlan);
+        drive.setPoseEstimate(poseToUse);
+        lastAprilTagFieldPosition = poseToUse;
+        latestPoseEstimate = poseToUse;
         setCommandSequence(buildAutonomousCommands(autonomousPlan));
     }
 
     public void teleopInit(Pose2d startPose) {
         timeSinceInit.reset();
-        drive.setPoseEstimate(startPose);
-        lastAprilTagFieldPosition = startPose;
+        Pose2d poseToUse = startPose != null ? startPose : this.initialPose;
+        drive.setPoseEstimate(poseToUse);
+        lastAprilTagFieldPosition = poseToUse;
+        latestPoseEstimate = poseToUse;
     }
 
     public void initializeMechanicalBlocking() {
@@ -1784,7 +1799,8 @@ public class DecodeRobotControl {
             currentCommandSettledTime.reset();
         }
 
-        if (timeSinceStart.milliseconds() < currentCommand.WaitUntilElapsedMillis) {
+        int waitUntilMillis = currentCommand.WaitUntilElapsedMillis == null ? 0 : currentCommand.WaitUntilElapsedMillis;
+        if (timeSinceStart.milliseconds() < waitUntilMillis) {
             setDrivePower(new Pose2d());
             return OpModeState.COMMAND_SEQUENCE;
         }
@@ -2118,7 +2134,7 @@ public class DecodeRobotControl {
         return new Pose2d(robotFieldX, robotFieldY, cameraFieldHeading);
     }
 
-    private double getTagFieldHeading(int tagId) {
+    private static double getTagFieldHeading(int tagId) {
         AprilTagMetadata tag = APRIL_TAG_LIBRARY.lookupTag(tagId);
         if (tag == null || tag.fieldOrientation == null) {
             return 0;
@@ -2142,23 +2158,23 @@ public class DecodeRobotControl {
         return Angle.norm(Math.atan2(forwardY, forwardX));
     }
 
-    private Pose2d mirrorPoseForBlue(Pose2d pose) {
+    private static Pose2d mirrorPoseForBlue(Pose2d pose) {
         return new Pose2d(pose.getX(), -pose.getY(), Angle.norm(-pose.getHeading()));
     }
 
-    private Pose2d getLeaveStartPose(AllianceColor alliance) {
+    private static Pose2d getLeaveStartPose(AllianceColor alliance) {
         int tagId = alliance == AllianceColor.RED ? LEAVE_RED_START_TAG_ID : LEAVE_BLUE_START_TAG_ID;
         double heading = Angle.norm(getTagFieldHeading(tagId) + Math.PI);
         double y = alliance == AllianceColor.RED ? LEAVE_START_Y : -LEAVE_START_Y;
         return new Pose2d(LEAVE_START_X, y, heading);
     }
 
-    private Pose2d getLeaveTargetPose(AllianceColor alliance) {
+    private static Pose2d getLeaveTargetPose(AllianceColor alliance) {
         Pose2d base = new Pose2d(LEAVE_TARGET_X, LEAVE_TARGET_Y, LEAVE_TARGET_HEADING);
         return alliance == AllianceColor.RED ? base : mirrorPoseForBlue(base);
     }
 
-    private Pose2d getStartPoseForPlan(AutonomousPlan plan) {
+    public static Pose2d getStartPoseForPlan(AllianceColor allianceColor, AutonomousPlan plan) {
         // One simple plan; alliance selection comes from the opmode.
         return getLeaveStartPose(allianceColor);
     }
