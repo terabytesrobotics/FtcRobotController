@@ -281,7 +281,6 @@ public class DecodeRobotControl {
     private double lastColor3PurplePresence = 0.0;
     private boolean color3PresenceLatched = false;
     private boolean spindexerInTransit = false;
-    private boolean intakeSuppressed = false;
     private IntakeState intakeState = IntakeState.FORWARD;
     private ShootCommandState shootCommandState = ShootCommandState.IDLE;
     private final ElapsedTime shootCommandTimer = new ElapsedTime();
@@ -511,7 +510,6 @@ public class DecodeRobotControl {
         packet.put("CollectorPresenceLatched", collectorPresenceLatched);
         packet.put("CollectorPresenceRising", collectorPresenceRisingEdge);
         packet.put("CollectorPresenceFalling", collectorPresenceFallingEdge);
-        packet.put("IntakeSuppressed", intakeSuppressed);
 
         Canvas overlay = packet.fieldOverlay();
         Pose2d shooterPose = getShooterPoseEstimate();
@@ -599,7 +597,6 @@ public class DecodeRobotControl {
         packet.put("WheelEncoder", wheel.getCurrentPosition());
         packet.put("IntakeCurrent", intakeMotor.getCurrent(CurrentUnit.MILLIAMPS));
         packet.put("IntakePower", intakeMotor.getPower());
-        packet.put("IntakeSuppressed", intakeSuppressed);
         packet.put("IntakeState", intakeState.name());
         packet.put("Color1ProximityInches", lastColor1ProximityInches);
         packet.put("Color1GreenPresence", lastColor1GreenPresence);
@@ -931,7 +928,7 @@ public class DecodeRobotControl {
         boolean shotPurpleRequest = x2ActivatedEvaluator.evaluate();
         boolean shotAnyRequest = b2ActivatedEvaluator.evaluate();
 
-        double collectorPresence = sampleCollectorPresence();
+        sampleCollectorPresence(); // keep telemetry updated; no longer drives intake control
         updateSlotCheckMachine();
 
         if (shotGreenRequest) {
@@ -973,23 +970,19 @@ public class DecodeRobotControl {
         kicker.setPosition(Range.clip(kickerTarget, 0.0, 1.0));
 
         boolean manualIntakeReverse = gamepad2.dpad_down;
-        intakeSuppressed = spindexerInTransit || kickerKicked || shootCommandState == ShootCommandState.KICKING;
-        boolean applySuppression = intakeSuppressed && !manualIntakeReverse;
-        if (applySuppression) {
-            intakeState = IntakeState.STOPPED;
-        }
+
+        // Manual-only intake control: dpad down reverses, otherwise forward.
         if (manualIntakeReverse) {
             intakeState = IntakeState.REVERSE_REJECT;
         } else {
-            updateIntakeStateMachine(applySuppression);
+            intakeState = IntakeState.FORWARD;
         }
+
         double intakePowerTarget = 0.0;
-        if (!applySuppression) {
-            if (intakeState == IntakeState.FORWARD) {
-                intakePowerTarget = INTAKE_MOTOR_POWER;
-            } else if (intakeState == IntakeState.REVERSE_REJECT) {
-                intakePowerTarget = -INTAKE_MOTOR_POWER;
-            }
+        if (intakeState == IntakeState.FORWARD) {
+            intakePowerTarget = INTAKE_MOTOR_POWER;
+        } else if (intakeState == IntakeState.REVERSE_REJECT) {
+            intakePowerTarget = -INTAKE_MOTOR_POWER;
         }
         double maxDelta = INTAKE_POWER_SLEW_PER_SEC * (dtMillis / 1000.0);
         double delta = Range.clip(intakePowerTarget - intakePowerSmoothed, -maxDelta, maxDelta);
@@ -1197,32 +1190,8 @@ public class DecodeRobotControl {
         collectorPresenceRisingEdge = !wasLatched && collectorPresenceLatched;
         collectorPresenceFallingEdge = wasLatched && !collectorPresenceLatched;
 
-        boolean rejecting = intakeState == IntakeState.REVERSE_REJECT;
-        boolean forwardFeeding = intakeState == IntakeState.FORWARD && !intakeSuppressed;
-
         collectorEstimatedBallCount = getKnownBallCount() + (collectorPresenceLatched ? 1 : 0);
         collectorOverCapacity = collectorEstimatedBallCount > SPINDEXER_SLOT_COUNT;
-    }
-
-    private void updateIntakeStateMachine(boolean suppressed) {
-        boolean atCapacity = getKnownBallCount() >= SPINDEXER_SLOT_COUNT;
-        boolean overCapacity = collectorOverCapacity || (collectorPresenceLatched && atCapacity);
-
-        if (collectorPresenceRisingEdge && atCapacity) {
-            intakeState = IntakeState.REVERSE_REJECT;
-        }
-
-        if (overCapacity) {
-            intakeState = IntakeState.REVERSE_REJECT;
-        }
-
-        if (intakeState == IntakeState.REVERSE_REJECT && collectorPresenceFallingEdge) {
-            intakeState = IntakeState.FORWARD;
-        }
-
-        if (intakeState == IntakeState.STOPPED && !suppressed) {
-            intakeState = IntakeState.FORWARD; // default to feeding when we regain control
-        }
     }
 
     private void initializeSlotCheckMetadata() {
@@ -1698,8 +1667,7 @@ public class DecodeRobotControl {
 
     private enum IntakeState {
         FORWARD,
-        REVERSE_REJECT,
-        STOPPED
+        REVERSE_REJECT
     }
 
     private enum ShootCommandState {
