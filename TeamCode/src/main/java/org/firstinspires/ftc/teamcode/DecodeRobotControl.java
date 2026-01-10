@@ -31,6 +31,7 @@ import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.acmerobotics.roadrunner.util.Angle;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.hardware.rev.RevColorSensorV3;
+import com.qualcomm.robotcore.hardware.LED;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
@@ -253,6 +254,9 @@ public class DecodeRobotControl {
     private final RevColorSensorV3 color1;
     private final RevColorSensorV3 color2;
     private final RevColorSensorV3 color3;
+    private final IndicatorLed topLed;
+    private final IndicatorLed midLed;
+    private final IndicatorLed botLed;
     public final VisionPortal visionPortal;
     public final Servo spin;
     private final Servo kicker;
@@ -348,6 +352,10 @@ public class DecodeRobotControl {
         intakeMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         intakeMotor.setDirection(DcMotorSimple.Direction.FORWARD);
         intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
+        topLed = new IndicatorLed(hardwareMap, "topLedG", "topLedR");
+        midLed = new IndicatorLed(hardwareMap, "midLedG", "midLedR");
+        botLed = new IndicatorLed(hardwareMap, "botLedG", "botLedR");
 
         aprilTagProcessor = new AprilTagProcessor.Builder().build();
 
@@ -720,6 +728,8 @@ public class DecodeRobotControl {
             timeInState.reset();
             state = nextState;
         }
+
+        updateSpindexerIndicators();
 
         return state != OpModeState.HALT_OPMODE;
     }
@@ -1608,6 +1618,12 @@ public class DecodeRobotControl {
         return findNextFilledSlot(startSlot, null, true);
     }
 
+    private void updateSpindexerIndicators() {
+        topLed.setColor(getSlotColor(0));
+        midLed.setColor(getSlotColor(1));
+        botLed.setColor(getSlotColor(2));
+    }
+
     private void drawSpindexerInventoryIcons(Canvas overlay, double originX, double originY) {
         double spacing = 5.0;
         double radius = 2.0;
@@ -1679,6 +1695,45 @@ public class DecodeRobotControl {
         GREEN_FIRST,
         GREEN_MIDDLE,
         GREEN_LAST
+    }
+
+    // REV digital indicator helper; tries common name patterns for red/green channels.
+    private static class IndicatorLed {
+        private final LED red;
+        private final LED green;
+
+        IndicatorLed(HardwareMap hardwareMap, String greenName, String redName) {
+            this.green = hardwareMap.get(LED.class, greenName);
+            this.red = hardwareMap.get(LED.class, redName);
+        }
+
+        void setColor(BallColor color) {
+            boolean redOn = false;
+            boolean greenOn = false;
+            switch (color) {
+                case GREEN:
+                    greenOn = true;
+                    break;
+                case PURPLE:
+                    redOn = true;
+                    break;
+                case EMPTY:
+                default:
+                    break;
+            }
+            setLed(green, greenOn);
+            setLed(red, redOn);
+        }
+
+        private void setLed(LED led, boolean on) {
+            if (led == null) return;
+            // Indicators are active-low DIO: driving low turns the LED on.
+            if (on) {
+                led.off();
+            } else {
+                led.on();
+            }
+        }
     }
 
     private OpModeState evaluateCommandSequence() {
