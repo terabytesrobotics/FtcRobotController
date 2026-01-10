@@ -151,11 +151,11 @@ public class DecodeRobotControl {
     // Three slots 120 degrees apart -> converts degrees to servo position based on measured turn range.
     private static final double SPIN_SLOT_SPACING = (SPIN_SLOT_SPACING_DEGREES / 360.0) * SPIN_SERVO_FULL_TURN;
     // Tune this to align slot 0 with the collect pocket; leave at 0 to start.
-    private static final double SPIN_BASE_POSITION_COLLECT_DEGREES = 22.85; // positive = clockwise nudge
+    private static final double SPIN_BASE_POSITION_COLLECT_DEGREES = 27.5; // positive = clockwise nudge
     private static final double SPIN_BASE_POSITION_COLLECT = (SPIN_BASE_POSITION_COLLECT_DEGREES / 360.0) * SPIN_SERVO_FULL_TURN;
     // Offset from collect to shoot mode (in servo position units: 1.0 = 5 full turns = 1800 deg).
     // Approximately 2/5 of a turn between collect and shoot -> 144 degrees (applied in opposite direction).
-    private static final double SPIN_MODE_OFFSET_DEGREES = 97.5;
+    private static final double SPIN_MODE_OFFSET_DEGREES = 100;
     private static final double SPIN_MODE_OFFSET_SHOOT = (SPIN_MODE_OFFSET_DEGREES / 360.0) * SPIN_SERVO_FULL_TURN;
     private static final double SPIN_MAX_DEG_PER_SEC = 240.0;
     private static final double SPIN_MAX_POS_PER_SEC = (SPIN_MAX_DEG_PER_SEC / 360.0) * SPIN_SERVO_FULL_TURN; // 1.0 = full servo range
@@ -359,6 +359,9 @@ public class DecodeRobotControl {
         topLed = new IndicatorLed(hardwareMap, "topLedG", "topLedR");
         midLed = new IndicatorLed(hardwareMap, "midLedG", "midLedR");
         botLed = new IndicatorLed(hardwareMap, "botLedG", "botLedR");
+        topLed.setOff();
+        midLed.setOff();
+        botLed.setOff();
 
         aprilTagProcessor = new AprilTagProcessor.Builder().build();
 
@@ -1645,10 +1648,6 @@ public class DecodeRobotControl {
     }
 
     private void setIndicatorForSlot(IndicatorLed led, int slotIndex, int checkingSlot) {
-        if (slotIndex == checkingSlot) {
-            led.setAmber();
-            return;
-        }
         BallColor color = getSlotColor(slotIndex);
         switch (color) {
             case GREEN:
@@ -1766,7 +1765,7 @@ public class DecodeRobotControl {
         void setRed() { set(true, false); }
         void setGreen() { set(false, true); }
         void setAmber() { set(true, true); }
-        void setOff() { set(false, false); }
+        void setOff() { set(true, true); }
 
         private void set(boolean redOn, boolean greenOn) {
             setLed(red, redOn);
