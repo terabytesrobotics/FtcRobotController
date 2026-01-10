@@ -970,10 +970,13 @@ public class DecodeRobotControl {
         kicker.setPosition(Range.clip(kickerTarget, 0.0, 1.0));
 
         boolean manualIntakeReverse = gamepad2.dpad_down;
+        boolean inventoryFull = getKnownBallCount() >= SPINDEXER_SLOT_COUNT;
 
-        // Manual-only intake control: dpad down reverses, otherwise forward.
+        // Manual-only intake control: dpad down reverses, otherwise forward unless inventory is full (then stop).
         if (manualIntakeReverse) {
             intakeState = IntakeState.REVERSE_REJECT;
+        } else if (inventoryFull) {
+            intakeState = IntakeState.OFF;
         } else {
             intakeState = IntakeState.FORWARD;
         }
@@ -983,6 +986,8 @@ public class DecodeRobotControl {
             intakePowerTarget = INTAKE_MOTOR_POWER;
         } else if (intakeState == IntakeState.REVERSE_REJECT) {
             intakePowerTarget = -INTAKE_MOTOR_POWER;
+        } else if (intakeState == IntakeState.OFF) {
+            intakePowerTarget = 0.0;
         }
         double maxDelta = INTAKE_POWER_SLEW_PER_SEC * (dtMillis / 1000.0);
         double delta = Range.clip(intakePowerTarget - intakePowerSmoothed, -maxDelta, maxDelta);
@@ -999,8 +1004,7 @@ public class DecodeRobotControl {
         lastDriveTurnCap = turnCap;
         driveInput = capDriveInput(driveInput, translationCap, turnCap);
 
-        boolean autoAimActive = shootCommandState == ShootCommandState.AIMING || shootCommandState == ShootCommandState.ARMING;
-        Pose2d driveCommand = autoAimActive ? getShootAimDrivePower() : driveInput;
+        Pose2d driveCommand = driveInput;
 
         setDrivePower(driveCommand);
         return OpModeState.MANUAL_CONTROL;
@@ -1495,10 +1499,8 @@ public class DecodeRobotControl {
             case AIMING:
                 spindexerMode = SpindexerMode.SHOOT;
                 retargetSpindexer();
-                if (isShooterAimed()) {
-                    shootCommandState = ShootCommandState.ARMING;
-                    spindexerSettleTimer.reset();
-                }
+                shootCommandState = ShootCommandState.ARMING; // skip auto-aim gating
+                spindexerSettleTimer.reset();
                 break;
             case ARMING:
                 spindexerMode = SpindexerMode.SHOOT;
@@ -1619,9 +1621,32 @@ public class DecodeRobotControl {
     }
 
     private void updateSpindexerIndicators() {
-        topLed.setColor(getSlotColor(0));
-        midLed.setColor(getSlotColor(1));
-        botLed.setColor(getSlotColor(2));
+        int checkingSlot = (slotCheckPhase != SlotCheckPhase.IDLE && slotCheckActiveSlot >= 0)
+                ? Math.floorMod(slotCheckActiveSlot, SPINDEXER_SLOT_COUNT)
+                : -1;
+        setIndicatorForSlot(topLed, 0, checkingSlot);
+        setIndicatorForSlot(midLed, 1, checkingSlot);
+        setIndicatorForSlot(botLed, 2, checkingSlot);
+    }
+
+    private void setIndicatorForSlot(IndicatorLed led, int slotIndex, int checkingSlot) {
+        if (slotIndex == checkingSlot) {
+            led.setAmber();
+            return;
+        }
+        BallColor color = getSlotColor(slotIndex);
+        switch (color) {
+            case GREEN:
+                led.setGreen();
+                break;
+            case PURPLE:
+                led.setRed();
+                break;
+            case EMPTY:
+            default:
+                led.setOff();
+                break;
+        }
     }
 
     private void drawSpindexerInventoryIcons(Canvas overlay, double originX, double originY) {
@@ -1673,7 +1698,8 @@ public class DecodeRobotControl {
 
     private enum IntakeState {
         FORWARD,
-        REVERSE_REJECT
+        REVERSE_REJECT,
+        OFF
     }
 
     private enum ShootCommandState {
@@ -1708,26 +1734,33 @@ public class DecodeRobotControl {
         }
 
         void setColor(BallColor color) {
-            boolean redOn = false;
-            boolean greenOn = false;
             switch (color) {
                 case GREEN:
-                    greenOn = true;
+                    set(false, true);
                     break;
                 case PURPLE:
-                    redOn = true;
+                    set(true, false);
                     break;
                 case EMPTY:
                 default:
+                    set(false, false);
                     break;
             }
-            setLed(green, greenOn);
+        }
+
+        void setRed() { set(true, false); }
+        void setGreen() { set(false, true); }
+        void setAmber() { set(true, true); }
+        void setOff() { set(false, false); }
+
+        private void set(boolean redOn, boolean greenOn) {
             setLed(red, redOn);
+            setLed(green, greenOn);
         }
 
         private void setLed(LED led, boolean on) {
             if (led == null) return;
-            // Indicators are active-low DIO: driving low turns the LED on.
+            // Indicators are active-low: drive low to turn the LED on.
             if (on) {
                 led.off();
             } else {
