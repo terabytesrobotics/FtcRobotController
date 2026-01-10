@@ -405,6 +405,7 @@ public class DecodeRobotControl {
         drive = new SampleMecanumDrive(hardwareMap);
 
         lift = hardwareMap.get(Servo.class, "lift");
+        lift.setPosition(1.0);
 
         Pose2d startPose = this.initialPose;
         configurePinpoint();
