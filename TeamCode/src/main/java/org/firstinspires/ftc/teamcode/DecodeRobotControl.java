@@ -183,9 +183,13 @@ public class DecodeRobotControl {
     private static final double LEAVE_START_Y = 50.0;
     private static final int LEAVE_RED_START_TAG_ID = 24;
     private static final int LEAVE_BLUE_START_TAG_ID = 20;
-    private static final double LEAVE_TARGET_X = 12.0;
-    private static final double LEAVE_TARGET_Y = 12.0;
-    private static final double LEAVE_TARGET_HEADING = Math.toRadians(270.0);
+    private static final double LEAVE_TARGET_X = 60;
+    private static final double LEAVE_TARGET_Y = 32.0;
+    private static final double LEAVE_TARGET_HEADING = Math.toRadians(180.0);
+    // Front-side start for the same leave path; heading fixed to 180 deg instead of tag-derived.
+    private static final double LEAVE_FRONT_START_X = 64.0;
+    private static final double LEAVE_FRONT_START_Y = 12.0;
+    private static final double LEAVE_FRONT_START_HEADING = Math.toRadians(180.0);
 
     static double clamp01(double v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
 
@@ -244,6 +248,8 @@ public class DecodeRobotControl {
     private final OnActivatedEvaluator y2ActivatedEvaluator;
     private final OnActivatedEvaluator a2ActivatedEvaluator;
     private final OnActivatedEvaluator rb2ActivatedEvaluator;
+    private final OnActivatedEvaluator dpadLeft2ActivatedEvaluator;
+    private final OnActivatedEvaluator dpadRight2ActivatedEvaluator;
     private final DcMotorEx wheel;
     private final DcMotorEx intakeMotor;
     private final SampleMecanumDrive drive;
@@ -400,6 +406,8 @@ public class DecodeRobotControl {
         y2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.y);
         rb2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_bumper);
         a2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.a);
+        dpadLeft2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.dpad_left);
+        dpadRight2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.dpad_right);
         lb1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.left_bumper);
 
         drive = new SampleMecanumDrive(hardwareMap);
@@ -617,9 +625,13 @@ public class DecodeRobotControl {
         packet.put("WheelDesiredRevPerSecond", shooterDesiredWheelTicksPerSecond / WHEEL_PPR);
         packet.put("WheelDesiredTickPerSecond", shooterDesiredWheelTicksPerSecond);
         packet.put("WheelEncoder", wheel.getCurrentPosition());
+        double intakeVelocityTicksPerSec = intakeMotor.getVelocity();
+        double intakeVelocityInchesPerSec = intakeVelocityTicksPerSec / INTAKE_TICKS_PER_INCH;
         packet.put("IntakeCurrent", intakeMotor.getCurrent(CurrentUnit.MILLIAMPS));
         packet.put("IntakePower", intakeMotor.getPower());
         packet.put("IntakeState", intakeState.name());
+        packet.put("IntakeVelocityTicksPerSec", intakeVelocityTicksPerSec);
+        packet.put("IntakeVelocityInchesPerSec", intakeVelocityInchesPerSec);
         packet.put("Color1ProximityInches", lastColor1ProximityInches);
         packet.put("Color1GreenPresence", lastColor1GreenPresence);
         packet.put("Color1PurplePresence", lastColor1PurplePresence);
@@ -968,6 +980,13 @@ public class DecodeRobotControl {
             enqueueShotRequest(null, true);
         }
 
+        if (dpadLeft2ActivatedEvaluator.evaluate()) {
+            cycleSpindexerSlot(-1);
+        }
+        if (dpadRight2ActivatedEvaluator.evaluate()) {
+            cycleSpindexerSlot(1);
+        }
+
         serviceShotRequestQueue();
 
         updateShootCommand();
@@ -1122,6 +1141,18 @@ public class DecodeRobotControl {
     private void retargetSpindexer() {
         spindexerCanonicalTargetPosition = computeCanonicalSpindexerPosition(spindexerSlot, spindexerMode);
         spindexerTargetPosition = findNearestTargetInRange(spindexerCanonicalTargetPosition, spindexerCommandPosition);
+    }
+
+    private void cycleSpindexerSlot(int deltaSlots) {
+        if (!isSpindexerMotionAllowed()) {
+            return;
+        }
+        int nextSlot = Math.floorMod(spindexerSlot + deltaSlots, SPINDEXER_SLOT_COUNT);
+        if (nextSlot == spindexerSlot) {
+            return;
+        }
+        spindexerSlot = nextSlot;
+        retargetSpindexer();
     }
 
     private void initializeSpindexerToMidrange() {
@@ -2169,14 +2200,25 @@ public class DecodeRobotControl {
         return new Pose2d(LEAVE_START_X, y, heading);
     }
 
+    private static Pose2d getLeaveFrontStartPose(AllianceColor alliance) {
+        Pose2d base = new Pose2d(LEAVE_FRONT_START_X, LEAVE_FRONT_START_Y, LEAVE_FRONT_START_HEADING);
+        return alliance == AllianceColor.RED ? base : mirrorPoseForBlue(base);
+    }
+
     private static Pose2d getLeaveTargetPose(AllianceColor alliance) {
         Pose2d base = new Pose2d(LEAVE_TARGET_X, LEAVE_TARGET_Y, LEAVE_TARGET_HEADING);
         return alliance == AllianceColor.RED ? base : mirrorPoseForBlue(base);
     }
 
     public static Pose2d getStartPoseForPlan(AllianceColor allianceColor, AutonomousPlan plan) {
-        // One simple plan; alliance selection comes from the opmode.
-        return getLeaveStartPose(allianceColor);
+        switch (plan) {
+            case LEAVE_FROM_CORNER:
+                return getLeaveStartPose(allianceColor);
+            case LEAVE_FROM_FRONT:
+                return getLeaveFrontStartPose(allianceColor);
+            default:
+                return getLeaveStartPose(allianceColor);
+        }
     }
 
     private List<OpModeCommand> buildAutonomousCommands(AutonomousPlan plan) {

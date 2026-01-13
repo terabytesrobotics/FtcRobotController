@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode;
 
 public enum AutonomousPlan {
-    SIMPLE_AUTON;
+    LEAVE_FROM_CORNER,
+    LEAVE_FROM_FRONT;
 }
