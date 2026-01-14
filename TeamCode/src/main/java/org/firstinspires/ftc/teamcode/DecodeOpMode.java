@@ -165,7 +165,7 @@ public abstract class DecodeOpMode extends LinearOpMode {
         boolean persistedDataIsValid = persistedData != null &&
                 initTime - persistedData.timestamp < EXPIRY_INTERVAL_MS;
         if (debugMode || !persistedDataIsValid) {
-            // Default to facing across the field; driver-forward is handled in the headless transform.
+            // Default to facing across the field; driver can flip which side is front during teleop.
             return new Pose2d(0, 0, Math.toRadians(180));
         }
         return persistedData.pose;
