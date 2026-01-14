@@ -77,7 +77,8 @@ public class DecodeRobotControl {
 
     private static final double BALL_RADIUS_INCHES = 2.75;
     private static final double BALL_DIAMETER_INCHES = BALL_RADIUS_INCHES * 2;
-    private static final double SHOOTER_WHEEL_RADIUS_INCHES = 2.0;
+    // 120 mm wheel -> convert to inches for trajectory math.
+    private static final double SHOOTER_WHEEL_RADIUS_INCHES = (120.0 / 25.4) / 2.0;
     private static final double SHOOTER_WHEEL_DIAMETER_INCHES = SHOOTER_WHEEL_RADIUS_INCHES * 2;
     private static final double FIELD_RIM_HEIGHT_INCHES = 39.0;
     private static final double RIM_CLEARANCE_INCHES = BALL_RADIUS_INCHES; // center clears rim by a radius
@@ -99,7 +100,7 @@ public class DecodeRobotControl {
     // Arc length where the ball and wheel stay engaged; helps reason about acceleration distance.
     private static final double SHOOTER_CONTACT_ARC_LENGTH_INCHES = SHOOTER_WHEEL_RADIUS_INCHES * SHOOTER_CONTACT_ANGLE_RADIANS;
     // Efficiency factor baseline: exit velocity tends to trail the wheel surface speed because of slip/compression.
-    private static final double SHOOTER_EXIT_VELOCITY_TRANSFER_BASE = 0.8;
+    private static final double SHOOTER_EXIT_VELOCITY_TRANSFER_BASE = 0.85;
     private static final double SHOOTER_TRANSFER_TRIM_RANGE = 0.1; // +/-10% via triggers
     private static final double SHOOTER_TRANSFER_MIN = 0.75;
     private static final double SHOOTER_TRANSFER_MAX = 1.05;
@@ -135,7 +136,7 @@ public class DecodeRobotControl {
     private static final double INTAKE_POWER_SLEW_PER_SEC = 4.0; // limits bang-bang; full scale change in ~0.25s
     private static final int SPINDEXER_SLOT_COUNT = 3;
     private static final double KICKER_SERVO_RANGE_DEGREES = 270.0;
-    private static final double KICKER_KICK_RANGE_DEGREES = 110.0; // expected travel for a full kick
+    private static final double KICKER_KICK_RANGE_DEGREES = 82.5; // expected travel for a full kick (reduced by 25%)
     private static final double KICKER_KICK_RANGE = KICKER_KICK_RANGE_DEGREES / KICKER_SERVO_RANGE_DEGREES;
     // Start conservative; both positions are meant to be tuned on a real robot.
     private static final double KICKER_UNKICKED_POSITION = 0.05;
