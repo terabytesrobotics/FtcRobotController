@@ -136,7 +136,7 @@ public class DecodeRobotControl {
     private static final double INTAKE_POWER_SLEW_PER_SEC = 4.0; // limits bang-bang; full scale change in ~0.25s
     private static final int SPINDEXER_SLOT_COUNT = 3;
     private static final double KICKER_SERVO_RANGE_DEGREES = 270.0;
-    private static final double KICKER_KICK_RANGE_DEGREES = 82.5; // expected travel for a full kick (reduced by 25%)
+    private static final double KICKER_KICK_RANGE_DEGREES = 97.5; // expected travel for a full kick (reduced by 25%)
     private static final double KICKER_KICK_RANGE = KICKER_KICK_RANGE_DEGREES / KICKER_SERVO_RANGE_DEGREES;
     // Start conservative; both positions are meant to be tuned on a real robot.
     private static final double KICKER_UNKICKED_POSITION = 0.05;
@@ -183,6 +183,7 @@ public class DecodeRobotControl {
     private static final double LEAVE_FRONT_START_X = 64.0;
     private static final double LEAVE_FRONT_START_Y = 12.0;
     private static final double LEAVE_FRONT_START_HEADING = Math.toRadians(180.0);
+    private static final double SHOOTING_X_DELTA_FROM_START_INCHES = -4.0;
 
     static double clamp01(double v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
 
@@ -228,6 +229,7 @@ public class DecodeRobotControl {
     private OpModeCommand currentCommand = null;
     private final ElapsedTime currentCommandTime = new ElapsedTime();
     private final ElapsedTime currentCommandSettledTime = new ElapsedTime();
+    private boolean currentCommandActionsStarted = false;
     private OpModeState continuationState = null;
     //private final SampleMecanumDrive drive;
     private final Gamepad gamepad1;
@@ -314,6 +316,7 @@ public class DecodeRobotControl {
     private double lastObeliskTagX = Double.NaN;
 
     private final Pose2d initialPose;
+    private Pose2d autonomousStartPose = null;
 
     public DecodeRobotControl(AllianceColor allianceColor, Pose2d initialPose, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, boolean debugMode) {
         this.allianceColor = allianceColor;
@@ -673,10 +676,14 @@ public class DecodeRobotControl {
     public void autonomousInit(AutonomousPlan autonomousPlan, Pose2d startPose) {
         timeSinceInit.reset();
         isAutonomous = true;
+        shooterLossTrim = 0.0;
+        shooterTransferRatio = SHOOTER_EXIT_VELOCITY_TRANSFER_BASE;
         Pose2d poseToUse = startPose != null ? startPose : getStartPoseForPlan(allianceColor, autonomousPlan);
         drive.setPoseEstimate(poseToUse);
         lastAprilTagFieldPosition = poseToUse;
         latestPoseEstimate = poseToUse;
+        autonomousStartPose = poseToUse;
+        seedAutonomousInventory(autonomousPlan);
         setCommandSequence(buildAutonomousCommands(autonomousPlan));
     }
 
@@ -722,7 +729,7 @@ public class DecodeRobotControl {
                 nextState = evaluateManualControl(dt);
                 break;
             case COMMAND_SEQUENCE:
-                nextState = evaluateCommandSequence();
+                nextState = evaluateCommandSequence(dt);
                 break;
             case STOPPED_UNTIL_END:
                 setDrivePower(new Pose2d());
@@ -855,6 +862,47 @@ public class DecodeRobotControl {
         return solution;
     }
 
+    private void updateShooterControl(boolean allowGamepadTrim) {
+        ShotSolution shotSolution = null;
+        lastShotBlockedByRim = false;
+        if (allowGamepadTrim) {
+            double trimInput = Range.clip(gamepad2.right_trigger - gamepad2.left_trigger, -1.0, 1.0);
+            shooterLossTrim = Range.clip(
+                    trimInput * SHOOTER_TRANSFER_TRIM_RANGE,
+                    -SHOOTER_TRANSFER_TRIM_RANGE,
+                    SHOOTER_TRANSFER_TRIM_RANGE);
+        }
+        shooterTransferRatio = Range.clip(
+                SHOOTER_EXIT_VELOCITY_TRANSFER_BASE + shooterLossTrim,
+                SHOOTER_TRANSFER_MIN,
+                SHOOTER_TRANSFER_MAX);
+        if (shooterEnabled) {
+            shotSolution = solveShotToActiveBasket(shooterTransferRatio);
+            if (shotSolution != null) {
+                shooterDesiredExitVelocityIps = shotSolution.exitVelocityIps;
+                shooterDesiredWheelTicksPerSecond = shotSolution.wheelTicksPerSecond;
+            } else {
+                shooterDesiredExitVelocityIps = getDesiredExitVelocityIps();
+                shooterDesiredWheelTicksPerSecond = exitVelocityToWheelTicksPerSecond(shooterDesiredExitVelocityIps, shooterTransferRatio);
+            }
+            shooterDesiredWheelTicksPerSecond = exitVelocityToWheelTicksPerSecond(shooterDesiredExitVelocityIps, shooterTransferRatio);
+            wheel.setVelocity(shooterDesiredWheelTicksPerSecond);
+        } else {
+            shooterDesiredExitVelocityIps = 0.0;
+            shooterDesiredWheelTicksPerSecond = 0.0;
+            wheel.setPower(0.0);
+            lastShotBlockedByRim = false;
+        }
+        lastShotSolution = shotSolution;
+    }
+
+    private void updateIntakePower(double targetPower, double dtMillis) {
+        double maxDelta = INTAKE_POWER_SLEW_PER_SEC * (dtMillis / 1000.0);
+        double delta = Range.clip(targetPower - intakePowerSmoothed, -maxDelta, maxDelta);
+        intakePowerSmoothed = Range.clip(intakePowerSmoothed + delta, -1.0, 1.0);
+        intakeMotor.setPower(intakePowerSmoothed);
+    }
+
     private double solveTimeToHeight(double effectiveGravity, double exitVelocityIps, double targetHeight) {
         double a = -0.5 * effectiveGravity;
         double b = exitVelocityIps * Math.sin(SHOOTER_EXIT_ANGLE_RADIANS);
@@ -900,35 +948,7 @@ public class DecodeRobotControl {
             shooterEnabled = !shooterEnabled;
         }
 
-        ShotSolution shotSolution = null;
-        lastShotBlockedByRim = false;
-        double trimInput = Range.clip(gamepad2.right_trigger - gamepad2.left_trigger, -1.0, 1.0);
-        shooterLossTrim = Range.clip(
-                trimInput * SHOOTER_TRANSFER_TRIM_RANGE,
-                -SHOOTER_TRANSFER_TRIM_RANGE,
-                SHOOTER_TRANSFER_TRIM_RANGE);
-        shooterTransferRatio = Range.clip(
-                SHOOTER_EXIT_VELOCITY_TRANSFER_BASE + shooterLossTrim,
-                SHOOTER_TRANSFER_MIN,
-                SHOOTER_TRANSFER_MAX);
-        if (shooterEnabled) {
-            shotSolution = solveShotToActiveBasket(shooterTransferRatio);
-            if (shotSolution != null) {
-                shooterDesiredExitVelocityIps = shotSolution.exitVelocityIps;
-                shooterDesiredWheelTicksPerSecond = shotSolution.wheelTicksPerSecond;
-            } else {
-                shooterDesiredExitVelocityIps = getDesiredExitVelocityIps();
-                shooterDesiredWheelTicksPerSecond = exitVelocityToWheelTicksPerSecond(shooterDesiredExitVelocityIps, shooterTransferRatio);
-            }
-            shooterDesiredWheelTicksPerSecond = exitVelocityToWheelTicksPerSecond(shooterDesiredExitVelocityIps, shooterTransferRatio);
-            wheel.setVelocity(shooterDesiredWheelTicksPerSecond);
-        } else {
-            shooterDesiredExitVelocityIps = 0.0;
-            shooterDesiredWheelTicksPerSecond = 0.0;
-            wheel.setPower(0.0);
-            lastShotBlockedByRim = false;
-        }
-        lastShotSolution = shotSolution;
+        updateShooterControl(true);
 
         if (y2ActivatedEvaluator.evaluate()) {
             enqueueStalestSlotCheck();
@@ -984,10 +1004,7 @@ public class DecodeRobotControl {
         } else if (intakeState == IntakeState.OFF) {
             intakePowerTarget = 0.0;
         }
-        double maxDelta = INTAKE_POWER_SLEW_PER_SEC * (dtMillis / 1000.0);
-        double delta = Range.clip(intakePowerTarget - intakePowerSmoothed, -maxDelta, maxDelta);
-        intakePowerSmoothed = Range.clip(intakePowerSmoothed + delta, -1.0, 1.0);
-        intakeMotor.setPower(intakePowerSmoothed);
+        updateIntakePower(intakePowerTarget, dtMillis);
 
         boolean fastMode = gamepad1.left_bumper;
 
@@ -1173,6 +1190,24 @@ public class DecodeRobotControl {
 
     private void resetSpindexerInventory() {
         Arrays.fill(spindexerInventory, BallColor.EMPTY);
+    }
+
+    private void seedAutonomousInventory(AutonomousPlan plan) {
+        if (plan == null) {
+            return;
+        }
+        switch (plan) {
+            case SHOOT_THREE_FROM_CORNER:
+                setSlotColor(0, BallColor.GREEN);
+                setSlotColor(1, BallColor.PURPLE);
+                setSlotColor(2, BallColor.PURPLE);
+                spindexerSlot = 0;
+                retargetSpindexer();
+                updateSpindexerPosition();
+                break;
+            default:
+                break;
+        }
     }
 
     private BallColor getSlotColor(int slotIndex) {
@@ -1617,12 +1652,63 @@ public class DecodeRobotControl {
         }
     }
 
-    private OpModeState evaluateCommandSequence() {
+    private void updateAutonomousMechanisms(double dtMillis) {
+        updateKickerPulse();
+        updateKickerSettling();
+        updateSpindexerPosition(dtMillis / 1000.0);
+        spindexerInTransit = Math.abs(spindexerTargetPosition - spindexerCommandPosition) > SPIN_IN_TRANSIT_THRESHOLD;
+        double kickerTarget = kickerKicked ? KICKER_KICKED_POSITION : KICKER_UNKICKED_POSITION;
+        kicker.setPosition(Range.clip(kickerTarget, 0.0, 1.0));
+        intakeState = IntakeState.OFF;
+        updateIntakePower(0.0, dtMillis);
+        lift.setPosition(lifted ? 0.0 : 1.0);
+    }
+
+    private boolean maybeStartCommandActions(OpModeCommand command) {
+        if (command == null) return true;
+
+        boolean actionsStarted = true;
+
+        if (command.ShooterEnabled != null) {
+            shooterEnabled = command.ShooterEnabled;
+        }
+
+        if (command.SpindexerTargetSlot != null) {
+            if (isSpindexerMotionAllowed()) {
+                spindexerSlot = Math.floorMod(command.SpindexerTargetSlot, SPINDEXER_SLOT_COUNT);
+                retargetSpindexer();
+            } else {
+                actionsStarted = false;
+            }
+        } else if (command.SpindexerDeltaSlots != null && command.SpindexerDeltaSlots != 0) {
+            if (isSpindexerMotionAllowed()) {
+                cycleSpindexerSlot(command.SpindexerDeltaSlots);
+            } else {
+                actionsStarted = false;
+            }
+        }
+
+        if (Boolean.TRUE.equals(command.Kick)) {
+            if (!kickerKicked && !kickerSettling && isSpindexerSettled()) {
+                setKickerKicked(true);
+                kickerPulseTimer.reset();
+            } else {
+                actionsStarted = false;
+            }
+        }
+
+        return actionsStarted;
+    }
+
+    private OpModeState evaluateCommandSequence(double dtMillis) {
         if (commandSequence.isEmpty()) {
+            updateAutonomousMechanisms(dtMillis);
+            updateShooterControl(false);
             OpModeState _continuationState = continuationState;
             continuationState = null;
             currentCommandTime.reset();
             currentCommandSettledTime.reset();
+            currentCommandActionsStarted = false;
             return _continuationState == null ? OpModeState.STOPPED_UNTIL_END : _continuationState;
         }
 
@@ -1630,21 +1716,45 @@ public class DecodeRobotControl {
             currentCommand = commandSequence.get(0);
             currentCommandTime.reset();
             currentCommandSettledTime.reset();
+            currentCommandActionsStarted = false;
         }
+
+        updateAutonomousMechanisms(dtMillis);
 
         int waitUntilMillis = currentCommand.WaitUntilElapsedMillis == null ? 0 : currentCommand.WaitUntilElapsedMillis;
         if (timeSinceStart.milliseconds() < waitUntilMillis) {
             setDrivePower(new Pose2d());
+            updateShooterControl(false);
             return OpModeState.COMMAND_SEQUENCE;
         }
 
+        if (!currentCommandActionsStarted) {
+            currentCommandActionsStarted = maybeStartCommandActions(currentCommand);
+        }
+
+        updateShooterControl(false);
+
         if (currentCommand.DriveToPose != null) {
-            setDrivePower(
-                    getPoseTargetAutoDriveControl(currentCommand.DriveToPose));
+            setDrivePower(getPoseTargetAutoDriveControl(currentCommand.DriveToPose));
+        } else {
+            setDrivePower(new Pose2d());
         }
 
         boolean driveCompleted = currentCommand.DriveToPose == null || isAtPoseTarget(currentCommand.DriveToPose, currentCommand.DriveSettleThresholdRatio);
         boolean settledRightNow = driveCompleted;
+
+        if (currentCommand.RequireSpindexerSettled) {
+            settledRightNow = settledRightNow && isSpindexerSettled();
+        }
+        if (currentCommand.RequireKickerIdle) {
+            settledRightNow = settledRightNow && !kickerKicked && !kickerSettling;
+        }
+        if (currentCommand.RequireActionStarted) {
+            settledRightNow = settledRightNow && currentCommandActionsStarted;
+        }
+        if (currentCommand.RequireShooterEnabled && currentCommand.ShooterEnabled != null) {
+            settledRightNow = settledRightNow && (shooterEnabled == currentCommand.ShooterEnabled);
+        }
 
         boolean minTimeElapsed = currentCommandTime.milliseconds() > currentCommand.MinTimeMillis;
         boolean commandCompleted = settledRightNow && minTimeElapsed && currentCommandSettledTime.milliseconds() > currentCommand.SettleTimeMillis;
@@ -1654,6 +1764,8 @@ public class DecodeRobotControl {
             setDrivePower(new Pose2d());
             commandSequence.remove(0);
             currentCommand = null;
+            currentCommandActionsStarted = false;
+            currentCommandSettledTime.reset();
         } else if (!settledRightNow) {
             currentCommandSettledTime.reset();
         }
@@ -2012,11 +2124,22 @@ public class DecodeRobotControl {
         return alliance == AllianceColor.RED ? base : mirrorPoseForBlue(base);
     }
 
+    private Pose2d getShootingPoseFromStart(Pose2d startPose) {
+        Pose2d base = startPose != null ? startPose : getStartPoseForPlan(allianceColor, AutonomousPlan.SHOOT_THREE_FROM_CORNER);
+        double shotX = base.getX() + SHOOTING_X_DELTA_FROM_START_INCHES;
+        double shotY = base.getY();
+        Vector2d basket = getActiveBasketPosition();
+        double heading = Math.atan2(basket.getY() - shotY, basket.getX() - shotX);
+        return new Pose2d(shotX, shotY, heading);
+    }
+
     public static Pose2d getStartPoseForPlan(AllianceColor allianceColor, AutonomousPlan plan) {
         switch (plan) {
             case LEAVE_FROM_CORNER:
                 return getLeaveStartPose(allianceColor);
             case LEAVE_FROM_FRONT:
+                return getLeaveFrontStartPose(allianceColor);
+            case SHOOT_THREE_FROM_CORNER:
                 return getLeaveFrontStartPose(allianceColor);
             default:
                 return getLeaveStartPose(allianceColor);
@@ -2025,8 +2148,30 @@ public class DecodeRobotControl {
 
     private List<OpModeCommand> buildAutonomousCommands(AutonomousPlan plan) {
         List<OpModeCommand> commands = new ArrayList<>();
-        // Single-move leave: target depends on alliance.
-        commands.add(OpModeCommand.driveDirectToPoseCommand(getLeaveTargetPose(allianceColor)));
+        switch (plan) {
+            case SHOOT_THREE_FROM_CORNER: {
+                Pose2d start = autonomousStartPose != null ? autonomousStartPose : getStartPoseForPlan(allianceColor, plan);
+                Pose2d shootingPose = getShootingPoseFromStart(start);
+                commands.add(OpModeCommand.shooterEnableCommand(true));
+                commands.add(OpModeCommand.waitCommand(750.0));
+                commands.add(OpModeCommand.driveDirectToPosePreciseCommand(shootingPose));
+                commands.add(OpModeCommand.waitCommand(300.0));
+                commands.add(OpModeCommand.kickCommand()); // fire slot 3 (behind slot 1 collect)
+                commands.add(OpModeCommand.spindexerToSlotCommand(1)); // align slot 1 to shooter
+                commands.add(OpModeCommand.kickCommand());
+                commands.add(OpModeCommand.spindexerToSlotCommand(2));
+                commands.add(OpModeCommand.kickCommand());
+                commands.add(OpModeCommand.shooterEnableCommand(false));
+                commands.add(OpModeCommand.driveDirectToPoseCommand(getLeaveTargetPose(allianceColor)));
+                break;
+            }
+            case LEAVE_FROM_FRONT:
+            case LEAVE_FROM_CORNER:
+            default:
+                // Single-move leave: target depends on alliance.
+                commands.add(OpModeCommand.driveDirectToPoseCommand(getLeaveTargetPose(allianceColor)));
+                break;
+        }
         return commands;
     }
 
@@ -2037,6 +2182,8 @@ public class DecodeRobotControl {
     private void setCommandSequence(OpModeState _continuationState, List<OpModeCommand> commands) {
         commandSequence.clear();
         commandSequence.addAll(commands);
+        currentCommand = null;
+        currentCommandActionsStarted = false;
         continuationState = _continuationState;
     }
 
