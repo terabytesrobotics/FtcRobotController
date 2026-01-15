@@ -251,8 +251,9 @@ public class DecodeRobotControl {
     private final WebcamName camera;
     private final AprilTagProcessor aprilTagProcessor;
     private final GoBildaPinpointDriver pinpoint;
-    private final RevColorSensorV3 color1;
-    private final RevColorSensorV3 color2;
+    // currently unused but attached
+    //private final RevColorSensorV3 color1;
+    //private final RevColorSensorV3 color2;
     private final RevColorSensorV3 color3;
     private final IndicatorLed topLed;
     private final IndicatorLed midLed;
@@ -335,8 +336,8 @@ public class DecodeRobotControl {
 
         pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
         camera = hardwareMap.get(WebcamName.class, "Webcam 1");
-        color1 = hardwareMap.get(RevColorSensorV3.class, "color1");
-        color2 = hardwareMap.get(RevColorSensorV3.class, "color2");
+        //color1 = hardwareMap.get(RevColorSensorV3.class, "color1");
+        //color2 = hardwareMap.get(RevColorSensorV3.class, "color2");
         color3 = hardwareMap.get(RevColorSensorV3.class, "color3");
         spin = hardwareMap.get(Servo.class, "spin");
         kicker = hardwareMap.get(Servo.class, "kicker");
@@ -434,65 +435,65 @@ public class DecodeRobotControl {
         return ratio / (ratio + 1.0);
     }
 
-    private double sampleCollectorPresence() {
-        int colorReadingMaxInt = 2 << 11;
-        double red = (double) color1.red() / colorReadingMaxInt;
-        double green = (double) color1.green() / colorReadingMaxInt;
-        double blue = (double) color1.blue() / colorReadingMaxInt;
-        double color1ProximityInches = color1.getDistance(DistanceUnit.INCH);
-        double red2 = (double) color2.red() / colorReadingMaxInt;
-        double green2 = (double) color2.green() / colorReadingMaxInt;
-        double blue2 = (double) color2.blue() / colorReadingMaxInt;
-        double color2ProximityInches = color2.getDistance(DistanceUnit.INCH);
-
-        double greenMatch = greenResonance(red, green, blue);
-        double purpleMatch = purpleResonance(red, green, blue);
-        double greenMatch2 = greenResonance(red2, green2, blue2);
-        double purpleMatch2 = purpleResonance(red2, green2, blue2);
-
-        double proxSoft = 0.5;   // inches past threshold to fade out
-        double matchSoft = 0.2;  // match past threshold to fade in
-
-        double greenPresence = colorPresence(
-                color1ProximityInches, greenMatch,
-                PRESENCE_PROXIMITY_THRESHOLD_INCHES, GREEN_MATCH_THRESHOLD,
-                proxSoft, matchSoft
-        );
-
-        double purplePresence = colorPresence(
-                color1ProximityInches, purpleMatch,
-                PRESENCE_PROXIMITY_THRESHOLD_INCHES, PURPLE_MATCH_THRESHOLD,
-                proxSoft, matchSoft
-        );
-
-        double greenPresence2 = colorPresence(
-                color2ProximityInches, greenMatch2,
-                PRESENCE_PROXIMITY_THRESHOLD_INCHES, GREEN_MATCH_THRESHOLD,
-                proxSoft, matchSoft
-        );
-
-        double purplePresence2 = colorPresence(
-                color2ProximityInches, purpleMatch2,
-                PRESENCE_PROXIMITY_THRESHOLD_INCHES, PURPLE_MATCH_THRESHOLD,
-                proxSoft, matchSoft
-        );
-
-        double collectorPresence = Math.max(
-                Math.max(greenPresence, purplePresence),
-                Math.max(greenPresence2, purplePresence2)
-        );
-
-        lastCollectorPresence = collectorPresence;
-        lastColor1ProximityInches = color1ProximityInches;
-        lastColor2ProximityInches = color2ProximityInches;
-        lastColor1GreenPresence = greenPresence;
-        lastColor1PurplePresence = purplePresence;
-        lastColor2GreenPresence = greenPresence2;
-        lastColor2PurplePresence = purplePresence2;
-
-        updateCollectorPresence(collectorPresence);
-        return collectorPresence;
-    }
+//    private double sampleCollectorPresence() {
+//        int colorReadingMaxInt = 2 << 11;
+//        double red = (double) color1.red() / colorReadingMaxInt;
+//        double green = (double) color1.green() / colorReadingMaxInt;
+//        double blue = (double) color1.blue() / colorReadingMaxInt;
+//        double color1ProximityInches = color1.getDistance(DistanceUnit.INCH);
+//        double red2 = (double) color2.red() / colorReadingMaxInt;
+//        double green2 = (double) color2.green() / colorReadingMaxInt;
+//        double blue2 = (double) color2.blue() / colorReadingMaxInt;
+//        double color2ProximityInches = color2.getDistance(DistanceUnit.INCH);
+//
+//        double greenMatch = greenResonance(red, green, blue);
+//        double purpleMatch = purpleResonance(red, green, blue);
+//        double greenMatch2 = greenResonance(red2, green2, blue2);
+//        double purpleMatch2 = purpleResonance(red2, green2, blue2);
+//
+//        double proxSoft = 0.5;   // inches past threshold to fade out
+//        double matchSoft = 0.2;  // match past threshold to fade in
+//
+//        double greenPresence = colorPresence(
+//                color1ProximityInches, greenMatch,
+//                PRESENCE_PROXIMITY_THRESHOLD_INCHES, GREEN_MATCH_THRESHOLD,
+//                proxSoft, matchSoft
+//        );
+//
+//        double purplePresence = colorPresence(
+//                color1ProximityInches, purpleMatch,
+//                PRESENCE_PROXIMITY_THRESHOLD_INCHES, PURPLE_MATCH_THRESHOLD,
+//                proxSoft, matchSoft
+//        );
+//
+//        double greenPresence2 = colorPresence(
+//                color2ProximityInches, greenMatch2,
+//                PRESENCE_PROXIMITY_THRESHOLD_INCHES, GREEN_MATCH_THRESHOLD,
+//                proxSoft, matchSoft
+//        );
+//
+//        double purplePresence2 = colorPresence(
+//                color2ProximityInches, purpleMatch2,
+//                PRESENCE_PROXIMITY_THRESHOLD_INCHES, PURPLE_MATCH_THRESHOLD,
+//                proxSoft, matchSoft
+//        );
+//
+//        double collectorPresence = Math.max(
+//                Math.max(greenPresence, purplePresence),
+//                Math.max(greenPresence2, purplePresence2)
+//        );
+//
+//        lastCollectorPresence = collectorPresence;
+//        lastColor1ProximityInches = color1ProximityInches;
+//        lastColor2ProximityInches = color2ProximityInches;
+//        lastColor1GreenPresence = greenPresence;
+//        lastColor1PurplePresence = purplePresence;
+//        lastColor2GreenPresence = greenPresence2;
+//        lastColor2PurplePresence = purplePresence2;
+//
+//        updateCollectorPresence(collectorPresence);
+//        return collectorPresence;
+//    }
 
     private Pose2d driveInput = new Pose2d();
     public TelemetryPacket getTelemetryPacket() {
@@ -969,7 +970,7 @@ public class DecodeRobotControl {
         boolean advanceSlotRequest = a2ActivatedEvaluator.evaluate();
         boolean kickRequest = gamepad2.b;
 
-        sampleCollectorPresence(); // keep telemetry updated; no longer drives intake control
+        //sampleCollectorPresence(); // keep telemetry updated; no longer drives intake control
         updateSlotCheckMachine();
 
         boolean allowSlotCycle = !shootRequest && shootRequestState == ShootRequestState.IDLE;
@@ -979,10 +980,7 @@ public class DecodeRobotControl {
 
         boolean manualShootStart = kickRequest && shootRequestState == ShootRequestState.IDLE && !kickerKicked && !kickerSettling;
         if (manualShootStart) {
-            spindexerMode = SpindexerMode.SHOOT;
-            retargetSpindexer();
-            shootRequestState = ShootRequestState.MOVE_TO_SHOOT;
-            shootRequestSettleTimer.reset();
+            startShootRequest();
         }
 
         updateShootRequest(shootRequest);
@@ -1220,14 +1218,35 @@ public class DecodeRobotControl {
         return !kickerKicked && !kickerSettling;
     }
 
+    private int findNearestShootSlot() {
+        double current = spindexerCommandPosition;
+        double bestDistance = Double.POSITIVE_INFINITY;
+        int bestSlot = spindexerSlot;
+        for (int i = 0; i < SPINDEXER_SLOT_COUNT; i++) {
+            double canonicalShoot = computeCanonicalSpindexerPosition(i, SpindexerMode.SHOOT);
+            double target = findNearestTargetInRange(canonicalShoot, current);
+            double distance = Math.abs(target - current);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                bestSlot = i;
+            }
+        }
+        return bestSlot;
+    }
+
+    private void startShootRequest() {
+        spindexerSlot = findNearestShootSlot();
+        spindexerMode = SpindexerMode.SHOOT;
+        retargetSpindexer();
+        shootRequestState = ShootRequestState.MOVE_TO_SHOOT;
+        shootRequestSettleTimer.reset();
+    }
+
     private void updateShootRequest(boolean shootButtonPressed) {
         switch (shootRequestState) {
             case IDLE:
                 if (shootButtonPressed && !kickerKicked && !kickerSettling) {
-                    spindexerMode = SpindexerMode.SHOOT;
-                    retargetSpindexer();
-                    shootRequestState = ShootRequestState.MOVE_TO_SHOOT;
-                    shootRequestSettleTimer.reset();
+                    startShootRequest();
                 }
                 break;
             case MOVE_TO_SHOOT:
