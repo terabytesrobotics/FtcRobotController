@@ -86,7 +86,7 @@ public class DecodeRobotControl {
     private static final double RIM_CLEARANCE_INCHES = BALL_RADIUS_INCHES; // center clears rim by a radius
     private static final double TARGET_PLANE_HEIGHT_INCHES = FIELD_RIM_HEIGHT_INCHES + RIM_CLEARANCE_INCHES;
     private static final Vector2d RED_BASKET_POSITION_INCHES = new Vector2d(-72.0, 72.0);
-    private static final Vector2d BLUE_BASKET_POSITION_INCHES = new Vector2d(-72.0, -72.0);
+    private static final Vector2d BLUE_BASKET_POSITION_INCHES = new Vector2d(-60.0, -55.0);
     private static final double SHOOTER_EXIT_ANGLE_RADIANS = Math.toRadians(50.0);
     // Ball exit height: bottom of ball at 13" above carpet -> center at 13" + radius.
     private static final double SHOOTER_EXIT_HEIGHT_INCHES = 13.0 + BALL_RADIUS_INCHES;
@@ -102,7 +102,7 @@ public class DecodeRobotControl {
     // Arc length where the ball and wheel stay engaged; helps reason about acceleration distance.
     private static final double SHOOTER_CONTACT_ARC_LENGTH_INCHES = SHOOTER_WHEEL_RADIUS_INCHES * SHOOTER_CONTACT_ANGLE_RADIANS;
     // Efficiency factor baseline: exit velocity tends to trail the wheel surface speed because of slip/compression.
-    private static final double SHOOTER_EXIT_VELOCITY_TRANSFER_BASE = 0.85;
+    private static final double SHOOTER_EXIT_VELOCITY_TRANSFER_BASE = 0.80;
     private static final double SHOOTER_TRANSFER_TRIM_RANGE = 0.1; // +/-10% via triggers
     private static final double SHOOTER_TRANSFER_MIN = 0.75;
     private static final double SHOOTER_TRANSFER_MAX = 1.05;
@@ -129,7 +129,7 @@ public class DecodeRobotControl {
     private static final double SPIN_IN_TRANSIT_THRESHOLD = 0.003; // servo units; ~0.5 deg on a 5-turn servo
     private static final double SPIN_AT_TARGET_THRESHOLD = 0.002;
     private static final double KICKER_PULSE_SEC = 0.25;
-    private static final double KICKER_SETTLE_AFTER_UNKICK_SEC = 0.15; // time to let the kicker clear the slot before motion
+    private static final double KICKER_SETTLE_AFTER_UNKICK_SEC = 0.40; // time to let the kicker clear the slot before motion
 
     private static final double GREEN_PRESENCE_THRESHOLD = 0.15;
     private static final double PURPLE_PRESENCE_THRESHOLD = 0.15;
@@ -247,6 +247,8 @@ public class DecodeRobotControl {
     private final OnActivatedEvaluator liftToggleEvaluator;
     private final OnActivatedEvaluator y2ActivatedEvaluator;
     private final OnActivatedEvaluator a2ActivatedEvaluator;
+    private final OnActivatedEvaluator dpad2LeftActivatedEvaluator;
+    private final OnActivatedEvaluator dpad2RightActivatedEvaluator;
     private final OnActivatedEvaluator rb2ActivatedEvaluator;
     private final DcMotorEx wheel;
     private final DcMotorEx intakeMotor;
@@ -266,6 +268,7 @@ public class DecodeRobotControl {
     public final Servo spin;
     private final Servo kicker;
     private int spindexerSlot = 0; // 0-based physical pocket index
+    private int spindexerCycleDirection = 1; // +1 forward, -1 backward for figure-8 cycling
     private double spindexerCanonicalTargetPosition = SPIN_BASE_POSITION_COLLECT;
     private double spindexerTargetPosition = SPIN_BASE_POSITION_COLLECT;
     private double spindexerCommandPosition = SPIN_BASE_POSITION_COLLECT;
@@ -402,6 +405,8 @@ public class DecodeRobotControl {
         y2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.y);
         rb2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_bumper);
         a2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.a);
+        dpad2LeftActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.dpad_left);
+        dpad2RightActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.dpad_right);
         lb1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.left_bumper);
 
         drive = new SampleMecanumDrive(hardwareMap);
@@ -800,14 +805,35 @@ public class DecodeRobotControl {
         Pose2d basePose = latestPoseEstimate != null ? latestPoseEstimate : lastAprilTagFieldPosition;
         if (basePose == null) return null;
         double heading = basePose.getHeading();
+        return getShooterPoseFromRobotPose(basePose, heading);
+    }
+
+    private Pose2d getShooterPoseFromRobotPose(Pose2d robotPose, double heading) {
         double offsetX = (SHOOTER_FORWARD_OFFSET_INCHES * Math.cos(heading)) -
                 (SHOOTER_LATERAL_OFFSET_INCHES * Math.sin(heading));
         double offsetY = (SHOOTER_FORWARD_OFFSET_INCHES * Math.sin(heading)) +
                 (SHOOTER_LATERAL_OFFSET_INCHES * Math.cos(heading));
         return new Pose2d(
-                basePose.getX() + offsetX,
-                basePose.getY() + offsetY,
+                robotPose.getX() + offsetX,
+                robotPose.getY() + offsetY,
                 heading);
+    }
+
+    private double getAimHeadingFromRobotPose(Pose2d robotPose, Vector2d basket) {
+        if (robotPose == null || basket == null) {
+            return 0.0;
+        }
+        double heading = robotPose.getHeading();
+        if (Double.isNaN(heading)) {
+            heading = Math.atan2(basket.getY() - robotPose.getY(), basket.getX() - robotPose.getX());
+        }
+        for (int i = 0; i < 3; i++) {
+            Pose2d shooterPose = getShooterPoseFromRobotPose(robotPose, heading);
+            heading = Math.atan2(
+                    basket.getY() - shooterPose.getY(),
+                    basket.getX() - shooterPose.getX());
+        }
+        return Angle.norm(heading);
     }
 
     private ShotSolution solveShotToActiveBasket(double transferRatio) {
@@ -976,14 +1002,22 @@ public class DecodeRobotControl {
 
         boolean shootRequest = gamepad2.a;
         boolean advanceSlotRequest = a2ActivatedEvaluator.evaluate();
+        boolean stepSlotLeftRequest = dpad2LeftActivatedEvaluator.evaluate();
+        boolean stepSlotRightRequest = dpad2RightActivatedEvaluator.evaluate();
         boolean kickRequest = gamepad2.b;
 
         //sampleCollectorPresence(); // keep telemetry updated; no longer drives intake control
         updateSlotCheckMachine();
 
         boolean allowSlotCycle = !shootRequest && shootRequestState == ShootRequestState.IDLE;
-        if (allowSlotCycle && advanceSlotRequest) {
-            cycleSpindexerSlot(1);
+        if (allowSlotCycle) {
+            if (stepSlotLeftRequest) {
+                stepSpindexerSlot(-1);
+            } else if (stepSlotRightRequest) {
+                stepSpindexerSlot(1);
+            } else if (advanceSlotRequest) {
+                advanceSpindexerSlotFigureEight();
+            }
         }
 
         boolean manualShootStart = kickRequest && shootRequestState == ShootRequestState.IDLE && !kickerKicked && !kickerSettling;
@@ -1156,6 +1190,37 @@ public class DecodeRobotControl {
     private void retargetSpindexer() {
         spindexerCanonicalTargetPosition = computeCanonicalSpindexerPosition(spindexerSlot);
         spindexerTargetPosition = findNearestTargetInRange(spindexerCanonicalTargetPosition, spindexerCommandPosition);
+    }
+
+    private boolean setSpindexerSlotIfValid(int candidate) {
+        if (!isSpindexerMotionAllowed()) {
+            return false;
+        }
+        if (candidate < 0 || candidate >= SPINDEXER_SLOT_COUNT) {
+            return false;
+        }
+        if (candidate == spindexerSlot) {
+            return false;
+        }
+        spindexerSlot = candidate;
+        retargetSpindexer();
+        return true;
+    }
+
+    private void stepSpindexerSlot(int direction) {
+        int step = direction >= 0 ? 1 : -1;
+        if (setSpindexerSlotIfValid(spindexerSlot + step)) {
+            spindexerCycleDirection = step;
+        }
+    }
+
+    private void advanceSpindexerSlotFigureEight() {
+        int candidate = spindexerSlot + spindexerCycleDirection;
+        if (candidate < 0 || candidate >= SPINDEXER_SLOT_COUNT) {
+            spindexerCycleDirection *= -1;
+            candidate = spindexerSlot + spindexerCycleDirection;
+        }
+        setSpindexerSlotIfValid(candidate);
     }
 
     private void cycleSpindexerSlot(int deltaSlots) {
@@ -1605,16 +1670,13 @@ public class DecodeRobotControl {
     }
 
     private double getShooterHeadingError() {
-        Pose2d shooterPose = getShooterPoseEstimate();
+        Pose2d basePose = latestPoseEstimate != null ? latestPoseEstimate : lastAprilTagFieldPosition;
         Vector2d basket = getActiveBasketPosition();
-        if (shooterPose == null || basket == null) {
+        if (basePose == null || basket == null) {
             return 0.0;
         }
-        double desiredHeading = Math.atan2(
-                basket.getY() - shooterPose.getY(),
-                basket.getX() - shooterPose.getX());
-        double robotHeading = latestPoseEstimate != null ? latestPoseEstimate.getHeading() : shooterPose.getHeading();
-        return Angle.normDelta(desiredHeading - robotHeading);
+        double desiredHeading = getAimHeadingFromRobotPose(basePose, basket);
+        return Angle.normDelta(desiredHeading - basePose.getHeading());
     }
 
     private boolean isSpindexerAtTarget() {
@@ -1810,6 +1872,9 @@ public class DecodeRobotControl {
 
         if (command.SpindexerTargetSlot != null) {
             if (isSpindexerMotionAllowed()) {
+                if (isAutonomous) {
+                    spindexerMode = SpindexerMode.SHOOT;
+                }
                 spindexerSlot = Math.floorMod(command.SpindexerTargetSlot, SPINDEXER_SLOT_COUNT);
                 retargetSpindexer();
             } else {
@@ -1817,6 +1882,9 @@ public class DecodeRobotControl {
             }
         } else if (command.SpindexerDeltaSlots != null && command.SpindexerDeltaSlots != 0) {
             if (isSpindexerMotionAllowed()) {
+                if (isAutonomous) {
+                    spindexerMode = SpindexerMode.SHOOT;
+                }
                 cycleSpindexerSlot(command.SpindexerDeltaSlots);
             } else {
                 actionsStarted = false;
@@ -1824,7 +1892,16 @@ public class DecodeRobotControl {
         }
 
         if (Boolean.TRUE.equals(command.Kick)) {
-            if (!kickerKicked && !kickerSettling && isSpindexerSettled()) {
+            if (isAutonomous) {
+                spindexerMode = SpindexerMode.SHOOT;
+                retargetSpindexer();
+            }
+            if (!isSpindexerSettled()) {
+                shootRequestSettleTimer.reset();
+                actionsStarted = false;
+            } else if (shootRequestSettleTimer.seconds() < SPIN_SETTLE_BEFORE_KICK_SEC) {
+                actionsStarted = false;
+            } else if (!kickerKicked && !kickerSettling) {
                 setKickerKicked(true);
                 kickerPulseTimer.reset();
             } else {
@@ -1852,6 +1929,7 @@ public class DecodeRobotControl {
             currentCommandTime.reset();
             currentCommandSettledTime.reset();
             currentCommandActionsStarted = false;
+            shootRequestSettleTimer.reset();
         }
 
         updateAutonomousMechanisms(dtMillis);
@@ -2286,7 +2364,7 @@ public class DecodeRobotControl {
         double shotX = base.getX() + SHOOTING_X_DELTA_FROM_START_INCHES;
         double shotY = base.getY();
         Vector2d basket = getActiveBasketPosition();
-        double heading = Math.atan2(basket.getY() - shotY, basket.getX() - shotX);
+        double heading = getAimHeadingFromRobotPose(new Pose2d(shotX, shotY, base.getHeading()), basket);
         return new Pose2d(shotX, shotY, heading);
     }
 
