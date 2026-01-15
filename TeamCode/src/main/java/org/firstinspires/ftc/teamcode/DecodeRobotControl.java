@@ -134,7 +134,7 @@ public class DecodeRobotControl {
     private static final double INTAKE_POWER_SLEW_PER_SEC = 4.0; // limits bang-bang; full scale change in ~0.25s
     private static final int SPINDEXER_SLOT_COUNT = 3;
     private static final double KICKER_SERVO_RANGE_DEGREES = 270.0;
-    private static final double KICKER_KICK_RANGE_DEGREES = 97.5; // expected travel for a full kick (reduced by 25%)
+    private static final double KICKER_KICK_RANGE_DEGREES = 105.0; // expected travel for a full kick (reduced by 25%)
     private static final double KICKER_KICK_RANGE = KICKER_KICK_RANGE_DEGREES / KICKER_SERVO_RANGE_DEGREES;
     // Start conservative; both positions are meant to be tuned on a real robot.
     private static final double KICKER_UNKICKED_POSITION = 0.05;
@@ -148,11 +148,11 @@ public class DecodeRobotControl {
     // Three slots 120 degrees apart -> converts degrees to servo position based on measured turn range.
     private static final double SPIN_SLOT_SPACING = (SPIN_SLOT_SPACING_DEGREES / 360.0) * SPIN_SERVO_FULL_TURN;
     // Tune this to align slot 0 with the collect pocket; leave at 0 to start.
-    private static final double SPIN_BASE_POSITION_COLLECT_DEGREES = 32.5; // positive = clockwise nudge
+    private static final double SPIN_BASE_POSITION_COLLECT_DEGREES = 26.5; // positive = clockwise nudge
     private static final double SPIN_BASE_POSITION_COLLECT = (SPIN_BASE_POSITION_COLLECT_DEGREES / 360.0) * SPIN_SERVO_FULL_TURN;
     // Offset from collect to shoot mode (in servo position units: 1.0 = 5 full turns = 1800 deg).
     // Approximately 2/5 of a turn between collect and shoot -> 144 degrees (applied in opposite direction).
-    private static final double SPIN_MODE_OFFSET_DEGREES = 102.5;
+    private static final double SPIN_MODE_OFFSET_DEGREES = 100;
     private static final double SPIN_MODE_OFFSET_SHOOT = (SPIN_MODE_OFFSET_DEGREES / 360.0) * SPIN_SERVO_FULL_TURN;
     private static final double SPIN_MAX_DEG_PER_SEC = 240.0;
     private static final double SPIN_MAX_POS_PER_SEC = (SPIN_MAX_DEG_PER_SEC / 360.0) * SPIN_SERVO_FULL_TURN; // 1.0 = full servo range
