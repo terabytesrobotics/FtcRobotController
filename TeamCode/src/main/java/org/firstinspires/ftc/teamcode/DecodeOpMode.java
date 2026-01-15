@@ -201,12 +201,22 @@ public abstract class DecodeOpMode extends LinearOpMode {
 
         while (!isStopRequested() && terabytes.evaluate()) {
             long currentTime = System.currentTimeMillis();
-            if (currentTime - lastSaveTime >= SAVE_INTERVAL_MS && opModeIsActive()) {
-                // Save data?
+            if (autonomousPlan != null && currentTime - lastSaveTime >= SAVE_INTERVAL_MS && opModeIsActive()) {
+                Pose2d poseToPersist = terabytes.getLatestPoseEstimate();
+                if (poseToPersist != null) {
+                    savePersistedData(poseToPersist, 0, 0, 0, 0);
+                }
                 lastSaveTime = currentTime;
             }
             appendTelemetryLine(terabytes.getLogData());
             dashboard.sendTelemetryPacket(terabytes.getTelemetryPacket());
+        }
+
+        if (autonomousPlan != null) {
+            Pose2d poseToPersist = terabytes.getLatestPoseEstimate();
+            if (poseToPersist != null) {
+                savePersistedData(poseToPersist, 0, 0, 0, 0);
+            }
         }
 
         terabytes.shutDown();

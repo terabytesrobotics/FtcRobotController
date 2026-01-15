@@ -1,16 +1,20 @@
 package org.firstinspires.ftc.teamcode;
 
 import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_QUEUE_CAPACITY;
-import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_RECOGNITION_BEARING_THRESHOLD;
-import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_RECOGNITION_MAX_RANGE;
-import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_RECOGNITION_MIN_RANGE;
-import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_RECOGNITION_YAW_THRESHOLD;
 import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_BLEND_HEADING_WEIGHT;
 import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_BLEND_TRANSLATION_WEIGHT;
 import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_MAX_CORRECTION_DISTANCE;
 import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_MAX_CORRECTION_HEADING;
+import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_MIN_DECISION_MARGIN;
 import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_VARIANCE_HEADING_THRESHOLD;
 import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_VARIANCE_TRANSLATION_THRESHOLD;
+import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_RECOGNITION_BEARING_THRESHOLD;
+import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_RECOGNITION_MAX_RANGE;
+import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_RECOGNITION_MIN_RANGE;
+import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_RECOGNITION_YAW_THRESHOLD;
+import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_TRUSTED_MAX_BEARING;
+import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_TRUSTED_MAX_RANGE;
+import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_TRUSTED_MAX_YAW;
 import static org.firstinspires.ftc.teamcode.Constants.DRIVE_TO_POSE_THRESHOLD;
 import static org.firstinspires.ftc.teamcode.Constants.FRONT_CAMERA_LATERAL_OFFSET_INCHES;
 import static org.firstinspires.ftc.teamcode.Constants.FRONT_CAMERA_HEIGHT_INCHES;
@@ -420,6 +424,10 @@ public class DecodeRobotControl {
         logData.clear();
 
         return logData;
+    }
+
+    public Pose2d getLatestPoseEstimate() {
+        return latestPoseEstimate;
     }
 
     static double greenResonance(double r, double g, double b) {
@@ -1926,6 +1934,10 @@ public class DecodeRobotControl {
                     continue;
                 }
 
+                if (!isTrustedAprilTagDetection(detection)) {
+                    continue;
+                }
+
                 Pose2d estimatedPose = calculateRobotPose(
                         detection,
                         cameraForwardOffset,
@@ -1977,6 +1989,24 @@ public class DecodeRobotControl {
                 }
             }
         }
+    }
+
+    private boolean isTrustedAprilTagDetection(AprilTagDetection detection) {
+        if (detection == null || detection.ftcPose == null) {
+            return false;
+        }
+
+        double decisionMargin = detection.decisionMargin;
+        boolean marginStrong = !Double.isNaN(decisionMargin) && decisionMargin >= APRIL_TAG_MIN_DECISION_MARGIN;
+
+        double range = detection.ftcPose.range;
+        double bearingRadians = Math.abs(Math.toRadians(detection.ftcPose.bearing));
+        double yawRadians = Math.abs(Math.toRadians(detection.ftcPose.yaw));
+
+        boolean inTrustedRange = range <= APRIL_TAG_TRUSTED_MAX_RANGE && range >= APRIL_TAG_RECOGNITION_MIN_RANGE;
+        boolean squaredUp = bearingRadians <= APRIL_TAG_TRUSTED_MAX_BEARING && yawRadians <= APRIL_TAG_TRUSTED_MAX_YAW;
+
+        return marginStrong && inTrustedRange && squaredUp;
     }
 
     private boolean isAllowedAprilTag(int tagId) {

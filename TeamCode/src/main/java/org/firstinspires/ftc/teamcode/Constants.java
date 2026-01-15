@@ -14,9 +14,14 @@ public class Constants {
     public static double APRIL_TAG_RECOGNITION_MIN_RANGE = 5;
     public static double APRIL_TAG_RECOGNITION_YAW_THRESHOLD = Math.PI / 6;
     public static double APRIL_TAG_RECOGNITION_BEARING_THRESHOLD = Math.PI / 6;
+    // Only trust tag-based pose corrections when we're close and squared up.
+    public static double APRIL_TAG_TRUSTED_MAX_RANGE = 96; // inches
+    public static double APRIL_TAG_TRUSTED_MAX_BEARING = Math.toRadians(12.0);
+    public static double APRIL_TAG_TRUSTED_MAX_YAW = Math.toRadians(10.0);
+    public static double APRIL_TAG_MIN_DECISION_MARGIN = 60.0;
     public static final int APRIL_TAG_QUEUE_CAPACITY = 8;
     // Minimum samples needed before fusing (useful for smoothing but still lets us react quickly).
-    public static final int APRIL_TAG_MIN_QUEUE_SAMPLES = 1;
+    public static final int APRIL_TAG_MIN_QUEUE_SAMPLES = 2;
     public static double APRIL_TAG_VARIANCE_TRANSLATION_THRESHOLD = 2.0;
     public static double APRIL_TAG_VARIANCE_HEADING_THRESHOLD = Math.PI / 16.0;
     // How aggressively to blend AprilTag measurements toward the odometry estimate.
