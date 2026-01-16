@@ -105,7 +105,7 @@ public class DecodeRobotControl {
     // Arc length where the ball and wheel stay engaged; helps reason about acceleration distance.
     private static final double SHOOTER_CONTACT_ARC_LENGTH_INCHES = SHOOTER_WHEEL_RADIUS_INCHES * SHOOTER_CONTACT_ANGLE_RADIANS;
     // Efficiency factor baseline: exit velocity tends to trail the wheel surface speed because of slip/compression.
-    private static final double SHOOTER_EXIT_VELOCITY_TRANSFER_BASE = 0.8075;
+    private static final double SHOOTER_EXIT_VELOCITY_TRANSFER_BASE = 0.7825;
     private static final double SHOOTER_TRANSFER_TRIM_RANGE = 0.1; // +/-10% via triggers
     private static final double SHOOTER_TRANSFER_MIN = 0.75;
     private static final double SHOOTER_TRANSFER_MAX = 1.05;
@@ -340,6 +340,8 @@ public class DecodeRobotControl {
     private Pose2d lastTagDerivedPose = null;
     private final ArrayDeque<Pose2d> tagPoseQueue = new ArrayDeque<>();
     private boolean intakeEnabled = true;
+    private int spindexerQueuedDelta = 0;
+    private Pose2d currentAutoDriveTarget = null;
     private boolean kickerKicked = false;
     private boolean kickerSettling = false;
     private ShotSolution lastShotSolution = null;
@@ -424,7 +426,7 @@ public class DecodeRobotControl {
 
         rb1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.right_bumper);
         a1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.a);
-        liftToggleEvaluator = new OnActivatedEvaluator(() -> gamepad2.left_stick_button && gamepad2.right_stick_button);
+        liftToggleEvaluator = new OnActivatedEvaluator(() -> gamepad1.a && gamepad1.y);
         y2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.y);
         rb2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_bumper);
         a2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.a);
@@ -622,6 +624,16 @@ public class DecodeRobotControl {
             overlay.strokeCircle(recoveredPose.getX(), recoveredPose.getY(), 4);
             overlay.setStroke("#000000");
         }
+        if (currentAutoDriveTarget != null) {
+            overlay.setStroke("#FF0000");
+            double tx = currentAutoDriveTarget.getX();
+            double ty = currentAutoDriveTarget.getY();
+            double th = currentAutoDriveTarget.getHeading();
+            double tLen = 10;
+            overlay.strokeCircle(tx, ty, 4)
+                    .strokeLine(tx, ty, tx + (tLen * Math.cos(th)), ty + (tLen * Math.sin(th)));
+            overlay.setStroke("#000000");
+        }
 
         overlay.fillCircle(sx, sy, 5)
                 .strokeLine(sx, sy, shx, shy);
@@ -703,6 +715,10 @@ public class DecodeRobotControl {
         packet.put("SpindexerSlot", Math.floorMod(spindexerSlot, SPINDEXER_SLOT_COUNT) + 1); // human-friendly 1-based
         packet.put("SpindexerMode", spindexerMode.name());
         packet.put("ShootRequestState", shootRequestState.name());
+        packet.put("ShootRequestSettleSec", shootRequestSettleTimer.seconds());
+        packet.put("SpindexerSettled", isSpindexerSettled());
+        packet.put("KickerKicked", kickerKicked);
+        packet.put("KickerSettling", kickerSettling);
         packet.put("SpindexerCanonicalTarget", spindexerCanonicalTargetPosition);
         packet.put("SpindexerTargetPosition", spindexerTargetPosition);
         packet.put("SpindexerCommandPosition", spindexerCommandPosition);
@@ -1105,6 +1121,13 @@ public class DecodeRobotControl {
         updateKickerSettling();
 
         updateSpindexerPosition(dtMillis / 1000.0);
+        if (spindexerQueuedDelta != 0 && isSpindexerSettled()) {
+            int queued = spindexerQueuedDelta;
+            spindexerQueuedDelta = 0;
+            if (setSpindexerSlotIfValid(spindexerSlot + queued)) {
+                spindexerCycleDirection = queued;
+            }
+        }
         spindexerInTransit = Math.abs(spindexerTargetPosition - spindexerCommandPosition) > SPIN_IN_TRANSIT_THRESHOLD;
 
         if (liftToggleEvaluator.evaluate()) {
@@ -1285,9 +1308,7 @@ public class DecodeRobotControl {
 
     private void stepSpindexerSlot(int direction) {
         int step = direction >= 0 ? 1 : -1;
-        if (setSpindexerSlotIfValid(spindexerSlot + step)) {
-            spindexerCycleDirection = step;
-        }
+        requestSpindexerStep(step);
     }
 
     private void advanceSpindexerSlotFigureEight() {
@@ -1297,6 +1318,26 @@ public class DecodeRobotControl {
             candidate = spindexerSlot + spindexerCycleDirection;
         }
         setSpindexerSlotIfValid(candidate);
+    }
+
+    private void requestSpindexerStep(int step) {
+        if (!isSpindexerMotionAllowed()) {
+            return;
+        }
+        if (step == 0) {
+            return;
+        }
+        if (isSpindexerSettled()) {
+            if (setSpindexerSlotIfValid(spindexerSlot + step)) {
+                spindexerCycleDirection = step;
+            }
+            return;
+        }
+        if (spindexerQueuedDelta == 0) {
+            spindexerQueuedDelta = step;
+        } else if (spindexerQueuedDelta == -step) {
+            spindexerQueuedDelta = 0;
+        }
     }
 
     private void cycleSpindexerSlot(int deltaSlots) {
@@ -1641,10 +1682,10 @@ public class DecodeRobotControl {
         BallColor previous = getSlotColor(slotIndex);
         BallColor resolved = detected;
         if (detected == BallColor.EMPTY && previous != BallColor.EMPTY) {
+            resolved = previous; // keep the last known color until we intentionally clear it
+        }
+        if (detected == BallColor.EMPTY) {
             slotEmptyStrikes[slotIndex] = Math.min(slotEmptyStrikes[slotIndex] + 1, 10);
-            if (slotEmptyStrikes[slotIndex] < 2) {
-                resolved = previous; // require two consecutive empties to clear a known ball
-            }
         } else {
             slotEmptyStrikes[slotIndex] = 0;
         }
@@ -1926,9 +1967,10 @@ public class DecodeRobotControl {
     }
 
     private void updateAutonomousMechanisms(double dtMillis) {
+        updateSpindexerPosition(dtMillis / 1000.0);
+        updateShootRequest(false);
         updateKickerPulse();
         updateKickerSettling();
-        updateSpindexerPosition(dtMillis / 1000.0);
         spindexerInTransit = Math.abs(spindexerTargetPosition - spindexerCommandPosition) > SPIN_IN_TRANSIT_THRESHOLD;
         double kickerTarget = kickerKicked ? KICKER_KICKED_POSITION : KICKER_UNKICKED_POSITION;
         kicker.setPosition(Range.clip(kickerTarget, 0.0, 1.0));
@@ -1979,19 +2021,23 @@ public class DecodeRobotControl {
 
         if (Boolean.TRUE.equals(command.Kick)) {
             if (isAutonomous) {
-                spindexerMode = SpindexerMode.SHOOT;
-                retargetSpindexer();
-            }
-            if (!isSpindexerSettled()) {
-                shootRequestSettleTimer.reset();
-                actionsStarted = false;
-            } else if (shootRequestSettleTimer.seconds() < SPIN_SETTLE_BEFORE_KICK_SEC) {
-                actionsStarted = false;
-            } else if (!kickerKicked && !kickerSettling) {
-                setKickerKicked(true);
-                kickerPulseTimer.reset();
+                if (shootRequestState == ShootRequestState.IDLE && !kickerKicked && !kickerSettling) {
+                    startShootRequest();
+                } else {
+                    actionsStarted = false;
+                }
             } else {
-                actionsStarted = false;
+                if (!isSpindexerSettled()) {
+                    shootRequestSettleTimer.reset();
+                    actionsStarted = false;
+                } else if (shootRequestSettleTimer.seconds() < SPIN_SETTLE_BEFORE_KICK_SEC) {
+                    actionsStarted = false;
+                } else if (!kickerKicked && !kickerSettling) {
+                    setKickerKicked(true);
+                    kickerPulseTimer.reset();
+                } else {
+                    actionsStarted = false;
+                }
             }
         }
 
@@ -2000,6 +2046,7 @@ public class DecodeRobotControl {
 
     private OpModeState evaluateCommandSequence(double dtMillis) {
         if (commandSequence.isEmpty()) {
+            currentAutoDriveTarget = null;
             autonomousIntakePower = 0.0;
             updateAutonomousMechanisms(dtMillis);
             updateShooterControl(false);
@@ -2034,6 +2081,7 @@ public class DecodeRobotControl {
 
         updateShooterControl(false);
 
+        currentAutoDriveTarget = currentCommand.DriveToPose;
         if (currentCommand.DriveToPose != null) {
             setDrivePower(getPoseTargetAutoDriveControl(currentCommand.DriveToPose));
         } else {
@@ -2048,6 +2096,9 @@ public class DecodeRobotControl {
         }
         if (currentCommand.RequireKickerIdle) {
             settledRightNow = settledRightNow && !kickerKicked && !kickerSettling;
+        }
+        if (isAutonomous && Boolean.TRUE.equals(currentCommand.Kick)) {
+            settledRightNow = settledRightNow && shootRequestState == ShootRequestState.IDLE;
         }
         if (currentCommand.RequireActionStarted) {
             settledRightNow = settledRightNow && currentCommandActionsStarted;
@@ -2458,7 +2509,7 @@ public class DecodeRobotControl {
     private void addShootAllSlotsCommands(List<OpModeCommand> commands) {
         commands.add(OpModeCommand.kickCommand());
         for (int slot = 1; slot < SPINDEXER_SLOT_COUNT; slot++) {
-            commands.add(OpModeCommand.spindexerToSlotCommand(slot));
+            commands.add(OpModeCommand.advanceSpindexerCommand(1));
             commands.add(OpModeCommand.kickCommand());
         }
     }
