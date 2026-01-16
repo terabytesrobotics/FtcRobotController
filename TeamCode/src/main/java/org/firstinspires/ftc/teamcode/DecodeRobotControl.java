@@ -197,8 +197,8 @@ public class DecodeRobotControl {
     private static final double LEAVE_TARGET_Y = 32.0;
     private static final double LEAVE_TARGET_HEADING = Math.toRadians(180.0);
     // Front-side start for the same leave path; heading fixed to 180 deg instead of tag-derived.
-    private static final double LEAVE_FRONT_START_X = 64.0;
-    private static final double LEAVE_FRONT_START_Y = 12.0;
+    private static final double LEAVE_FRONT_START_X = 62.0;
+    private static final double LEAVE_FRONT_START_Y = 10.0;
     private static final double LEAVE_FRONT_START_HEADING = Math.toRadians(180.0);
     private static final double SHOOTING_X_DELTA_FROM_START_INCHES = -4.0;
     private static final double BLUE_LINE_CENTER_X = -11.5;
@@ -1132,6 +1132,10 @@ public class DecodeRobotControl {
 
         if (liftToggleEvaluator.evaluate()) {
             lifted = !lifted;
+            if (lifted) {
+                shooterEnabled = false;
+                intakeEnabled = false;
+            }
         }
 
         lift.setPosition(lifted ? 0.0 : 1.0);
