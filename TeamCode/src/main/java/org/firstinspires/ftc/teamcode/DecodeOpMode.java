@@ -93,7 +93,6 @@ public abstract class DecodeOpMode extends LinearOpMode {
     private final AllianceColor allianceColor;
     private final OpModeState startupState;
     private AutonomousPlan autonomousPlan = null;
-    private final Pose2d initialPose;
 
     public DecodeOpMode(AllianceColor allianceColor, OpModeState startupState) {
         this(allianceColor, startupState, null, false);
@@ -113,7 +112,6 @@ public abstract class DecodeOpMode extends LinearOpMode {
         this.startupState = startupState;
         this.autonomousPlan = autonomousPlan;
         this.debugMode = debugMode;
-        this.initialPose = computeInitialPose();
     }
 
     private void savePersistedData(Pose2d pose, int appendageState, int armLTickPosition, int armRTickPosition, int extenderTickPosition) {
@@ -132,7 +130,7 @@ public abstract class DecodeOpMode extends LinearOpMode {
         public long timestamp;
     }
 
-    private PersistedData readAndDeleteLastPersistedData() {
+    private PersistedData readPersistedData(boolean deleteAfterRead) {
         PersistedData persistedData = null;
         try {
             File poseFile = AppUtil.getInstance().getSettingsFile(PERSISTED_DATA_FILE_NAME);
@@ -148,19 +146,17 @@ public abstract class DecodeOpMode extends LinearOpMode {
                     persistedData.pose = pose;
                     persistedData.timestamp = timestamp;
                 }
-                boolean cleanedUp = poseFile.delete();
+                if (deleteAfterRead) {
+                    boolean cleanedUp = poseFile.delete();
+                }
             }
         } catch (Exception e) {
         }
         return persistedData;
     }
 
-    private Pose2d computeInitialPose() {
-        if (autonomousPlan != null) {
-            return DecodeRobotControl.getStartPoseForPlan(allianceColor, autonomousPlan);
-        }
-
-        PersistedData persistedData = readAndDeleteLastPersistedData();
+    private Pose2d computeTeleopInitialPose() {
+        PersistedData persistedData = readPersistedData(false);
         long initTime = System.currentTimeMillis();
         boolean persistedDataIsValid = persistedData != null &&
                 initTime - persistedData.timestamp < EXPIRY_INTERVAL_MS;
@@ -175,23 +171,36 @@ public abstract class DecodeOpMode extends LinearOpMode {
     public void runOpMode() {
         // Hooks up telemetry data to the dashboard
         FtcDashboard dashboard = FtcDashboard.getInstance();
+        Pose2d initPose = autonomousPlan != null
+                ? DecodeRobotControl.getStartPoseForPlan(allianceColor, autonomousPlan)
+                : computeTeleopInitialPose();
         DecodeRobotControl terabytes = new DecodeRobotControl(
                 allianceColor,
-                initialPose,
+                initPose,
                 gamepad1,
                 gamepad2,
                 hardwareMap,
                 debugMode);
         dashboard.startCameraStream(terabytes.visionPortal, 15);
         if (autonomousPlan != null) {
-            terabytes.autonomousInit(autonomousPlan, initialPose);
+            terabytes.autonomousInit(autonomousPlan, initPose);
         } else {
-            terabytes.teleopInit(initialPose);
+            terabytes.teleopInit(initPose);
         }
 
         terabytes.initializeMechanicalBlocking();
 
         waitForStart();
+
+        if (!isStopRequested() && autonomousPlan == null) {
+            PersistedData persistedData = readPersistedData(true);
+            long initTime = System.currentTimeMillis();
+            boolean persistedDataIsValid = persistedData != null &&
+                    initTime - persistedData.timestamp < EXPIRY_INTERVAL_MS;
+            if (!debugMode && persistedDataIsValid) {
+                terabytes.teleopInit(persistedData.pose);
+            }
+        }
 
         if (!isStopRequested()) {
             terabytes.startup(startupState);

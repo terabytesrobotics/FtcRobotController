@@ -14,6 +14,10 @@ public class Constants {
     public static double APRIL_TAG_RECOGNITION_MIN_RANGE = 5;
     public static double APRIL_TAG_RECOGNITION_YAW_THRESHOLD = Math.PI / 6;
     public static double APRIL_TAG_RECOGNITION_BEARING_THRESHOLD = Math.PI / 6;
+    // Sanity limits for pose acceptance (looser than recognition thresholds).
+    public static double APRIL_TAG_SANITY_MAX_RANGE = 168; // 14 feet
+    public static double APRIL_TAG_SANITY_MAX_BEARING = Math.toRadians(60.0);
+    public static double APRIL_TAG_SANITY_MAX_YAW = Math.toRadians(60.0);
     // Only trust tag-based pose corrections when we're close and squared up.
     public static double APRIL_TAG_TRUSTED_MAX_RANGE = 96; // inches
     public static double APRIL_TAG_TRUSTED_MAX_BEARING = Math.toRadians(12.0);

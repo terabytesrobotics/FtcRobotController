@@ -23,6 +23,7 @@ public class OpModeCommand {
     public final Double DriveSettleThresholdRatio;
     public final Integer SpindexerTargetSlot;
     public final Integer SpindexerDeltaSlots;
+    public final Double IntakePower;
     public final Boolean Kick;
     public final Boolean ShooterEnabled;
     public final boolean RequireSpindexerSettled;
@@ -38,6 +39,7 @@ public class OpModeCommand {
             @NonNull Double settleThresholdRatio,
             @Nullable Integer spindexerTargetSlot,
             @Nullable Integer spindexerDeltaSlots,
+            @Nullable Double intakePower,
             @Nullable Boolean kick,
             @Nullable Boolean shooterEnabled,
             boolean requireSpindexerSettled,
@@ -51,6 +53,7 @@ public class OpModeCommand {
         DriveSettleThresholdRatio = settleThresholdRatio;
         SpindexerTargetSlot = spindexerTargetSlot;
         SpindexerDeltaSlots = spindexerDeltaSlots;
+        IntakePower = intakePower;
         Kick = kick;
         ShooterEnabled = shooterEnabled;
         RequireSpindexerSettled = requireSpindexerSettled;
@@ -66,7 +69,7 @@ public class OpModeCommand {
             @NonNull Double settleTimeMillis,
             @NonNull Double settleThresholdRatio) {
         this(waitUntilElapsedMillis, driveDirectToPose, minTimeMillis, settleTimeMillis, settleThresholdRatio,
-                null, null, null, null, false, false, false, false);
+                null, null, null, null, null, false, false, false, false);
     }
 
     public OpModeCommand(
@@ -75,12 +78,12 @@ public class OpModeCommand {
             @NonNull Double settleTimeMillis,
             @NonNull Double settleThresholdRatio) {
         this(0, driveDirectToPose, minTimeMillis, settleTimeMillis, settleThresholdRatio,
-                null, null, null, null, false, false, false, false);
+                null, null, null, null, null, false, false, false, false);
     }
 
     public OpModeCommand withWaitUntil(int elapsedMillis) {
         return new OpModeCommand(elapsedMillis, DriveToPose, MinTimeMillis, SettleTimeMillis, DriveSettleThresholdRatio,
-                SpindexerTargetSlot, SpindexerDeltaSlots, Kick, ShooterEnabled,
+                SpindexerTargetSlot, SpindexerDeltaSlots, IntakePower, Kick, ShooterEnabled,
                 RequireSpindexerSettled, RequireKickerIdle, RequireActionStarted, RequireShooterEnabled);
     }
 
@@ -91,6 +94,7 @@ public class OpModeCommand {
                 MIN_TIME_STANDARD,
                 SETTLE_TIME_STANDARD,
                 SETTLE_RATIO_STANDARD,
+                null,
                 null,
                 null,
                 null,
@@ -112,6 +116,7 @@ public class OpModeCommand {
                 null,
                 null,
                 null,
+                null,
                 false,
                 false,
                 false,
@@ -125,6 +130,7 @@ public class OpModeCommand {
                 MIN_TIME_NONE,
                 SETTLE_TIME_NONE,
                 SETTLE_RATIO_COARSE,
+                null,
                 null,
                 null,
                 null,
@@ -146,6 +152,7 @@ public class OpModeCommand {
                 null,
                 null,
                 null,
+                null,
                 false,
                 false,
                 false,
@@ -159,6 +166,7 @@ public class OpModeCommand {
                 waitMillis,
                 SETTLE_TIME_NONE,
                 SETTLE_RATIO_STANDARD,
+                null,
                 null,
                 null,
                 null,
@@ -180,6 +188,7 @@ public class OpModeCommand {
                 null,
                 null,
                 null,
+                null,
                 true,
                 false,
                 true,
@@ -197,6 +206,7 @@ public class OpModeCommand {
                 deltaSlots,
                 null,
                 null,
+                null,
                 true,
                 false,
                 true,
@@ -210,6 +220,7 @@ public class OpModeCommand {
                 MIN_TIME_STANDARD,
                 SETTLE_TIME_LONG,
                 SETTLE_RATIO_STANDARD,
+                null,
                 null,
                 null,
                 true,
@@ -230,10 +241,29 @@ public class OpModeCommand {
                 null,
                 null,
                 null,
+                null,
                 enabled,
                 false,
                 false,
                 true,
                 true);
+    }
+
+    public static OpModeCommand intakePowerCommand(double power) {
+        return new OpModeCommand(
+                null,
+                null,
+                MIN_TIME_NONE,
+                SETTLE_TIME_NONE,
+                SETTLE_RATIO_STANDARD,
+                null,
+                null,
+                power,
+                null,
+                null,
+                false,
+                false,
+                true,
+                false);
     }
 }
