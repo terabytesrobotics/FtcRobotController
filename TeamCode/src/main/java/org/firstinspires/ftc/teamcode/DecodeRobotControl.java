@@ -105,7 +105,7 @@ public class DecodeRobotControl {
     // Arc length where the ball and wheel stay engaged; helps reason about acceleration distance.
     private static final double SHOOTER_CONTACT_ARC_LENGTH_INCHES = SHOOTER_WHEEL_RADIUS_INCHES * SHOOTER_CONTACT_ANGLE_RADIANS;
     // Efficiency factor baseline: exit velocity tends to trail the wheel surface speed because of slip/compression.
-    private static final double SHOOTER_EXIT_VELOCITY_TRANSFER_BASE = 0.7825;
+    private static final double SHOOTER_EXIT_VELOCITY_TRANSFER_BASE = 0.7775;
     private static final double SHOOTER_TRANSFER_TRIM_RANGE = 0.1; // +/-10% via triggers
     private static final double SHOOTER_TRANSFER_MIN = 0.75;
     private static final double SHOOTER_TRANSFER_MAX = 1.05;
@@ -426,7 +426,7 @@ public class DecodeRobotControl {
 
         rb1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.right_bumper);
         a1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.a);
-        liftToggleEvaluator = new OnActivatedEvaluator(() -> gamepad1.a && gamepad1.y);
+        liftToggleEvaluator = new OnActivatedEvaluator(() -> gamepad1.b && gamepad1.y);
         y2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.y);
         rb2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_bumper);
         a2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.a);
@@ -1078,8 +1078,8 @@ public class DecodeRobotControl {
         updateShooterControl(true);
 
         boolean shootRequest = false;
-        boolean trimDownRequest = a2ActivatedEvaluator.evaluate();
-        boolean trimUpRequest = y2ActivatedEvaluator.evaluate();
+        boolean trimDownRequest = y2ActivatedEvaluator.evaluate();
+        boolean trimUpRequest = a2ActivatedEvaluator.evaluate();
         boolean intakeToggleRequest = x2ActivatedEvaluator.evaluate();
         boolean stepSlotLeftRequest = dpad2LeftActivatedEvaluator.evaluate();
         boolean stepSlotRightRequest = dpad2RightActivatedEvaluator.evaluate();
