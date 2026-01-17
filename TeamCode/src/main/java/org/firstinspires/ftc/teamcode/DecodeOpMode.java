@@ -190,6 +190,16 @@ public abstract class DecodeOpMode extends LinearOpMode {
 
         terabytes.initializeMechanicalBlocking();
 
+        while (!isStarted() && !isStopRequested()) {
+            if (autonomousPlan != null) {
+                // Keep the autonomous start pose locked in case Pinpoint resets finish late.
+                terabytes.refreshPoseEstimate();
+                terabytes.forcePoseEstimate(initPose);
+            }
+            dashboard.sendTelemetryPacket(terabytes.getTelemetryPacket());
+            idle();
+        }
+
         waitForStart();
 
         if (!isStopRequested() && autonomousPlan == null) {

@@ -189,8 +189,8 @@ public class DecodeRobotControl {
     private static final double OBELISK_TARGET_HEADING_RADIANS = 0.0;
     private static final double OBELISK_HEADING_TOLERANCE_RADIANS = Math.toRadians(20.0);
     // Simple leave-autonomous starting/target definitions (base on red side; blue mirrors Y/heading).
-    private static final double LEAVE_START_X = -60.0;
-    private static final double LEAVE_START_Y = 50.0;
+    private static final double LEAVE_START_X = -53.5;
+    private static final double LEAVE_START_Y = 47.0;
     private static final int LEAVE_RED_START_TAG_ID = 24;
     private static final int LEAVE_BLUE_START_TAG_ID = 20;
     private static final double LEAVE_TARGET_X = 60;
@@ -201,6 +201,11 @@ public class DecodeRobotControl {
     private static final double LEAVE_FRONT_START_Y = 10.0;
     private static final double LEAVE_FRONT_START_HEADING = Math.toRadians(180.0);
     private static final double SHOOTING_X_DELTA_FROM_START_INCHES = -4.0;
+    private static final double BACK_SHOOT_X = -12.0;
+    private static final double BACK_SHOOT_Y = 12.0;
+    private static final double BACK_PARK_X = 12.0;
+    private static final double BACK_PARK_Y = 12.0;
+    private static final double BACK_PARK_HEADING = Math.toRadians(180.0);
     private static final double BLUE_LINE_CENTER_X = -11.5;
     private static final double BLUE_LINE_CENTER_Y = -23.5;
     private static final double BLUE_LINE_X_SPACING = 24.0;
@@ -785,6 +790,21 @@ public class DecodeRobotControl {
         latestPoseEstimate = poseToUse;
         driveFrontReversed = false;
         recoveredPose = poseToUse;
+    }
+
+    public void forcePoseEstimate(Pose2d pose) {
+        if (pose == null) {
+            return;
+        }
+        drive.setPoseEstimate(pose);
+        lastAprilTagFieldPosition = pose;
+        latestPoseEstimate = pose;
+        recoveredPose = pose;
+    }
+
+    public void refreshPoseEstimate() {
+        drive.update();
+        latestPoseEstimate = drive.getPoseEstimate();
     }
 
     public void initializeMechanicalBlocking() {
@@ -1507,6 +1527,7 @@ public class DecodeRobotControl {
         }
         switch (plan) {
             case SHOOT_THREE_FROM_CORNER:
+            case SHOOT_THREE_FROM_BACK:
                 setSlotColor(0, BallColor.GREEN);
                 setSlotColor(1, BallColor.PURPLE);
                 setSlotColor(2, BallColor.PURPLE);
@@ -2535,6 +2556,19 @@ public class DecodeRobotControl {
         return alliance == AllianceColor.RED ? base : mirrorPoseForBlue(base);
     }
 
+    private static Pose2d getBackParkPose(AllianceColor alliance) {
+        Pose2d base = new Pose2d(BACK_PARK_X, BACK_PARK_Y, BACK_PARK_HEADING);
+        return alliance == AllianceColor.RED ? base : mirrorPoseForBlue(base);
+    }
+
+    private Pose2d getBackShootPose(AllianceColor alliance) {
+        Pose2d base = new Pose2d(BACK_SHOOT_X, BACK_SHOOT_Y, 0.0);
+        Pose2d pose = alliance == AllianceColor.RED ? base : mirrorPoseForBlue(base);
+        Vector2d basket = getActiveBasketPosition();
+        double heading = getAimHeadingFromRobotPose(new Pose2d(pose.getX(), pose.getY(), pose.getHeading()), basket);
+        return new Pose2d(pose.getX(), pose.getY(), heading);
+    }
+
     private Pose2d getShootingPoseFromStart(Pose2d startPose) {
         Pose2d base = startPose != null ? startPose : getStartPoseForPlan(allianceColor, AutonomousPlan.SHOOT_THREE_FROM_CORNER);
         double shotX = base.getX() + SHOOTING_X_DELTA_FROM_START_INCHES;
@@ -2552,6 +2586,8 @@ public class DecodeRobotControl {
                 return getLeaveFrontStartPose(allianceColor);
             case SHOOT_THREE_FROM_CORNER:
                 return getLeaveFrontStartPose(allianceColor);
+            case SHOOT_THREE_FROM_BACK:
+                return getLeaveStartPose(allianceColor);
             case COLLECT_THREE_LINES_BLUE:
                 return getLeaveStartPose(allianceColor);
             default:
@@ -2572,6 +2608,17 @@ public class DecodeRobotControl {
                 addShootAllSlotsCommands(commands);
                 commands.add(OpModeCommand.shooterEnableCommand(false));
                 commands.add(OpModeCommand.driveDirectToPoseCommand(getLeaveTargetPose(allianceColor)));
+                break;
+            }
+            case SHOOT_THREE_FROM_BACK: {
+                Pose2d shootingPose = getBackShootPose(allianceColor);
+                commands.add(OpModeCommand.shooterEnableCommand(true));
+                commands.add(OpModeCommand.waitCommand(750.0));
+                commands.add(OpModeCommand.driveDirectToPosePreciseCommand(shootingPose));
+                commands.add(OpModeCommand.waitCommand(300.0));
+                addShootAllSlotsCommands(commands);
+                commands.add(OpModeCommand.shooterEnableCommand(false));
+                commands.add(OpModeCommand.driveDirectToPoseCommand(getBackParkPose(allianceColor)));
                 break;
             }
             case COLLECT_THREE_LINES_BLUE: {
