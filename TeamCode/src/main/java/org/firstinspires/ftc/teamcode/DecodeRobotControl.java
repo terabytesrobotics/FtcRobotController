@@ -88,8 +88,7 @@ public class DecodeRobotControl {
     private static final double FIELD_RIM_HEIGHT_INCHES = 39.0;
     private static final double RIM_CLEARANCE_INCHES = BALL_RADIUS_INCHES; // center clears rim by a radius
     private static final double TARGET_PLANE_HEIGHT_INCHES = FIELD_RIM_HEIGHT_INCHES + RIM_CLEARANCE_INCHES;
-    private static final Vector2d RED_BASKET_POSITION_INCHES = new Vector2d(-72.0, 72.0);
-    private static final Vector2d BLUE_BASKET_POSITION_INCHES = new Vector2d(-60.0, -55.0);
+    private static final Vector2d RED_BASKET_POSITION_INCHES = new Vector2d(-62.5, 52.5);
     private static final double SHOOTER_EXIT_ANGLE_RADIANS = Math.toRadians(50.0);
     // Ball exit height: bottom of ball at 13" above carpet -> center at 13" + radius.
     private static final double SHOOTER_EXIT_HEIGHT_INCHES = 13.0 + BALL_RADIUS_INCHES;
@@ -147,6 +146,7 @@ public class DecodeRobotControl {
     private static final int SPINDEXER_SLOT_COUNT = 3;
     private static final double KICKER_SERVO_RANGE_DEGREES = 270.0;
     private static final double KICKER_KICK_RANGE_DEGREES = 75.0; // expected travel for a full kick (reduced by 25%)
+    private static final double AUTO_TURN_DEADBAND_RATIO = 0.68; // align with precise settle ratio
     private static final double KICKER_KICK_RANGE = KICKER_KICK_RANGE_DEGREES / KICKER_SERVO_RANGE_DEGREES;
     // Start conservative; both positions are meant to be tuned on a real robot.
     private static final double KICKER_UNKICKED_POSITION = 0.05;
@@ -178,7 +178,7 @@ public class DecodeRobotControl {
     private static final double DRIVE_FAST_TRANSLATION_CAP = 1.0;
     private static final double DRIVE_NORMAL_TURN_CAP = 0.85;
     private static final double DRIVE_FAST_TURN_CAP = 1.0;
-    private static final double AIM_ASSIST_TURN_GAIN = 2.0;
+    private static final double AIM_ASSIST_TURN_GAIN = 2.3;
 
     // Only trust the large field tags for localization.
     private static final int[] APRIL_TAG_ALLOWED_IDS = {20, 24};
@@ -830,10 +830,6 @@ public class DecodeRobotControl {
         evaluateSwitchCamera();
         evaluatePositioningSystems();
 
-        boolean debugKill = debugMode &&
-                ((gamepad1.left_bumper && gamepad1.right_bumper && gamepad1.a) ||
-                        (gamepad2.left_bumper && gamepad2.right_bumper && gamepad2.a));
-
         OpModeState currentState = state;
         OpModeState nextState = currentState;
         switch (currentState) {
@@ -885,7 +881,13 @@ public class DecodeRobotControl {
     }
 
     private Vector2d getActiveBasketPosition() {
-        return allianceColor == AllianceColor.RED ? RED_BASKET_POSITION_INCHES : BLUE_BASKET_POSITION_INCHES;
+        return allianceColor == AllianceColor.RED
+                ? RED_BASKET_POSITION_INCHES
+                : mirrorVectorForBlue(RED_BASKET_POSITION_INCHES);
+    }
+
+    private static Vector2d mirrorVectorForBlue(Vector2d vector) {
+        return new Vector2d(vector.getX(), -vector.getY());
     }
 
     private Pose2d getShooterPoseEstimate() {
@@ -1198,7 +1200,7 @@ public class DecodeRobotControl {
         driveInput = capDriveInput(driveInput, translationCap, turnCap);
 
         Pose2d driveCommand = driveInput;
-        boolean aimAssistActive = gamepad1.x && latestPoseEstimate != null;
+        boolean aimAssistActive = gamepad1.right_stick_button && latestPoseEstimate != null;
         if (aimAssistActive) {
             Vector2d basket = getActiveBasketPosition();
             double desiredHeading = getAimHeadingFromRobotPose(latestPoseEstimate, basket);
@@ -2416,7 +2418,8 @@ public class DecodeRobotControl {
         double yErr = distance * Math.sin(headingToError);
         boolean xErrEliminated = Math.abs(xErr) < 0.75;
         boolean yErrEliminated = Math.abs(yErr) < 0.75;
-        boolean thetaErrEliminated = Math.abs(error.getHeading()) < (Math.PI / 15);
+        // Keep turn deadband tighter than the most precise settle threshold to avoid stalling.
+        boolean thetaErrEliminated = Math.abs(error.getHeading()) < (TURN_ERROR_THRESHOLD * AUTO_TURN_DEADBAND_RATIO);
 
         double minPower = 0.24530625;
         double minRotation = 0.63;
