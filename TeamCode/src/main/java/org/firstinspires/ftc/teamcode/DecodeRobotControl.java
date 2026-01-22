@@ -96,8 +96,8 @@ public class DecodeRobotControl {
     private static final double SHOOTER_FORWARD_OFFSET_INCHES = -2.0; // shooter exit sits 2" behind robot center
     private static final double SHOOTER_LATERAL_OFFSET_INCHES = -5.0; // shooter exit sits 5" to the right of robot center
     private static final double BALLISTIC_GRAVITY_IN_PER_S2 = 386.0886; // in/s^2
-    // Simple top-spin model: extra downward load scales with spin rate; reduced to lighten long-shot drop.
-    private static final double TOPSPIN_DROP_PER_RAD_PER_SEC = 0.002;
+    // Simple backspin model: lift reduces effective gravity proportional to spin rate.
+    private static final double BACKSPIN_LIFT_PER_RAD_PER_SEC = 0.002;
 
     private static final double SHOOTER_WHEEL_CIRCUMFERENCE_INCHES = Math.PI * SHOOTER_WHEEL_DIAMETER_INCHES;
     private static final double SHOOTER_CONTACT_ANGLE_RADIANS = Math.toRadians(130);
@@ -108,9 +108,6 @@ public class DecodeRobotControl {
     private static final double SHOOTER_TRANSFER_TRIM_RANGE = 0.1; // +/-10% via triggers
     private static final double SHOOTER_TRANSFER_MIN = 0.75;
     private static final double SHOOTER_TRANSFER_MAX = 1.05;
-    private static final double SHOOTER_TRANSFER_LONG_BONUS = 0.10; // up to +10% at long range
-    private static final double SHOOTER_TRANSFER_NEAR_RANGE_INCHES = 72.0;
-    private static final double SHOOTER_TRANSFER_FAR_RANGE_INCHES = 144.0;
     private static final double SHOOTER_TRANSFER_CLICK_STEP = 0.0125; // 1.25% per click
     private static final int SHOOTER_TRANSFER_CLICK_LIMIT = 4;
     private static final double SHOOTER_MIN_EXIT_VELOCITY_INCHES_PER_SECOND = 180.0;
@@ -950,20 +947,19 @@ public class DecodeRobotControl {
 
         double effectiveGravity = BALLISTIC_GRAVITY_IN_PER_S2;
         double exitVelocityIps = SHOOTER_MIN_EXIT_VELOCITY_INCHES_PER_SECOND;
-        double topSpinRadPerSec = 0.0;
+        double backSpinRadPerSec = 0.0;
 
         for (int i = 0; i < 3; i++) {
             double denom = 2.0 * cosTheta * cosTheta * verticalTerm;
             exitVelocityIps = Math.sqrt((effectiveGravity * horizontalDistance * horizontalDistance) / denom);
             double tangentialSpeedIps = exitVelocityIps / transferRatio;
-            double surfaceRatio = tangentialSpeedIps / Math.max(1e-3, exitVelocityIps);
             double naturalRotations = SHOOTER_CONTACT_ARC_LENGTH_INCHES / (2 * Math.PI * BALL_RADIUS_INCHES);
             double avgLinear = Math.max(1e-3, 0.5 * (tangentialSpeedIps + exitVelocityIps));
             double contactTime = SHOOTER_CONTACT_ARC_LENGTH_INCHES / avgLinear;
             double rollSpinRadPerSec = (naturalRotations * 2 * Math.PI) / Math.max(1e-3, contactTime);
-            double exitSpinRadPerSec = exitVelocityIps / BALL_RADIUS_INCHES;
-            topSpinRadPerSec = 0.5 * (rollSpinRadPerSec + (exitSpinRadPerSec * surfaceRatio));
-            double magnusMultiplier = 1.0 + Math.max(0.0, TOPSPIN_DROP_PER_RAD_PER_SEC * topSpinRadPerSec);
+            backSpinRadPerSec = rollSpinRadPerSec;
+            double liftRatio = Math.max(0.0, BACKSPIN_LIFT_PER_RAD_PER_SEC * backSpinRadPerSec);
+            double magnusMultiplier = Math.max(0.1, 1.0 - liftRatio);
             effectiveGravity = BALLISTIC_GRAVITY_IN_PER_S2 * magnusMultiplier;
         }
 
@@ -991,7 +987,7 @@ public class DecodeRobotControl {
         solution.headingToTarget = headingToTarget;
         solution.interceptX = interceptX;
         solution.interceptY = interceptY;
-        solution.topSpinRadPerSec = topSpinRadPerSec;
+        solution.backSpinRadPerSec = backSpinRadPerSec;
         solution.transferRatio = transferRatio;
         solution.tangentialSpeedIps = exitVelocityIps / transferRatio;
         return solution;
@@ -1009,20 +1005,8 @@ public class DecodeRobotControl {
         }
         double clickTrim = shooterTransferTrimClicks * SHOOTER_TRANSFER_CLICK_STEP;
         double transferRatioBase = SHOOTER_EXIT_VELOCITY_TRANSFER_BASE + shooterLossTrim + clickTrim;
-        double rangeFactor = 1.0;
-        Pose2d shooterPose = getShooterPoseEstimate();
-        Vector2d basket = getActiveBasketPosition();
-        if (shooterPose != null && basket != null) {
-            double distance = Math.hypot(basket.getX() - shooterPose.getX(), basket.getY() - shooterPose.getY());
-            double t = Range.clip(
-                    (distance - SHOOTER_TRANSFER_NEAR_RANGE_INCHES) /
-                            (SHOOTER_TRANSFER_FAR_RANGE_INCHES - SHOOTER_TRANSFER_NEAR_RANGE_INCHES),
-                    0.0,
-                    1.0);
-            rangeFactor = 1.0 + (SHOOTER_TRANSFER_LONG_BONUS * t);
-        }
         shooterTransferRatio = Range.clip(
-                transferRatioBase * rangeFactor,
+                transferRatioBase,
                 SHOOTER_TRANSFER_MIN,
                 SHOOTER_TRANSFER_MAX);
         if (shooterEnabled) {
@@ -1086,7 +1070,7 @@ public class DecodeRobotControl {
         double headingToTarget;
         double interceptX;
         double interceptY;
-        double topSpinRadPerSec;
+        double backSpinRadPerSec;
         double transferRatio;
         double tangentialSpeedIps;
     }
