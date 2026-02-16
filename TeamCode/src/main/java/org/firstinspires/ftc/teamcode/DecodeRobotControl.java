@@ -1,10 +1,6 @@
 package org.firstinspires.ftc.teamcode;
 
 import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_QUEUE_CAPACITY;
-import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_BLEND_HEADING_WEIGHT;
-import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_BLEND_TRANSLATION_WEIGHT;
-import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_MAX_CORRECTION_DISTANCE;
-import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_MAX_CORRECTION_HEADING;
 import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_MIN_DECISION_MARGIN;
 import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_VARIANCE_HEADING_THRESHOLD;
 import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_VARIANCE_TRANSLATION_THRESHOLD;
@@ -36,24 +32,19 @@ import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.acmerobotics.roadrunner.util.Angle;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
-import com.qualcomm.hardware.rev.RevColorSensorV3;
-import com.qualcomm.robotcore.hardware.LED;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
-import com.qualcomm.robotcore.hardware.NormalizedRGBA;
-import com.qualcomm.robotcore.hardware.PIDFCoefficients;
+import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
 
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.robotcore.external.navigation.UnnormalizedAngleUnit;
 import org.firstinspires.ftc.teamcode.Processors.SampleDetectVisionProcessor;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
@@ -70,11 +61,9 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.EnumSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
-import java.util.Arrays;
 
 import org.firstinspires.ftc.teamcode.drive.PinpointLocalizer;
 
@@ -82,8 +71,8 @@ public class DecodeRobotControl {
 
     private static final double BALL_RADIUS_INCHES = 2.75;
     private static final double BALL_DIAMETER_INCHES = BALL_RADIUS_INCHES * 2;
-    // 120 mm wheel -> convert to inches for trajectory math.
-    private static final double SHOOTER_WHEEL_RADIUS_INCHES = (120.0 / 25.4) / 2.0;
+    // Measured shooter wheel radius (inches) for trajectory math.
+    private static final double SHOOTER_WHEEL_RADIUS_INCHES = 2.362205;
     private static final double SHOOTER_WHEEL_DIAMETER_INCHES = SHOOTER_WHEEL_RADIUS_INCHES * 2;
     private static final double FIELD_RIM_HEIGHT_INCHES = 39.0;
     private static final double RIM_CLEARANCE_INCHES = BALL_RADIUS_INCHES; // center clears rim by a radius
@@ -101,15 +90,24 @@ public class DecodeRobotControl {
 
     private static final double SHOOTER_WHEEL_CIRCUMFERENCE_INCHES = Math.PI * SHOOTER_WHEEL_DIAMETER_INCHES;
     private static final double SHOOTER_CONTACT_ANGLE_RADIANS = Math.toRadians(130);
+    private static final double SHOOTER_ARC_COMPRESSION_INCHES = 0.25;
+    // Ball center rides at wheel radius + ball diameter, minus compression from the arc.
+    private static final double SHOOTER_BALL_PATH_RADIUS_INCHES =
+            SHOOTER_WHEEL_RADIUS_INCHES + BALL_DIAMETER_INCHES - SHOOTER_ARC_COMPRESSION_INCHES;
     // Arc length where the ball and wheel stay engaged; helps reason about acceleration distance.
-    private static final double SHOOTER_CONTACT_ARC_LENGTH_INCHES = SHOOTER_WHEEL_RADIUS_INCHES * SHOOTER_CONTACT_ANGLE_RADIANS;
+    private static final double SHOOTER_CONTACT_ARC_LENGTH_INCHES =
+            SHOOTER_BALL_PATH_RADIUS_INCHES * SHOOTER_CONTACT_ANGLE_RADIANS;
+    private static final double SHOOTER_SPIN_GEOMETRY_RATIO =
+            SHOOTER_WHEEL_RADIUS_INCHES / SHOOTER_BALL_PATH_RADIUS_INCHES;
+    // Empirical efficiency for how much of the ideal spin makes it to the ball (slip/compliance losses).
+    private static final double SHOOTER_SPIN_EFFICIENCY = 0.35;
     // Efficiency factor baseline: exit velocity tends to trail the wheel surface speed because of slip/compression.
     private static final double SHOOTER_EXIT_VELOCITY_TRANSFER_BASE = 0.7775;
     private static final double SHOOTER_TRANSFER_TRIM_RANGE = 0.1; // +/-10% via triggers
-    private static final double SHOOTER_TRANSFER_MIN = 0.75;
-    private static final double SHOOTER_TRANSFER_MAX = 1.05;
     private static final double SHOOTER_TRANSFER_CLICK_STEP = 0.0125; // 1.25% per click
     private static final int SHOOTER_TRANSFER_CLICK_LIMIT = 4;
+    private static final double SHOOTER_TRANSFER_MIN = 0.75;
+    private static final double SHOOTER_TRANSFER_MAX = 1.05;
     private static final double SHOOTER_MIN_EXIT_VELOCITY_INCHES_PER_SECOND = 180.0;
     private static final double SHOOTER_MAX_EXIT_VELOCITY_INCHES_PER_SECOND = 450.0;
     private static final double SHOOTER_WHEEL_AXLE_HEIGHT_INCHES = 6.75;
@@ -130,46 +128,47 @@ public class DecodeRobotControl {
     private static final double INTAKE_ROLLER_RADIUS_INCHES = 2.5; // effective radius of the compliant roller
     private static final double INTAKE_COMPLIANCE_SLIP = 1.1; // >1 to account for band slip/compliance; tune on robot
     private static final double INTAKE_TICKS_PER_INCH = (INTAKE_TICKS_PER_REV / (2.0 * Math.PI * INTAKE_ROLLER_RADIUS_INCHES)) * INTAKE_COMPLIANCE_SLIP;
-    private static final double SPIN_IN_TRANSIT_THRESHOLD = 0.003; // servo units; ~0.5 deg on a 5-turn servo
-    private static final double SPIN_AT_TARGET_THRESHOLD = 0.002;
-    private static final double KICKER_PULSE_SEC = 0.40;
-    private static final double KICKER_SETTLE_AFTER_UNKICK_SEC = 0.40; // time to let the kicker clear the slot before motion
 
     private static final double GREEN_PRESENCE_THRESHOLD = 0.15;
     private static final double PURPLE_PRESENCE_THRESHOLD = 0.15;
     private static final String INTAKE_MOTOR_NAME = "intake";
     private static final double INTAKE_MOTOR_POWER = 0.6;
     private static final double INTAKE_POWER_SLEW_PER_SEC = 4.0; // limits bang-bang; full scale change in ~0.25s
-    private static final int SPINDEXER_SLOT_COUNT = 3;
-    private static final double KICKER_SERVO_RANGE_DEGREES = 270.0;
-    private static final double KICKER_KICK_RANGE_DEGREES = 75.0; // expected travel for a full kick (reduced by 25%)
+    private static final double INTAKE_JAM_CURRENT_AMPS = 1.6;
+    private static final double INTAKE_JAM_SPEED_TPS = 200.0;
+    private static final double INTAKE_JAM_DETECT_SEC = 0.12;
+    private static final double INTAKE_JAM_RELAX_MAX_SEC = 0.2;
+    private static final double INTAKE_JAM_STOP_TPS = 60.0;
+    private static final double INTAKE_JAM_REVERSE_POWER = 0.5;
+    private static final double INTAKE_JAM_REVERSE_SEC = 0.12;
+    private static final double INTAKE_JAM_COOLDOWN_SEC = 0.2;
+    private static final boolean INTAKE_TOP_INVERTED = true;
+    private static final String TOROID_MOTOR_NAME = "coreHex";
+    private static final double TOROID_TICKS_PER_REV = 288.0;
+    private static final double TOROID_STEP_TICKS = TOROID_TICKS_PER_REV / 3.0; // 120 deg steps
+    private static final double TOROID_POSITION_TOLERANCE_TICKS = 6.0;
+    private static final double TOROID_TRANSIT_RPM = 78.0;
+    private static final double TOROID_SHOOT_RPM = 180.0;
+    private static final boolean TOROID_CCW_IS_POSITIVE = true;
+    private static final boolean TOROID_TRANSIT_CCW = false;
+    private static final boolean TOROID_SHOOT_CCW = true;
+    private static final double TOROID_COAST_BEFORE_BRAKE_SEC = 0.15;
+    private static final double TOROID_BRAKE_BEFORE_REVERSE_SEC = 0.1;
+    private static final double TOROID_VELOCITY_SIGN_THRESHOLD_TPS = 40.0;
+    private static final double TOROID_JAM_CURRENT_AMPS = 2.2;
+    private static final double TOROID_JAM_SPEED_TPS = 40.0;
+    private static final double TOROID_JAM_DETECT_SEC = 0.08;
+    private static final double TOROID_JAM_RELAX_MAX_SEC = 0.15;
+    private static final double TOROID_JAM_STOP_TPS = 10.0;
+    private static final double TOROID_JAM_REVERSE_RPM = 40.0;
+    private static final double TOROID_JAM_REVERSE_SEC = 0.08;
+    private static final double TOROID_JAM_COOLDOWN_SEC = 0.08;
+    private static final boolean TOROID_TEST_ONLY = true; // temporary: disable non-toroid actuation
     private static final double AUTO_TURN_DEADBAND_RATIO = 0.68; // align with precise settle ratio
-    private static final double KICKER_KICK_RANGE = KICKER_KICK_RANGE_DEGREES / KICKER_SERVO_RANGE_DEGREES;
-    // Start conservative; both positions are meant to be tuned on a real robot.
-    private static final double KICKER_UNKICKED_POSITION = 0.05;
-    private static final double KICKER_KICKED_POSITION = KICKER_UNKICKED_POSITION + KICKER_KICK_RANGE;
-    // Rated 5-turn servo: 0-1 range maps to ~0-1800 degrees (tunable if real range differs).
-    // Calibrated from field test: 2 slot moves were ~28 deg short (212 vs 240), so range is ~88.3% of nominal 1630.
-    private static final double SPIN_SERVO_RANGE_DEGREES = (360.0 * 4.5) + 7.5;
-    private static final double SPIN_SERVO_RANGE_TURNS = SPIN_SERVO_RANGE_DEGREES / 360.0;
-    private static final double SPIN_SERVO_FULL_TURN = 1.0 / SPIN_SERVO_RANGE_TURNS;
-    private static final double SPIN_SLOT_SPACING_DEGREES = 120.0;
-    // Three slots 120 degrees apart -> converts degrees to servo position based on measured turn range.
-    private static final double SPIN_SLOT_SPACING = (SPIN_SLOT_SPACING_DEGREES / 360.0) * SPIN_SERVO_FULL_TURN;
-    // Tune this to align slot 0 with the collect pocket; leave at 0 to start.
-    private static final double SPIN_BASE_POSITION_COLLECT_DEGREES = 26.5; // positive = clockwise nudge
-    private static final double SPIN_BASE_POSITION_COLLECT = (SPIN_BASE_POSITION_COLLECT_DEGREES / 360.0) * SPIN_SERVO_FULL_TURN;
-    // Offset from collect to shoot mode (in servo position units: 1.0 = 5 full turns = 1800 deg).
-    // Approximately 2/5 of a turn between collect and shoot -> 144 degrees (applied in opposite direction).
-    private static final double SPIN_MODE_OFFSET_DEGREES = 105.0;
-    private static final double SPIN_MODE_OFFSET_SHOOT = (SPIN_MODE_OFFSET_DEGREES / 360.0) * SPIN_SERVO_FULL_TURN;
-    private static final double SPIN_MAX_DEG_PER_SEC = 240.0;
-    private static final double SPIN_MAX_POS_PER_SEC = (SPIN_MAX_DEG_PER_SEC / 360.0) * SPIN_SERVO_FULL_TURN; // 1.0 = full servo range
     private static final double SLOT_CHECK_SETTLE_SEC = 0.25;
     private static final double SLOT_CHECK_DWELL_SEC = 0.25;
     private static final int SLOT_CHECK_BURST_SAMPLES = 5;
     private static final double SLOT_CHECK_SAMPLE_SPACING_SEC = 0.02;
-    private static final double SPIN_SETTLE_BEFORE_KICK_SEC = 0.4; // pause after settling before kicking
     // Teleop drive scaling: higher caps = more authority; fast mode bumps to full send.
     private static final double DRIVE_NORMAL_TRANSLATION_CAP = 0.85;
     private static final double DRIVE_FAST_TRANSLATION_CAP = 1.0;
@@ -260,14 +259,17 @@ public class DecodeRobotControl {
     private final OnActivatedEvaluator lb1ActivatedEvaluator;
     private final OnActivatedEvaluator a1ActivatedEvaluator;
     private final OnActivatedEvaluator liftToggleEvaluator;
-    private final OnActivatedEvaluator y2ActivatedEvaluator;
-    private final OnActivatedEvaluator a2ActivatedEvaluator;
     private final OnActivatedEvaluator x2ActivatedEvaluator;
-    private final OnActivatedEvaluator dpad2LeftActivatedEvaluator;
-    private final OnActivatedEvaluator dpad2RightActivatedEvaluator;
     private final OnActivatedEvaluator rb2ActivatedEvaluator;
+    private final OnActivatedEvaluator lb2ActivatedEvaluator;
+    private final OnActivatedEvaluator rs2ActivatedEvaluator;
+    private final OnActivatedEvaluator ls2ActivatedEvaluator;
+    private final OnActivatedEvaluator y2ActivatedEvaluator;
+    private final OnActivatedEvaluator b2ActivatedEvaluator;
+    private final OnActivatedEvaluator a2ActivatedEvaluator;
     private final DcMotorEx wheel;
     private final DcMotorEx intakeMotor;
+    private final CRServo intakeTop;
     private final SampleMecanumDrive drive;
     private final Servo lift;
     private final WebcamName camera;
@@ -276,58 +278,16 @@ public class DecodeRobotControl {
     // currently unused but attached
     //private final RevColorSensorV3 color1;
     //private final RevColorSensorV3 color2;
-    private final RevColorSensorV3 color3;
-    private final IndicatorLed topLed;
-    private final IndicatorLed midLed;
-    private final IndicatorLed botLed;
     public final VisionPortal visionPortal;
-    public final Servo spin;
-    private final Servo kicker;
-    private int spindexerSlot = 0; // 0-based physical pocket index
-    private int spindexerCycleDirection = 1; // +1 forward, -1 backward for figure-8 cycling
-    private double spindexerCanonicalTargetPosition = SPIN_BASE_POSITION_COLLECT;
-    private double spindexerTargetPosition = SPIN_BASE_POSITION_COLLECT;
-    private double spindexerCommandPosition = SPIN_BASE_POSITION_COLLECT;
-    private SpindexerMode spindexerMode = SpindexerMode.COLLECT;
-    private final BallColor[] spindexerInventory = new BallColor[SPINDEXER_SLOT_COUNT]; // Slot-wise ball colors, filled from slot sensor.
-    private boolean collectorPresenceLatched = false;
-    private boolean collectorPresenceRisingEdge = false;
-    private boolean collectorPresenceFallingEdge = false;
-    private boolean collectorOverCapacity = false;
-    private int collectorEstimatedBallCount = 0;
+    private DcMotorEx toroidMotor;
     private double intakePowerSmoothed = 0.0;
-    private double lastCollectorPresence = 0.0;
-    private double lastColor1ProximityInches = 0.0;
-    private double lastColor2ProximityInches = 0.0;
-    private double lastColor1GreenPresence = 0.0;
-    private double lastColor1PurplePresence = 0.0;
-    private double lastColor2GreenPresence = 0.0;
-    private double lastColor2PurplePresence = 0.0;
-    private double lastColor3ProximityInches = 0.0;
-    private double lastColor3GreenPresence = 0.0;
-    private double lastColor3PurplePresence = 0.0;
-    private boolean color3PresenceLatched = false;
-    private boolean spindexerInTransit = false;
+    private IntakeJamPhase intakeJamPhase = IntakeJamPhase.NONE;
+    private final ElapsedTime intakeJamTimer = new ElapsedTime();
+    private final ElapsedTime intakeJamDetectTimer = new ElapsedTime();
+    private final ElapsedTime intakeJamCooldownTimer = new ElapsedTime();
+    private boolean intakeJamConditionActive = false;
+    private double intakeJamResumePower = 0.0;
     private IntakeState intakeState = IntakeState.FORWARD;
-    private ShootRequestState shootRequestState = ShootRequestState.IDLE;
-    private final ElapsedTime kickerSettleTimer = new ElapsedTime();
-    private final ElapsedTime kickerPulseTimer = new ElapsedTime();
-    private final ElapsedTime shootRequestSettleTimer = new ElapsedTime();
-    private final ElapsedTime slotCheckPhaseTimer = new ElapsedTime();
-    private final ElapsedTime slotCheckSampleTimer = new ElapsedTime();
-    private SlotCheckPhase slotCheckPhase = SlotCheckPhase.IDLE;
-    private int slotCheckActiveSlot = -1;
-    private int slotCheckSamplesCollected = 0;
-    private double slotCheckMaxGreenPresence = 0.0;
-    private double slotCheckMaxPurplePresence = 0.0;
-    private final double[] slotLastCheckTimeSeconds = new double[SPINDEXER_SLOT_COUNT];
-    private final BallColor[] slotLastCheckColor = new BallColor[SPINDEXER_SLOT_COUNT];
-    private final boolean[] slotLastCheckPresence = new boolean[SPINDEXER_SLOT_COUNT];
-    private final int[] slotLastCheckSamples = new int[SPINDEXER_SLOT_COUNT];
-    private final double[] slotLastCheckMaxGreen = new double[SPINDEXER_SLOT_COUNT];
-    private final double[] slotLastCheckMaxPurple = new double[SPINDEXER_SLOT_COUNT];
-    private final int[] slotEmptyStrikes = new int[SPINDEXER_SLOT_COUNT];
-    private final ArrayDeque<Integer> slotCheckQueue = new ArrayDeque<>();
     private boolean shooterEnabled = true;
     private double shooterDesiredExitVelocityIps = 0.0;
     private double shooterDesiredWheelTicksPerSecond = 0.0;
@@ -342,10 +302,7 @@ public class DecodeRobotControl {
     private Pose2d lastTagDerivedPose = null;
     private final ArrayDeque<Pose2d> tagPoseQueue = new ArrayDeque<>();
     private boolean intakeEnabled = true;
-    private int spindexerQueuedDelta = 0;
     private Pose2d currentAutoDriveTarget = null;
-    private boolean kickerKicked = false;
-    private boolean kickerSettling = false;
     private ShotSolution lastShotSolution = null;
     private boolean lastShotBlockedByRim = false;
     private double lastDriveTranslationCap = DRIVE_NORMAL_TRANSLATION_CAP;
@@ -356,6 +313,23 @@ public class DecodeRobotControl {
     private int lastObeliskTagId = -1;
     private double lastObeliskTagHeading = Double.NaN;
     private double lastObeliskTagX = Double.NaN;
+
+    private ToroidMode toroidMode = ToroidMode.STOP;
+    private TransitionPhase toroidTransitionPhase = TransitionPhase.NONE;
+    private final ElapsedTime toroidTransitionTimer = new ElapsedTime();
+    private ToroidJamPhase toroidJamPhase = ToroidJamPhase.NONE;
+    private final ElapsedTime toroidJamTimer = new ElapsedTime();
+    private final ElapsedTime toroidJamDetectTimer = new ElapsedTime();
+    private final ElapsedTime toroidJamCooldownTimer = new ElapsedTime();
+    private boolean toroidJamConditionActive = false;
+    private double toroidJamResumeRpm = 0.0;
+    private int toroidJamResumeSign = 0;
+    private int toroidTargetStepIndex = 0;
+    private int toroidLastTargetSign = 0;
+    private double toroidPendingTargetRpm = 0.0;
+    private int toroidPendingTargetSign = 0;
+    private double toroidTargetRpm = 0.0;
+    private double toroidTargetTps = 0.0;
 
     private final Pose2d initialPose;
     private Pose2d autonomousStartPose = null;
@@ -372,13 +346,11 @@ public class DecodeRobotControl {
         camera = hardwareMap.get(WebcamName.class, "Webcam 1");
         //color1 = hardwareMap.get(RevColorSensorV3.class, "color1");
         //color2 = hardwareMap.get(RevColorSensorV3.class, "color2");
-        color3 = hardwareMap.get(RevColorSensorV3.class, "color3");
-        spin = hardwareMap.get(Servo.class, "spin");
-        kicker = hardwareMap.get(Servo.class, "kicker");
-        kicker.setPosition(Range.clip(KICKER_UNKICKED_POSITION, 0.0, 1.0));
-        resetSpindexerInventory();
-        initializeSlotCheckMetadata();
-        initializeSpindexerToMidrange();
+        toroidMotor = hardwareMap.get(DcMotorEx.class, TOROID_MOTOR_NAME);
+        toroidMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        toroidMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        toroidMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        toroidMotor.setDirection(DcMotorSimple.Direction.FORWARD);
         wheel = hardwareMap.get(DcMotorEx.class, "wheel");
         wheel.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         wheel.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
@@ -389,13 +361,8 @@ public class DecodeRobotControl {
         intakeMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         intakeMotor.setDirection(DcMotorSimple.Direction.FORWARD);
         intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-
-        topLed = new IndicatorLed(hardwareMap, "topLedG", "topLedR");
-        midLed = new IndicatorLed(hardwareMap, "midLedG", "midLedR");
-        botLed = new IndicatorLed(hardwareMap, "botLedG", "botLedR");
-        topLed.setOff();
-        midLed.setOff();
-        botLed.setOff();
+        intakeTop = hardwareMap.get(CRServo.class, "intakeTop");
+        intakeTop.setPower(0.0);
 
         aprilTagProcessor = new AprilTagProcessor.Builder().build();
 
@@ -429,12 +396,14 @@ public class DecodeRobotControl {
         rb1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.right_bumper);
         a1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.a);
         liftToggleEvaluator = new OnActivatedEvaluator(() -> gamepad1.b && gamepad1.y);
-        y2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.y);
-        rb2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_bumper);
-        a2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.a);
         x2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.x);
-        dpad2LeftActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.dpad_left);
-        dpad2RightActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.dpad_right);
+        rb2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_bumper);
+        lb2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.left_bumper);
+        rs2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_stick_button);
+        ls2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.left_stick_button);
+        y2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.y);
+        b2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.b);
+        a2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.a);
         lb1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.left_bumper);
 
         drive = new SampleMecanumDrive(hardwareMap);
@@ -559,22 +528,7 @@ public class DecodeRobotControl {
             packet.put("RecoveredPoseHeadingDeg", Math.toDegrees(recoveredPose.getHeading()));
         }
 
-        packet.put("Color1ProximityInches", lastColor1ProximityInches);
-        packet.put("Color1GreenPresence", lastColor1GreenPresence);
-        packet.put("Color1PurplePresence", lastColor1PurplePresence);
-        packet.put("Color2ProximityInches", lastColor2ProximityInches);
-        packet.put("Color2GreenPresence", lastColor2GreenPresence);
-        packet.put("Color2PurplePresence", lastColor2PurplePresence);
-        packet.put("Color3ProximityInches", lastColor3ProximityInches);
-        packet.put("Color3GreenPresence", lastColor3GreenPresence);
-        packet.put("Color3PurplePresence", lastColor3PurplePresence);
-        packet.put("Color3PresenceLatched", color3PresenceLatched);
-        packet.put("CollectorPresence", lastCollectorPresence);
-        packet.put("CollectorOverCapacity", collectorOverCapacity);
-        packet.put("CollectorEstimatedBallCount", collectorEstimatedBallCount);
-        packet.put("CollectorPresenceLatched", collectorPresenceLatched);
-        packet.put("CollectorPresenceRising", collectorPresenceRisingEdge);
-        packet.put("CollectorPresenceFalling", collectorPresenceFallingEdge);
+        // Collector color/presence telemetry removed for toroid indexer.
 
         Canvas overlay = packet.fieldOverlay();
         Pose2d shooterPose = getShooterPoseEstimate();
@@ -639,7 +593,6 @@ public class DecodeRobotControl {
 
         overlay.fillCircle(sx, sy, 5)
                 .strokeLine(sx, sy, shx, shy);
-        drawSpindexerInventoryIcons(overlay, sx, sy);
 
         packet.put("loopTime", loopTime.milliseconds());
         packet.put("x", x);
@@ -697,42 +650,32 @@ public class DecodeRobotControl {
         packet.put("IntakeState", intakeState.name());
         packet.put("IntakeVelocityTicksPerSec", intakeVelocityTicksPerSec);
         packet.put("IntakeVelocityInchesPerSec", intakeVelocityInchesPerSec);
-        packet.put("Color1ProximityInches", lastColor1ProximityInches);
-        packet.put("Color1GreenPresence", lastColor1GreenPresence);
-        packet.put("Color1PurplePresence", lastColor1PurplePresence);
-        packet.put("Color2ProximityInches", lastColor2ProximityInches);
-        packet.put("Color2GreenPresence", lastColor2GreenPresence);
-        packet.put("Color2PurplePresence", lastColor2PurplePresence);
-        packet.put("CollectorPresence", lastCollectorPresence);
-        packet.put("CollectorOverCapacity", collectorOverCapacity);
-        packet.put("CollectorEstimatedBallCount", collectorEstimatedBallCount);
-        packet.put("CollectorPresenceLatched", collectorPresenceLatched);
-        packet.put("CollectorPresenceRising", collectorPresenceRisingEdge);
-        packet.put("CollectorPresenceFalling", collectorPresenceFallingEdge);
+        packet.put("IntakeJamPhase", intakeJamPhase.name());
+        packet.put("IntakeJamCondition", intakeJamConditionActive);
+        packet.put("IntakeJamDetectSec", intakeJamDetectTimer.seconds());
+        packet.put("IntakeJamTimerSec", intakeJamTimer.seconds());
+        packet.put("IntakeJamResumePower", intakeJamResumePower);
+        packet.put("IntakeJamCooldownSec", intakeJamCooldownTimer.seconds());
         packet.put("DriveInputX", driveInput.getX());
         packet.put("DriveInputY", driveInput.getY());
         packet.put("DriveFrontReversed", driveFrontReversed);
         packet.put("DriveTranslationCap", lastDriveTranslationCap);
         packet.put("DriveTurnCap", lastDriveTurnCap);
-        packet.put("SpindexerSlot", Math.floorMod(spindexerSlot, SPINDEXER_SLOT_COUNT) + 1); // human-friendly 1-based
-        packet.put("SpindexerMode", spindexerMode.name());
-        packet.put("ShootRequestState", shootRequestState.name());
-        packet.put("ShootRequestSettleSec", shootRequestSettleTimer.seconds());
-        packet.put("SpindexerSettled", isSpindexerSettled());
-        packet.put("KickerKicked", kickerKicked);
-        packet.put("KickerSettling", kickerSettling);
-        packet.put("SpindexerCanonicalTarget", spindexerCanonicalTargetPosition);
-        packet.put("SpindexerTargetPosition", spindexerTargetPosition);
-        packet.put("SpindexerCommandPosition", spindexerCommandPosition);
-        packet.put("SpindexerServoPosition", spin.getPosition());
-        packet.put("SpindexerDelta", spindexerTargetPosition - spindexerCommandPosition);
-        packet.put("SpindexerInTransit", spindexerInTransit);
-        packet.put("SlotCheckPhase", slotCheckPhase.name());
-        packet.put("SlotCheckActiveSlot", slotCheckActiveSlot >= 0 ? slotCheckActiveSlot + 1 : -1);
-        packet.put("SlotCheckQueueSize", slotCheckQueue.size());
-        packet.put("SlotCheckSamples", slotCheckSamplesCollected);
-        packet.put("SlotCheckMaxGreen", slotCheckMaxGreenPresence);
-        packet.put("SlotCheckMaxPurple", slotCheckMaxPurplePresence);
+        packet.put("ToroidMode", toroidMode.name());
+        packet.put("ToroidTargetRpm", toroidTargetRpm);
+        packet.put("ToroidTargetTps", toroidTargetTps);
+        packet.put("ToroidActualTps", toroidMotor != null ? toroidMotor.getVelocity() : 0.0);
+        packet.put("ToroidCurrentA", toroidMotor != null ? toroidMotor.getCurrent(CurrentUnit.AMPS) : 0.0);
+        packet.put("ToroidPosTicks", toroidMotor != null ? toroidMotor.getCurrentPosition() : 0);
+        packet.put("ToroidTargetStep", toroidTargetStepIndex);
+        packet.put("ToroidTargetPosTicks", (int) Math.round(toroidTargetStepIndex * TOROID_STEP_TICKS));
+        packet.put("ToroidTransition", toroidTransitionPhase.name());
+        packet.put("ToroidJamPhase", toroidJamPhase.name());
+        packet.put("ToroidJamCondition", toroidJamConditionActive);
+        packet.put("ToroidJamDetectSec", toroidJamDetectTimer.seconds());
+        packet.put("ToroidJamTimerSec", toroidJamTimer.seconds());
+        packet.put("ToroidJamResumeRpm", toroidJamResumeRpm);
+        packet.put("ToroidJamCooldownSec", toroidJamCooldownTimer.seconds());
         packet.put("ObeliskPattern", obeliskPattern.name());
         packet.put("ObeliskTagId", lastObeliskTagId);
         packet.put("ObeliskTagHeading", lastObeliskTagHeading);
@@ -740,17 +683,6 @@ public class DecodeRobotControl {
         packet.put("ObeliskVotesGreenFirst", obeliskPatternVotes[ObeliskPattern.GREEN_FIRST.ordinal()]);
         packet.put("ObeliskVotesGreenMiddle", obeliskPatternVotes[ObeliskPattern.GREEN_MIDDLE.ordinal()]);
         packet.put("ObeliskVotesGreenLast", obeliskPatternVotes[ObeliskPattern.GREEN_LAST.ordinal()]);
-        for (int i = 0; i < SPINDEXER_SLOT_COUNT; i++) {
-            packet.put("SpindexerSlot" + (i + 1) + "Color", spindexerInventory[i].name());
-            packet.put("SpindexerSlot" + (i + 1) + "LastCheckTimeSec", slotLastCheckTimeSeconds[i]);
-            packet.put("SpindexerSlot" + (i + 1) + "LastCheckPresence", slotLastCheckPresence[i]);
-            packet.put("SpindexerSlot" + (i + 1) + "LastCheckSamples", slotLastCheckSamples[i]);
-            packet.put("SpindexerSlot" + (i + 1) + "LastCheckMaxGreen", slotLastCheckMaxGreen[i]);
-            packet.put("SpindexerSlot" + (i + 1) + "LastCheckMaxPurple", slotLastCheckMaxPurple[i]);
-            packet.put("SpindexerSlot" + (i + 1) + "LastCheckColor", slotLastCheckColor[i].name());
-        }
-        packet.put("KickerTargetPosition", kickerKicked ? KICKER_KICKED_POSITION : KICKER_UNKICKED_POSITION);
-        packet.put("KickerServoPosition", kicker.getPosition());
         // Shot solution telemetry removed for clarity.
         packet.put("ShooterTransferRatio", shooterTransferRatio);
         packet.put("ShooterLossTrim", shooterLossTrim);
@@ -775,7 +707,6 @@ public class DecodeRobotControl {
         latestPoseEstimate = poseToUse;
         autonomousStartPose = poseToUse;
         recoveredPose = null;
-        seedAutonomousInventory(autonomousPlan);
         setCommandSequence(buildAutonomousCommands(autonomousPlan));
     }
 
@@ -822,6 +753,38 @@ public class DecodeRobotControl {
     public boolean evaluate() {
         double dt = loopTime.milliseconds();
         loopTime.reset();
+        if (TOROID_TEST_ONLY) {
+            updateToroidControl();
+            setDrivePower(new Pose2d());
+            if (rs2ActivatedEvaluator.evaluate()) {
+                shooterEnabled = !shooterEnabled;
+            }
+            if (ls2ActivatedEvaluator.evaluate()) {
+                shooterEnabled = false;
+            }
+            updateShooterControl(true);
+            boolean intakeToggleRequest = x2ActivatedEvaluator.evaluate();
+            if (intakeToggleRequest) {
+                intakeEnabled = !intakeEnabled;
+            }
+            boolean manualIntakeReverse = gamepad2.dpad_down;
+            if (manualIntakeReverse) {
+                intakeState = IntakeState.REVERSE_REJECT;
+            } else if (intakeEnabled) {
+                intakeState = IntakeState.FORWARD;
+            } else {
+                intakeState = IntakeState.OFF;
+            }
+            double intakePowerTarget = 0.0;
+            if (intakeState == IntakeState.FORWARD) {
+                intakePowerTarget = INTAKE_MOTOR_POWER;
+            } else if (intakeState == IntakeState.REVERSE_REJECT) {
+                intakePowerTarget = -INTAKE_MOTOR_POWER;
+            }
+            updateIntakePower(intakePowerTarget, dt);
+            lift.setPosition(1.0);
+            return state != OpModeState.HALT_OPMODE;
+        }
         drive.update();
         latestPoseEstimate = drive.getPoseEstimate();
         evaluateSwitchCamera();
@@ -847,8 +810,6 @@ public class DecodeRobotControl {
             timeInState.reset();
             state = nextState;
         }
-
-        updateSpindexerIndicators();
 
         return state != OpModeState.HALT_OPMODE;
     }
@@ -957,7 +918,9 @@ public class DecodeRobotControl {
             double avgLinear = Math.max(1e-3, 0.5 * (tangentialSpeedIps + exitVelocityIps));
             double contactTime = SHOOTER_CONTACT_ARC_LENGTH_INCHES / avgLinear;
             double rollSpinRadPerSec = (naturalRotations * 2 * Math.PI) / Math.max(1e-3, contactTime);
-            backSpinRadPerSec = rollSpinRadPerSec;
+            backSpinRadPerSec = (exitVelocityIps / BALL_RADIUS_INCHES)
+                    * SHOOTER_SPIN_GEOMETRY_RATIO
+                    * SHOOTER_SPIN_EFFICIENCY;
             double liftRatio = Math.max(0.0, BACKSPIN_LIFT_PER_RAD_PER_SEC * backSpinRadPerSec);
             double magnusMultiplier = Math.max(0.1, 1.0 - liftRatio);
             effectiveGravity = BALLISTIC_GRAVITY_IN_PER_S2 * magnusMultiplier;
@@ -1033,7 +996,63 @@ public class DecodeRobotControl {
         double maxDelta = INTAKE_POWER_SLEW_PER_SEC * (dtMillis / 1000.0);
         double delta = Range.clip(targetPower - intakePowerSmoothed, -maxDelta, maxDelta);
         intakePowerSmoothed = Range.clip(intakePowerSmoothed + delta, -1.0, 1.0);
+        double actualTps = intakeMotor.getVelocity();
+        double currentAmps = intakeMotor.getCurrent(CurrentUnit.AMPS);
+        double requestedSign = Math.abs(intakePowerSmoothed) < 1e-3 ? 0.0 : Math.signum(intakePowerSmoothed);
+
+        boolean jamAllowed = requestedSign != 0.0
+                && intakeJamPhase == IntakeJamPhase.NONE
+                && intakeJamCooldownTimer.seconds() >= INTAKE_JAM_COOLDOWN_SEC;
+        boolean jamCondition = jamAllowed
+                && Math.abs(actualTps) <= INTAKE_JAM_SPEED_TPS
+                && currentAmps >= INTAKE_JAM_CURRENT_AMPS;
+        if (jamCondition) {
+            if (!intakeJamConditionActive) {
+                intakeJamConditionActive = true;
+                intakeJamDetectTimer.reset();
+            }
+            if (intakeJamDetectTimer.seconds() >= INTAKE_JAM_DETECT_SEC) {
+                intakeJamPhase = IntakeJamPhase.RELAX;
+                intakeJamTimer.reset();
+                intakeJamResumePower = intakePowerSmoothed;
+                intakeJamConditionActive = false;
+                intakeJamDetectTimer.reset();
+            }
+        } else {
+            intakeJamConditionActive = false;
+        }
+
+        if (intakeJamPhase != IntakeJamPhase.NONE) {
+            if (intakeJamPhase == IntakeJamPhase.RELAX) {
+                intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+                intakeMotor.setPower(0.0);
+                intakeTop.setPower((INTAKE_TOP_INVERTED ? -1.0 : 1.0) * intakeJamResumePower);
+                if (Math.abs(actualTps) <= INTAKE_JAM_STOP_TPS
+                        || intakeJamTimer.seconds() >= INTAKE_JAM_RELAX_MAX_SEC) {
+                    intakeJamPhase = IntakeJamPhase.REVERSE;
+                    intakeJamTimer.reset();
+                }
+            } else if (intakeJamPhase == IntakeJamPhase.REVERSE) {
+                if (Math.abs(intakeJamResumePower) < 1e-3) {
+                    intakeJamPhase = IntakeJamPhase.NONE;
+                    intakeJamCooldownTimer.reset();
+                } else {
+                    intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+                    double reversePower = -Math.signum(intakeJamResumePower) * INTAKE_JAM_REVERSE_POWER;
+                    intakeMotor.setPower(reversePower);
+                    intakeTop.setPower((INTAKE_TOP_INVERTED ? -1.0 : 1.0) * intakeJamResumePower);
+                    if (intakeJamTimer.seconds() >= INTAKE_JAM_REVERSE_SEC) {
+                        intakeJamPhase = IntakeJamPhase.NONE;
+                        intakeJamCooldownTimer.reset();
+                    }
+                }
+            }
+            return;
+        }
+
+        intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         intakeMotor.setPower(intakePowerSmoothed);
+        intakeTop.setPower((INTAKE_TOP_INVERTED ? -1.0 : 1.0) * intakePowerSmoothed);
     }
 
     private double solveTimeToHeight(double effectiveGravity, double exitVelocityIps, double targetHeight) {
@@ -1054,12 +1073,6 @@ public class DecodeRobotControl {
         return -1;
     }
 
-    private static class SlotSensorSample {
-        double proximityInches;
-        double greenPresence;
-        double purplePresence;
-    }
-
     private static class ShotSolution {
         double exitVelocityIps;
         double wheelTicksPerSecond;
@@ -1077,64 +1090,23 @@ public class DecodeRobotControl {
 
     private OpModeState evaluateManualControl(double dtMillis) {
         // Default shooter on; right bumper toggles off/on via the edge evaluator.
-        if (rb2ActivatedEvaluator.evaluate()) {
-            shooterEnabled = !shooterEnabled;
-        }
-
         updateShooterControl(true);
 
-        boolean shootRequest = false;
-        boolean trimDownRequest = y2ActivatedEvaluator.evaluate();
-        boolean trimUpRequest = a2ActivatedEvaluator.evaluate();
         boolean intakeToggleRequest = x2ActivatedEvaluator.evaluate();
-        boolean stepSlotLeftRequest = dpad2LeftActivatedEvaluator.evaluate();
-        boolean stepSlotRightRequest = dpad2RightActivatedEvaluator.evaluate();
-        boolean kickRequest = gamepad2.b;
+        boolean trimFasterRequest = rb2ActivatedEvaluator.evaluate();
+        boolean trimSlowerRequest = lb2ActivatedEvaluator.evaluate();
 
         //sampleCollectorPresence(); // keep telemetry updated; no longer drives intake control
-        updateSlotCheckMachine();
-
-        boolean allowSlotCycle = !shootRequest && shootRequestState == ShootRequestState.IDLE;
-        if (allowSlotCycle) {
-            if (stepSlotLeftRequest) {
-                stepSpindexerSlot(-1);
-            } else if (stepSlotRightRequest) {
-                stepSpindexerSlot(1);
-            }
-        }
-        if (trimUpRequest && shooterTransferTrimClicks < SHOOTER_TRANSFER_CLICK_LIMIT) {
-            shooterTransferTrimClicks++;
-        } else if (trimDownRequest && shooterTransferTrimClicks > -SHOOTER_TRANSFER_CLICK_LIMIT) {
-            shooterTransferTrimClicks--;
-        }
         if (intakeToggleRequest) {
             intakeEnabled = !intakeEnabled;
         }
-
-        boolean manualShootStart = kickRequest && shootRequestState == ShootRequestState.IDLE && !kickerKicked && !kickerSettling;
-        if (manualShootStart) {
-            startShootRequest();
+        if (trimFasterRequest && shooterTransferTrimClicks > -SHOOTER_TRANSFER_CLICK_LIMIT) {
+            shooterTransferTrimClicks--;
+        } else if (trimSlowerRequest && shooterTransferTrimClicks < SHOOTER_TRANSFER_CLICK_LIMIT) {
+            shooterTransferTrimClicks++;
         }
 
-        updateShootRequest(shootRequest);
-
-        if (shootRequestState == ShootRequestState.IDLE && !shootRequest && !kickRequest && !kickerKicked && !kickerSettling && spindexerMode == SpindexerMode.SHOOT) {
-            spindexerMode = SpindexerMode.COLLECT;
-            retargetSpindexer();
-        }
-
-        updateKickerPulse();
-        updateKickerSettling();
-
-        updateSpindexerPosition(dtMillis / 1000.0);
-        if (spindexerQueuedDelta != 0 && isSpindexerSettled()) {
-            int queued = spindexerQueuedDelta;
-            spindexerQueuedDelta = 0;
-            if (setSpindexerSlotIfValid(spindexerSlot + queued)) {
-                spindexerCycleDirection = queued;
-            }
-        }
-        spindexerInTransit = Math.abs(spindexerTargetPosition - spindexerCommandPosition) > SPIN_IN_TRANSIT_THRESHOLD;
+        updateToroidControl();
 
         if (liftToggleEvaluator.evaluate()) {
             lifted = !lifted;
@@ -1145,9 +1117,6 @@ public class DecodeRobotControl {
         }
 
         lift.setPosition(lifted ? 0.0 : 1.0);
-
-        double kickerTarget = kickerKicked ? KICKER_KICKED_POSITION : KICKER_UNKICKED_POSITION;
-        kicker.setPosition(Range.clip(kickerTarget, 0.0, 1.0));
 
         boolean manualIntakeReverse = gamepad2.dpad_down;
 
@@ -1265,536 +1234,144 @@ public class DecodeRobotControl {
         return Math.copySign(scaled * scaled, value);
     }
 
-    private double computeCanonicalSpindexerPosition(int slot, SpindexerMode mode) {
-        double canonical = SPIN_BASE_POSITION_COLLECT + (slot * SPIN_SLOT_SPACING);
-        if (mode == SpindexerMode.SHOOT) {
-            canonical -= SPIN_MODE_OFFSET_SHOOT;
-        }
-        return canonical;
-    }
-
-    private double computeCanonicalSpindexerPosition(int slot) {
-        return computeCanonicalSpindexerPosition(slot, spindexerMode);
-    }
-
-    // Choose the nearest in-range position to minimize travel on a multi-turn servo.
-    private double findNearestTargetInRange(double canonicalTarget, double currentPosition) {
-        double bestTarget = Range.clip(canonicalTarget, 0.0, 1.0);
-        double bestDistance = Math.abs(bestTarget - currentPosition);
-        int maxTurns = (int) Math.ceil(1.0 / SPIN_SERVO_FULL_TURN);
-        for (int k = -maxTurns; k <= maxTurns; k++) {
-            double candidate = canonicalTarget + (k * SPIN_SERVO_FULL_TURN);
-            if (candidate < 0.0 || candidate > 1.0) {
-                continue;
-            }
-            double distance = Math.abs(candidate - currentPosition);
-            if (distance < bestDistance) {
-                bestDistance = distance;
-                bestTarget = candidate;
-            }
-        }
-        return bestTarget;
-    }
-
-    private void retargetSpindexer() {
-        spindexerCanonicalTargetPosition = computeCanonicalSpindexerPosition(spindexerSlot);
-        spindexerTargetPosition = findNearestTargetInRange(spindexerCanonicalTargetPosition, spindexerCommandPosition);
-    }
-
-    private boolean setSpindexerSlotIfValid(int candidate) {
-        if (!isSpindexerMotionAllowed()) {
-            return false;
-        }
-        if (candidate < 0 || candidate >= SPINDEXER_SLOT_COUNT) {
-            return false;
-        }
-        if (candidate == spindexerSlot) {
-            return false;
-        }
-        spindexerSlot = candidate;
-        retargetSpindexer();
-        return true;
-    }
-
-    private void stepSpindexerSlot(int direction) {
-        int step = direction >= 0 ? 1 : -1;
-        requestSpindexerStep(step);
-    }
-
-    private void advanceSpindexerSlotFigureEight() {
-        int candidate = spindexerSlot + spindexerCycleDirection;
-        if (candidate < 0 || candidate >= SPINDEXER_SLOT_COUNT) {
-            spindexerCycleDirection *= -1;
-            candidate = spindexerSlot + spindexerCycleDirection;
-        }
-        setSpindexerSlotIfValid(candidate);
-    }
-
-    private void requestSpindexerStep(int step) {
-        if (!isSpindexerMotionAllowed()) {
+    private void updateToroidControl() {
+        if (toroidMotor == null) {
             return;
         }
-        if (step == 0) {
-            return;
+
+        double ccwSign = TOROID_CCW_IS_POSITIVE ? 1.0 : -1.0;
+        int currentPosition = toroidMotor.getCurrentPosition();
+        int currentStepIndex = (int) Math.round(currentPosition / TOROID_STEP_TICKS);
+
+        int lead = toroidTargetStepIndex - currentStepIndex;
+        if (Math.abs(lead) > 1) {
+            toroidTargetStepIndex = currentStepIndex + (lead > 0 ? 1 : -1);
         }
-        if (isSpindexerSettled()) {
-            if (setSpindexerSlotIfValid(spindexerSlot + step)) {
-                spindexerCycleDirection = step;
+
+        boolean transitStep = y2ActivatedEvaluator.evaluate();
+        boolean shootStep = b2ActivatedEvaluator.evaluate();
+        boolean stopStep = a2ActivatedEvaluator.evaluate();
+        if (transitStep) {
+            int stepDir = (int) Math.signum(TOROID_TRANSIT_CCW ? ccwSign : -ccwSign);
+            if (Math.abs(toroidTargetStepIndex - currentStepIndex) < 1) {
+                toroidTargetStepIndex += stepDir;
             }
-            return;
-        }
-        if (spindexerQueuedDelta == 0) {
-            spindexerQueuedDelta = step;
-        } else if (spindexerQueuedDelta == -step) {
-            spindexerQueuedDelta = 0;
-        }
-    }
-
-    private void cycleSpindexerSlot(int deltaSlots) {
-        if (!isSpindexerMotionAllowed()) {
-            return;
-        }
-        int nextSlot = Math.floorMod(spindexerSlot + deltaSlots, SPINDEXER_SLOT_COUNT);
-        if (nextSlot == spindexerSlot) {
-            return;
-        }
-        spindexerSlot = nextSlot;
-        retargetSpindexer();
-    }
-
-    private void initializeSpindexerToMidrange() {
-        spindexerMode = SpindexerMode.COLLECT;
-        spindexerSlot = 0;
-        spindexerCanonicalTargetPosition = computeCanonicalSpindexerPosition(spindexerSlot);
-        double centeredTarget = findNearestTargetInRange(spindexerCanonicalTargetPosition, 0.5);
-        spindexerTargetPosition = centeredTarget;
-        spindexerCommandPosition = centeredTarget;
-        spin.setPosition(spindexerCommandPosition);
-    }
-
-    private void setKickerKicked(boolean kicked) {
-        boolean wasKicked = kickerKicked;
-        kickerKicked = kicked;
-        if (kickerKicked) {
-            kickerSettling = false;
-        } else if (wasKicked) {
-            kickerSettling = true;
-            kickerSettleTimer.reset();
-        }
-    }
-
-    private void startKickerPulse() {
-        setKickerKicked(true);
-        kickerPulseTimer.reset();
-    }
-
-    private void updateKickerSettling() {
-        if (kickerSettling && kickerSettleTimer.seconds() >= KICKER_SETTLE_AFTER_UNKICK_SEC) {
-            kickerSettling = false;
-        }
-    }
-
-    private void updateKickerPulse() {
-        if (kickerKicked && kickerPulseTimer.seconds() >= KICKER_PULSE_SEC) {
-            setKickerKicked(false);
-            clearShotSlotAfterKick();
-        }
-    }
-
-    private void clearShotSlotAfterKick() {
-        int shotSlot = getShotSlotIndex();
-        setSlotColor(shotSlot, BallColor.EMPTY);
-    }
-
-    private int getShotSlotIndex() {
-        if (spindexerMode == SpindexerMode.SHOOT) {
-            return Math.floorMod(spindexerSlot, SPINDEXER_SLOT_COUNT);
-        }
-        // Fallback to the prior geometry assumption if we fire while not explicitly in shoot mode.
-        return Math.floorMod(spindexerSlot - 1, SPINDEXER_SLOT_COUNT);
-    }
-
-    private boolean isSpindexerMotionAllowed() {
-        return !kickerKicked && !kickerSettling;
-    }
-
-    private int findNearestShootSlot() {
-        double current = spindexerCommandPosition;
-        double bestDistance = Double.POSITIVE_INFINITY;
-        int bestSlot = spindexerSlot;
-        for (int i = 0; i < SPINDEXER_SLOT_COUNT; i++) {
-            double canonicalShoot = computeCanonicalSpindexerPosition(i, SpindexerMode.SHOOT);
-            double target = findNearestTargetInRange(canonicalShoot, current);
-            double distance = Math.abs(target - current);
-            if (distance < bestDistance) {
-                bestDistance = distance;
-                bestSlot = i;
+            toroidMode = ToroidMode.TRANSIT;
+        } else if (shootStep) {
+            int stepDir = (int) Math.signum(TOROID_SHOOT_CCW ? ccwSign : -ccwSign);
+            if (Math.abs(toroidTargetStepIndex - currentStepIndex) < 1) {
+                toroidTargetStepIndex += stepDir;
             }
+            toroidMode = ToroidMode.SHOOT;
+        } else if (stopStep) {
+            toroidTargetStepIndex = currentStepIndex;
+            toroidMode = ToroidMode.STOP;
         }
-        return bestSlot;
-    }
 
-    private void startShootRequest() {
-        spindexerSlot = findNearestShootSlot();
-        spindexerMode = SpindexerMode.SHOOT;
-        retargetSpindexer();
-        shootRequestState = ShootRequestState.MOVE_TO_SHOOT;
-        shootRequestSettleTimer.reset();
-    }
+        int targetPosition = (int) Math.round(toroidTargetStepIndex * TOROID_STEP_TICKS);
+        int positionError = targetPosition - currentPosition;
+        boolean atTarget = Math.abs(positionError) <= TOROID_POSITION_TOLERANCE_TICKS;
+        int desiredSign = atTarget ? 0 : (positionError > 0 ? 1 : -1);
+        double targetRpmMag = (toroidMode == ToroidMode.SHOOT) ? TOROID_SHOOT_RPM : TOROID_TRANSIT_RPM;
+        toroidTargetRpm = desiredSign * targetRpmMag;
 
-    private void updateShootRequest(boolean shootButtonPressed) {
-        switch (shootRequestState) {
-            case IDLE:
-                if (shootButtonPressed && !kickerKicked && !kickerSettling) {
-                    startShootRequest();
-                }
-                break;
-            case MOVE_TO_SHOOT:
-                spindexerMode = SpindexerMode.SHOOT;
-                retargetSpindexer();
-                if (isSpindexerSettled()) {
-                    if (shootRequestSettleTimer.seconds() >= SPIN_SETTLE_BEFORE_KICK_SEC) {
-                        startKickerPulse();
-                        shootRequestState = ShootRequestState.KICKING;
-                    }
-                } else {
-                    shootRequestSettleTimer.reset();
-                }
-                break;
-            case KICKING:
-                spindexerMode = SpindexerMode.SHOOT;
-                if (!kickerKicked) {
-                    spindexerMode = SpindexerMode.COLLECT;
-                    retargetSpindexer();
-                    shootRequestState = ShootRequestState.RETURNING_TO_COLLECT;
-                    shootRequestSettleTimer.reset();
-                }
-                break;
-            case RETURNING_TO_COLLECT:
-                spindexerMode = SpindexerMode.COLLECT;
-                retargetSpindexer();
-                if (!kickerSettling && isSpindexerSettled()) {
-                    shootRequestState = ShootRequestState.IDLE;
-                    shootRequestSettleTimer.reset();
-                }
-                break;
-            default:
-                break;
-        }
-    }
+        int targetSign = toroidTargetRpm == 0.0 ? 0 : (toroidTargetRpm > 0.0 ? 1 : -1);
+        double actualTps = toroidMotor.getVelocity();
+        double currentAmps = toroidMotor.getCurrent(CurrentUnit.AMPS);
+        int actualSign = Math.abs(actualTps) > TOROID_VELOCITY_SIGN_THRESHOLD_TPS ? (actualTps > 0.0 ? 1 : -1) : 0;
+        boolean reversing = targetSign != 0 && actualSign != 0 && targetSign != actualSign;
+        toroidPendingTargetRpm = toroidTargetRpm;
+        toroidPendingTargetSign = targetSign;
 
-    private void updateSpindexerPosition(double dtSeconds) {
-        spindexerTargetPosition = Range.clip(spindexerTargetPosition, 0.0, 1.0);
-        double maxStep = SPIN_MAX_POS_PER_SEC * dtSeconds;
-        double error = spindexerTargetPosition - spindexerCommandPosition;
-        double step = Range.clip(error, -maxStep, maxStep);
-        double nextPos = Range.clip(spindexerCommandPosition + step, 0.0, 1.0);
-        if (isSpindexerMotionAllowed()) { // do not move when kicker is engaged or settling
-            spindexerCommandPosition = nextPos;
-            spin.setPosition(spindexerCommandPosition);
-        }
-    }
-
-    private void updateSpindexerPosition() {
-        spindexerTargetPosition = Range.clip(spindexerTargetPosition, 0.0, 1.0);
-        if (isSpindexerMotionAllowed()) { // do not move when kicker is engaged or settling
-            spindexerCommandPosition = spindexerTargetPosition;
-            spin.setPosition(spindexerCommandPosition);
-        }
-    }
-
-    private void resetSpindexerInventory() {
-        Arrays.fill(spindexerInventory, BallColor.EMPTY);
-    }
-
-    private void seedAutonomousInventory(AutonomousPlan plan) {
-        if (plan == null) {
-            return;
-        }
-        switch (plan) {
-            case SHOOT_THREE_FROM_CORNER:
-            case SHOOT_THREE_FROM_BACK:
-                setSlotColor(0, BallColor.GREEN);
-                setSlotColor(1, BallColor.PURPLE);
-                setSlotColor(2, BallColor.PURPLE);
-                spindexerSlot = 0;
-                retargetSpindexer();
-                updateSpindexerPosition();
-                break;
-            default:
-                break;
-        }
-    }
-
-    private BallColor getSlotColor(int slotIndex) {
-        int boundedIndex = Math.floorMod(slotIndex, SPINDEXER_SLOT_COUNT);
-        return spindexerInventory[boundedIndex];
-    }
-
-    private void setSlotColor(int slotIndex, BallColor color) {
-        int boundedIndex = Math.floorMod(slotIndex, SPINDEXER_SLOT_COUNT);
-        spindexerInventory[boundedIndex] = color == null ? BallColor.EMPTY : color;
-    }
-
-    private int getKnownBallCount() {
-        int count = 0;
-        for (BallColor c : spindexerInventory) {
-            if (c != BallColor.EMPTY) {
-                count++;
+        boolean jamAllowed = targetSign != 0
+                && toroidTransitionPhase == TransitionPhase.NONE
+                && toroidJamPhase == ToroidJamPhase.NONE
+                && toroidJamCooldownTimer.seconds() >= TOROID_JAM_COOLDOWN_SEC;
+        boolean jamCondition = jamAllowed
+                && Math.abs(actualTps) <= TOROID_JAM_SPEED_TPS
+                && currentAmps >= TOROID_JAM_CURRENT_AMPS;
+        if (jamCondition) {
+            if (!toroidJamConditionActive) {
+                toroidJamConditionActive = true;
+                toroidJamDetectTimer.reset();
             }
-        }
-        return count;
-    }
-
-    // Fusion of intake sensors to track a ball entering the mouth; hysteresis reduces flicker.
-    // A latched presence represents a ball in the throat; we flag over-capacity if that implies a fourth ball.
-    private void updateCollectorPresence(double collectorPresence) {
-        collectorPresenceRisingEdge = false;
-        collectorPresenceFallingEdge = false;
-        boolean wasLatched = collectorPresenceLatched;
-        if (!collectorPresenceLatched && collectorPresence >= COLLECTOR_PRESENCE_ENTER_THRESHOLD) {
-            collectorPresenceLatched = true;
-        } else if (collectorPresenceLatched && collectorPresence <= COLLECTOR_PRESENCE_EXIT_THRESHOLD) {
-            collectorPresenceLatched = false;
-        }
-        collectorPresenceRisingEdge = !wasLatched && collectorPresenceLatched;
-        collectorPresenceFallingEdge = wasLatched && !collectorPresenceLatched;
-
-        collectorEstimatedBallCount = getKnownBallCount() + (collectorPresenceLatched ? 1 : 0);
-        collectorOverCapacity = collectorEstimatedBallCount > SPINDEXER_SLOT_COUNT;
-    }
-
-    private void initializeSlotCheckMetadata() {
-        Arrays.fill(slotLastCheckTimeSeconds, Double.NEGATIVE_INFINITY);
-        Arrays.fill(slotLastCheckColor, BallColor.EMPTY);
-        Arrays.fill(slotLastCheckPresence, false);
-        Arrays.fill(slotLastCheckSamples, 0);
-        Arrays.fill(slotLastCheckMaxGreen, 0.0);
-        Arrays.fill(slotLastCheckMaxPurple, 0.0);
-        Arrays.fill(slotEmptyStrikes, 0);
-    }
-
-    private void resetSlotCheckState() {
-        slotCheckPhase = SlotCheckPhase.IDLE;
-        slotCheckActiveSlot = -1;
-        slotCheckSamplesCollected = 0;
-        slotCheckMaxGreenPresence = 0.0;
-        slotCheckMaxPurplePresence = 0.0;
-        slotCheckPhaseTimer.reset();
-        slotCheckSampleTimer.reset();
-    }
-
-    private void enqueueStalestSlotCheck() {
-        if (slotCheckQueue.size() >= SPINDEXER_SLOT_COUNT) {
-            return; // cap to avoid unbounded queue; 3 slots max
-        }
-        int slot = findStalestSlot();
-        slotCheckQueue.add(slot);
-    }
-
-    private int findStalestSlot() {
-        double oldestTimestamp = Double.POSITIVE_INFINITY;
-        int oldestIndex = 0;
-        for (int i = 0; i < SPINDEXER_SLOT_COUNT; i++) {
-            double ts = slotLastCheckTimeSeconds[i];
-            if (ts == Double.NEGATIVE_INFINITY) {
-                return i; // never checked; highest priority
+            if (toroidJamDetectTimer.seconds() >= TOROID_JAM_DETECT_SEC) {
+                toroidJamPhase = ToroidJamPhase.RELAX;
+                toroidJamTimer.reset();
+                toroidJamResumeRpm = toroidTargetRpm;
+                toroidJamResumeSign = targetSign;
+                toroidJamConditionActive = false;
+                toroidJamDetectTimer.reset();
+                toroidTransitionPhase = TransitionPhase.NONE;
             }
-            if (ts < oldestTimestamp) {
-                oldestTimestamp = ts;
-                oldestIndex = i;
-            }
-        }
-        return oldestIndex;
-    }
-
-    private SlotSensorSample readSlotSensor() {
-        int colorReadingMaxInt = 2 << 11;
-        double red3 = (double) color3.red() / colorReadingMaxInt;
-        double green3 = (double) color3.green() / colorReadingMaxInt;
-        double blue3 = (double) color3.blue() / colorReadingMaxInt;
-        double color3ProximityInches = color3.getDistance(DistanceUnit.INCH);
-
-        double proxSoft = 0.5;
-        double matchSoft = 0.2;
-        double greenPresence3 = colorPresence(
-                color3ProximityInches,
-                greenResonance(red3, green3, blue3),
-                SLOT_SENSOR_PROXIMITY_THRESHOLD_INCHES, GREEN_MATCH_THRESHOLD,
-                proxSoft, matchSoft
-        );
-        double purplePresence3 = colorPresence(
-                color3ProximityInches,
-                purpleResonance(red3, green3, blue3),
-                SLOT_SENSOR_PROXIMITY_THRESHOLD_INCHES, PURPLE_MATCH_THRESHOLD,
-                proxSoft, matchSoft
-        );
-
-        lastColor3ProximityInches = color3ProximityInches;
-        lastColor3GreenPresence = greenPresence3;
-        lastColor3PurplePresence = purplePresence3;
-
-        SlotSensorSample sample = new SlotSensorSample();
-        sample.proximityInches = color3ProximityInches;
-        sample.greenPresence = greenPresence3;
-        sample.purplePresence = purplePresence3;
-        return sample;
-    }
-
-    private BallColor classifySlotColor(double greenPresence, double purplePresence) {
-        boolean greenHit = greenPresence >= SLOT_SENSOR_ENTER_THRESHOLD_GREEN;
-        boolean purpleHit = purplePresence >= SLOT_SENSOR_ENTER_THRESHOLD_PURPLE;
-        double slotPresence = Math.max(greenPresence, purplePresence);
-        if (slotPresence < SLOT_SENSOR_EXIT_THRESHOLD) {
-            return BallColor.EMPTY;
-        }
-        // Presence detected; pick a color even if thresholds are weak.
-        if (greenPresence >= purplePresence + SLOT_SENSOR_GREEN_PREFERENCE_MARGIN || (greenPresence >= SLOT_SENSOR_ENTER_THRESHOLD_GREEN && !purpleHit)) {
-            return BallColor.GREEN;
-        }
-        if (purplePresence > greenPresence) {
-            return BallColor.PURPLE;
-        }
-        // Tie-break toward green for our green/not-green strategy.
-        return BallColor.GREEN;
-    }
-
-    private void startSlotCheck(int slotIndex) {
-        slotCheckActiveSlot = Math.floorMod(slotIndex, SPINDEXER_SLOT_COUNT);
-        slotCheckPhase = SlotCheckPhase.WAIT_SETTLE;
-        slotCheckSamplesCollected = 0;
-        slotCheckMaxGreenPresence = 0.0;
-        slotCheckMaxPurplePresence = 0.0;
-        slotCheckPhaseTimer.reset();
-        slotCheckSampleTimer.reset();
-        spindexerSlot = slotCheckActiveSlot;
-        retargetSpindexer();
-    }
-
-    private void completeSlotCheckBurst() {
-        BallColor detected = classifySlotColor(slotCheckMaxGreenPresence, slotCheckMaxPurplePresence);
-        recordSlotCheck(slotCheckActiveSlot, slotCheckSamplesCollected, slotCheckMaxGreenPresence, slotCheckMaxPurplePresence, detected);
-        if (!slotCheckQueue.isEmpty() && slotCheckQueue.peek() == slotCheckActiveSlot) {
-            slotCheckQueue.poll();
-        }
-        slotCheckPhase = SlotCheckPhase.DWELL;
-        slotCheckPhaseTimer.reset();
-    }
-
-    private void recordSlotCheck(int slotIndex, int samples, double maxGreen, double maxPurple, BallColor detected) {
-        double nowSeconds = timeSinceStart.seconds();
-        slotLastCheckTimeSeconds[slotIndex] = nowSeconds;
-        slotLastCheckSamples[slotIndex] = samples;
-        slotLastCheckMaxGreen[slotIndex] = maxGreen;
-        slotLastCheckMaxPurple[slotIndex] = maxPurple;
-        slotLastCheckColor[slotIndex] = detected;
-        slotLastCheckPresence[slotIndex] = detected != BallColor.EMPTY;
-
-        BallColor previous = getSlotColor(slotIndex);
-        BallColor resolved = detected;
-        if (detected == BallColor.EMPTY && previous != BallColor.EMPTY) {
-            resolved = previous; // keep the last known color until we intentionally clear it
-        }
-        if (detected == BallColor.EMPTY) {
-            slotEmptyStrikes[slotIndex] = Math.min(slotEmptyStrikes[slotIndex] + 1, 10);
         } else {
-            slotEmptyStrikes[slotIndex] = 0;
+            toroidJamConditionActive = false;
         }
-        setSlotColor(slotIndex, resolved);
-        color3PresenceLatched = resolved != BallColor.EMPTY;
 
-        boolean becameFilled = previous == BallColor.EMPTY && resolved != BallColor.EMPTY;
-        if (detected == BallColor.GREEN || detected == BallColor.PURPLE) {
-            registerCollectedBallWithColor(detected);
-        } else if (becameFilled && slotCheckQueue.isEmpty()) {
-            int nextEmpty = findNearestEmptySlot(slotIndex);
-            if (nextEmpty != slotIndex && !kickerKicked && !kickerSettling) {
-                spindexerSlot = nextEmpty;
-                retargetSpindexer();
-            }
-        }
-    }
-
-    private int findNearestEmptySlot(int startSlot) {
-        int bestSlot = startSlot;
-        int bestDistance = SPINDEXER_SLOT_COUNT + 1;
-        for (int i = 0; i < SPINDEXER_SLOT_COUNT; i++) {
-            if (spindexerInventory[i] == BallColor.EMPTY) {
-                int forward = Math.floorMod(i - startSlot, SPINDEXER_SLOT_COUNT);
-                int backward = Math.floorMod(startSlot - i, SPINDEXER_SLOT_COUNT);
-                int distance = Math.min(forward, backward);
-                if (distance < bestDistance) {
-                    bestDistance = distance;
-                    bestSlot = i;
+        if (toroidJamPhase != ToroidJamPhase.NONE) {
+            if (toroidJamPhase == ToroidJamPhase.RELAX) {
+                toroidMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+                toroidMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+                toroidMotor.setPower(0.0);
+                if (Math.abs(actualTps) <= TOROID_JAM_STOP_TPS
+                        || toroidJamTimer.seconds() >= TOROID_JAM_RELAX_MAX_SEC) {
+                    toroidJamPhase = ToroidJamPhase.REVERSE;
+                    toroidJamTimer.reset();
+                }
+            } else if (toroidJamPhase == ToroidJamPhase.REVERSE) {
+                if (toroidJamResumeSign == 0) {
+                    toroidJamPhase = ToroidJamPhase.NONE;
+                    toroidJamCooldownTimer.reset();
+                } else {
+                    if (toroidMotor.getMode() != DcMotor.RunMode.RUN_USING_ENCODER) {
+                        toroidMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+                    }
+                    toroidMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+                    double reverseRpm = -toroidJamResumeSign * TOROID_JAM_REVERSE_RPM;
+                    toroidMotor.setVelocity(rpmToTicksPerSec(reverseRpm, TOROID_TICKS_PER_REV));
+                    if (toroidJamTimer.seconds() >= TOROID_JAM_REVERSE_SEC) {
+                        toroidJamPhase = ToroidJamPhase.NONE;
+                        toroidJamCooldownTimer.reset();
+                    }
                 }
             }
-        }
-        return bestSlot;
-    }
-
-    private void updateSlotCheckMachine() {
-        if (kickerKicked || kickerSettling || spindexerMode == SpindexerMode.SHOOT || shootRequestState != ShootRequestState.IDLE) {
-            resetSlotCheckState();
             return;
         }
 
-        int currentSlot = Math.floorMod(spindexerSlot, SPINDEXER_SLOT_COUNT);
-        int desiredSlot = !slotCheckQueue.isEmpty() ? slotCheckQueue.peek() : currentSlot;
-
-        if (slotCheckPhase == SlotCheckPhase.IDLE || slotCheckActiveSlot != desiredSlot) {
-            startSlotCheck(desiredSlot);
+        if (toroidTransitionPhase == TransitionPhase.NONE && reversing) {
+            toroidTransitionPhase = TransitionPhase.COAST;
+            toroidTransitionTimer.reset();
         }
 
-        if (spindexerSlot != desiredSlot) {
-            spindexerSlot = desiredSlot;
-            retargetSpindexer();
+        toroidTargetTps = rpmToTicksPerSec(toroidPendingTargetRpm, TOROID_TICKS_PER_REV);
+        if (toroidTransitionPhase == TransitionPhase.COAST) {
+            toroidMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+            toroidMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+            toroidMotor.setPower(0.0);
+            if (toroidTransitionTimer.seconds() >= TOROID_COAST_BEFORE_BRAKE_SEC) {
+                toroidTransitionPhase = TransitionPhase.BRAKE;
+                toroidTransitionTimer.reset();
+            }
+        } else if (toroidTransitionPhase == TransitionPhase.BRAKE) {
+            toroidMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+            toroidMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+            toroidMotor.setPower(0.0);
+            if (toroidTransitionTimer.seconds() >= TOROID_BRAKE_BEFORE_REVERSE_SEC) {
+                toroidTransitionPhase = TransitionPhase.NONE;
+            }
+        } else {
+            toroidMotor.setTargetPosition(targetPosition);
+            if (toroidMotor.getMode() != DcMotor.RunMode.RUN_TO_POSITION) {
+                toroidMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+            }
+            toroidMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+            toroidMotor.setVelocity(Math.abs(toroidTargetTps));
+            toroidLastTargetSign = toroidPendingTargetSign;
         }
+    }
 
-        boolean settled = isSpindexerSettled();
-        switch (slotCheckPhase) {
-            case WAIT_SETTLE:
-                if (!settled) {
-                    slotCheckPhaseTimer.reset();
-                } else if (slotCheckPhaseTimer.seconds() >= SLOT_CHECK_SETTLE_SEC) {
-                    slotCheckPhase = SlotCheckPhase.SAMPLING;
-                    slotCheckSampleTimer.reset();
-                    slotCheckSamplesCollected = 0;
-                    slotCheckMaxGreenPresence = 0.0;
-                    slotCheckMaxPurplePresence = 0.0;
-                }
-                break;
-            case SAMPLING:
-                if (!settled) {
-                    startSlotCheck(desiredSlot);
-                    break;
-                }
-                if (slotCheckSamplesCollected == 0 || slotCheckSampleTimer.seconds() >= SLOT_CHECK_SAMPLE_SPACING_SEC) {
-                    SlotSensorSample sample = readSlotSensor();
-                    slotCheckMaxGreenPresence = Math.max(slotCheckMaxGreenPresence, sample.greenPresence);
-                    slotCheckMaxPurplePresence = Math.max(slotCheckMaxPurplePresence, sample.purplePresence);
-                    slotCheckSamplesCollected++;
-                    slotCheckSampleTimer.reset();
-                }
-                if (slotCheckSamplesCollected >= SLOT_CHECK_BURST_SAMPLES) {
-                    completeSlotCheckBurst();
-                }
-                break;
-            case DWELL:
-                if (!settled) {
-                    startSlotCheck(desiredSlot);
-                } else if (slotCheckPhaseTimer.seconds() >= SLOT_CHECK_DWELL_SEC) {
-                    slotCheckPhase = SlotCheckPhase.WAIT_SETTLE;
-                    slotCheckPhaseTimer.reset();
-                    slotCheckSamplesCollected = 0;
-                    slotCheckMaxGreenPresence = 0.0;
-                    slotCheckMaxPurplePresence = 0.0;
-                }
-                break;
-            case IDLE:
-            default:
-                startSlotCheck(desiredSlot);
-                break;
-        }
+    private static double rpmToTicksPerSec(double rpm, double ticksPerRev) {
+        return rpm * ticksPerRev / 60.0;
     }
 
     private double getShooterHeadingError() {
@@ -1807,109 +1384,22 @@ public class DecodeRobotControl {
         return Angle.normDelta(desiredHeading - basePose.getHeading());
     }
 
-    private boolean isSpindexerAtTarget() {
-        return Math.abs(spindexerTargetPosition - spindexerCommandPosition) <= SPIN_AT_TARGET_THRESHOLD;
+    private enum ToroidMode {
+        TRANSIT,
+        SHOOT,
+        STOP
     }
 
-    private boolean isSpindexerSettled() {
-        double error = Math.abs(spindexerTargetPosition - spindexerCommandPosition);
-        boolean inTransit = error > SPIN_IN_TRANSIT_THRESHOLD;
-        return !inTransit && isSpindexerAtTarget();
+    private enum ToroidJamPhase {
+        NONE,
+        RELAX,
+        REVERSE
     }
 
-    private void registerCollectedBallWithColor(BallColor color) {
-        if (color != BallColor.GREEN && color != BallColor.PURPLE) {
-            return; // only register on a confident color hit
-        }
-        setSlotColor(spindexerSlot, color);
-        int nextSlot = findNextEmptySlot(spindexerSlot);
-        if (nextSlot != spindexerSlot && !kickerKicked && !kickerSettling && slotCheckQueue.isEmpty()) {
-            spindexerSlot = nextSlot;
-            retargetSpindexer();
-        }
-    }
-
-    private int findNextEmptySlot(int startSlot) {
-        for (int i = 1; i <= SPINDEXER_SLOT_COUNT; i++) {
-            int candidate = Math.floorMod(startSlot + i, SPINDEXER_SLOT_COUNT);
-            if (spindexerInventory[candidate] == BallColor.EMPTY) {
-                return candidate;
-            }
-        }
-        return startSlot;
-    }
-
-    private void updateSpindexerIndicators() {
-        int checkingSlot = (slotCheckPhase != SlotCheckPhase.IDLE && slotCheckActiveSlot >= 0)
-                ? Math.floorMod(slotCheckActiveSlot, SPINDEXER_SLOT_COUNT)
-                : -1;
-        setIndicatorForSlot(topLed, 0, checkingSlot);
-        setIndicatorForSlot(midLed, 1, checkingSlot);
-        setIndicatorForSlot(botLed, 2, checkingSlot);
-    }
-
-    private void setIndicatorForSlot(IndicatorLed led, int slotIndex, int checkingSlot) {
-        BallColor color = getSlotColor(slotIndex);
-        switch (color) {
-            case GREEN:
-                led.setGreen();
-                break;
-            case PURPLE:
-                led.setRed();
-                break;
-            case EMPTY:
-            default:
-                led.setOff();
-                break;
-        }
-    }
-
-    private void drawSpindexerInventoryIcons(Canvas overlay, double originX, double originY) {
-        double spacing = 5.0;
-        double radius = 2.0;
-        double startX = originX - spacing;
-        double y = originY + 8.0; // small offset behind the robot icon
-        for (int i = 0; i < SPINDEXER_SLOT_COUNT; i++) {
-            String fill = ballColorToFill(spindexerInventory[i]);
-            String stroke = "#000000";
-            double cx = startX + (i * spacing);
-            overlay.setFill(fill);
-            overlay.setStroke(stroke);
-            overlay.fillCircle(cx, y, radius)
-                    .strokeCircle(cx, y, radius);
-        }
-    }
-
-    private String ballColorToFill(BallColor color) {
-        switch (color) {
-            case EMPTY:
-                return "#cccccc";
-            case GREEN:
-                return "#00cc44";
-            case PURPLE:
-                return "#7a2cff";
-            default:
-                return "#555555"; // unknown/empty
-        }
-    }
-
-    private enum SpindexerMode {
-        COLLECT,
-        SHOOT
-    }
-
-    private enum ShootRequestState {
-        IDLE,
-        MOVE_TO_SHOOT,
-        KICKING,
-        RETURNING_TO_COLLECT
-    }
-
-    private enum SlotCheckPhase {
-        IDLE,
-        WAIT_SETTLE,
-        SAMPLING,
-        DWELL
+    private enum TransitionPhase {
+        NONE,
+        COAST,
+        BRAKE
     }
 
     private enum IntakeState {
@@ -1918,10 +1408,10 @@ public class DecodeRobotControl {
         OFF
     }
 
-    private enum BallColor {
-        EMPTY,
-        GREEN,
-        PURPLE
+    private enum IntakeJamPhase {
+        NONE,
+        RELAX,
+        REVERSE
     }
 
     private enum ObeliskPattern {
@@ -1931,60 +1421,7 @@ public class DecodeRobotControl {
         GREEN_LAST
     }
 
-    // REV digital indicator helper; tries common name patterns for red/green channels.
-    private static class IndicatorLed {
-        private final LED red;
-        private final LED green;
-
-        IndicatorLed(HardwareMap hardwareMap, String greenName, String redName) {
-            this.green = hardwareMap.get(LED.class, greenName);
-            this.red = hardwareMap.get(LED.class, redName);
-        }
-
-        void setColor(BallColor color) {
-            switch (color) {
-                case GREEN:
-                    set(false, true);
-                    break;
-                case PURPLE:
-                    set(true, false);
-                    break;
-                case EMPTY:
-                default:
-                    set(false, false);
-                    break;
-            }
-        }
-
-        void setRed() { set(true, false); }
-        void setGreen() { set(false, true); }
-        void setAmber() { set(true, true); }
-        void setOff() { set(true, true); }
-
-        private void set(boolean redOn, boolean greenOn) {
-            setLed(red, redOn);
-            setLed(green, greenOn);
-        }
-
-        private void setLed(LED led, boolean on) {
-            if (led == null) return;
-            // Indicators are active-low: drive low to turn the LED on.
-            if (on) {
-                led.off();
-            } else {
-                led.on();
-            }
-        }
-    }
-
     private void updateAutonomousMechanisms(double dtMillis) {
-        updateSpindexerPosition(dtMillis / 1000.0);
-        updateShootRequest(false);
-        updateKickerPulse();
-        updateKickerSettling();
-        spindexerInTransit = Math.abs(spindexerTargetPosition - spindexerCommandPosition) > SPIN_IN_TRANSIT_THRESHOLD;
-        double kickerTarget = kickerKicked ? KICKER_KICKED_POSITION : KICKER_UNKICKED_POSITION;
-        kicker.setPosition(Range.clip(kickerTarget, 0.0, 1.0));
         if (autonomousIntakePower > 0.0) {
             intakeState = IntakeState.FORWARD;
         } else if (autonomousIntakePower < 0.0) {
@@ -2009,49 +1446,6 @@ public class DecodeRobotControl {
             autonomousIntakePower = command.IntakePower;
         }
 
-        if (command.SpindexerTargetSlot != null) {
-            if (isSpindexerMotionAllowed()) {
-                if (isAutonomous) {
-                    spindexerMode = SpindexerMode.SHOOT;
-                }
-                spindexerSlot = Math.floorMod(command.SpindexerTargetSlot, SPINDEXER_SLOT_COUNT);
-                retargetSpindexer();
-            } else {
-                actionsStarted = false;
-            }
-        } else if (command.SpindexerDeltaSlots != null && command.SpindexerDeltaSlots != 0) {
-            if (isSpindexerMotionAllowed()) {
-                if (isAutonomous) {
-                    spindexerMode = SpindexerMode.SHOOT;
-                }
-                cycleSpindexerSlot(command.SpindexerDeltaSlots);
-            } else {
-                actionsStarted = false;
-            }
-        }
-
-        if (Boolean.TRUE.equals(command.Kick)) {
-            if (isAutonomous) {
-                if (shootRequestState == ShootRequestState.IDLE && !kickerKicked && !kickerSettling) {
-                    startShootRequest();
-                } else {
-                    actionsStarted = false;
-                }
-            } else {
-                if (!isSpindexerSettled()) {
-                    shootRequestSettleTimer.reset();
-                    actionsStarted = false;
-                } else if (shootRequestSettleTimer.seconds() < SPIN_SETTLE_BEFORE_KICK_SEC) {
-                    actionsStarted = false;
-                } else if (!kickerKicked && !kickerSettling) {
-                    setKickerKicked(true);
-                    kickerPulseTimer.reset();
-                } else {
-                    actionsStarted = false;
-                }
-            }
-        }
-
         return actionsStarted;
     }
 
@@ -2074,7 +1468,6 @@ public class DecodeRobotControl {
             currentCommandTime.reset();
             currentCommandSettledTime.reset();
             currentCommandActionsStarted = false;
-            shootRequestSettleTimer.reset();
         }
 
         updateAutonomousMechanisms(dtMillis);
@@ -2102,15 +1495,6 @@ public class DecodeRobotControl {
         boolean driveCompleted = currentCommand.DriveToPose == null || isAtPoseTarget(currentCommand.DriveToPose, currentCommand.DriveSettleThresholdRatio);
         boolean settledRightNow = driveCompleted;
 
-        if (currentCommand.RequireSpindexerSettled) {
-            settledRightNow = settledRightNow && isSpindexerSettled();
-        }
-        if (currentCommand.RequireKickerIdle) {
-            settledRightNow = settledRightNow && !kickerKicked && !kickerSettling;
-        }
-        if (isAutonomous && Boolean.TRUE.equals(currentCommand.Kick)) {
-            settledRightNow = settledRightNow && shootRequestState == ShootRequestState.IDLE;
-        }
         if (currentCommand.RequireActionStarted) {
             settledRightNow = settledRightNow && currentCommandActionsStarted;
         }
@@ -2518,14 +1902,6 @@ public class DecodeRobotControl {
         return new Pose2d(pose.getX(), -pose.getY(), Angle.norm(-pose.getHeading()));
     }
 
-    private void addShootAllSlotsCommands(List<OpModeCommand> commands) {
-        commands.add(OpModeCommand.kickCommand());
-        for (int slot = 1; slot < SPINDEXER_SLOT_COUNT; slot++) {
-            commands.add(OpModeCommand.advanceSpindexerCommand(1));
-            commands.add(OpModeCommand.kickCommand());
-        }
-    }
-
     private static Pose2d getLeaveStartPose(AllianceColor alliance) {
         int tagId = alliance == AllianceColor.RED ? LEAVE_RED_START_TAG_ID : LEAVE_BLUE_START_TAG_ID;
         double heading = Angle.norm(getTagFieldHeading(tagId) + Math.PI);
@@ -2592,7 +1968,7 @@ public class DecodeRobotControl {
                 commands.add(OpModeCommand.waitCommand(750.0));
                 commands.add(OpModeCommand.driveDirectToPosePreciseCommand(shootingPose));
                 commands.add(OpModeCommand.waitCommand(300.0));
-                addShootAllSlotsCommands(commands);
+                commands.add(OpModeCommand.waitCommand(300.0));
                 commands.add(OpModeCommand.shooterEnableCommand(false));
                 commands.add(OpModeCommand.driveDirectToPoseCommand(getLeaveTargetPose(allianceColor)));
                 break;
@@ -2603,7 +1979,7 @@ public class DecodeRobotControl {
                 commands.add(OpModeCommand.waitCommand(750.0));
                 commands.add(OpModeCommand.driveDirectToPosePreciseCommand(shootingPose));
                 commands.add(OpModeCommand.waitCommand(300.0));
-                addShootAllSlotsCommands(commands);
+                commands.add(OpModeCommand.waitCommand(300.0));
                 commands.add(OpModeCommand.shooterEnableCommand(false));
                 commands.add(OpModeCommand.driveDirectToPoseCommand(getBackParkPose(allianceColor)));
                 break;
@@ -2632,7 +2008,7 @@ public class DecodeRobotControl {
                     commands.add(OpModeCommand.intakePowerCommand(0.0));
                     commands.add(OpModeCommand.driveDirectToPosePreciseCommand(shootingPose));
                     commands.add(OpModeCommand.waitCommand(300.0));
-                    addShootAllSlotsCommands(commands);
+                    commands.add(OpModeCommand.waitCommand(300.0));
                 }
                 commands.add(OpModeCommand.shooterEnableCommand(false));
                 commands.add(OpModeCommand.driveDirectToPoseCommand(getLeaveTargetPose(allianceColor)));
