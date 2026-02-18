@@ -31,6 +31,7 @@ import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.acmerobotics.roadrunner.util.Angle;
+import com.qualcomm.hardware.rev.RevColorSensorV3;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
@@ -40,12 +41,14 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
+import com.qualcomm.robotcore.util.ReadWriteFile;
 import com.qualcomm.robotcore.util.Range;
 
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.UnnormalizedAngleUnit;
+import org.firstinspires.ftc.robotcore.internal.system.AppUtil;
 import org.firstinspires.ftc.teamcode.Processors.SampleDetectVisionProcessor;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
@@ -69,6 +72,7 @@ import org.firstinspires.ftc.teamcode.drive.PinpointLocalizer;
 
 public class DecodeRobotControl {
 
+    private static final String TAG = "DecodeRobotControl";
     private static final double BALL_RADIUS_INCHES = 2.75;
     private static final double BALL_DIAMETER_INCHES = BALL_RADIUS_INCHES * 2;
     // Measured shooter wheel radius (inches) for trajectory math.
@@ -139,11 +143,13 @@ public class DecodeRobotControl {
     private static final double INTAKE_JAM_DETECT_SEC = 0.12;
     private static final double INTAKE_JAM_RELAX_MAX_SEC = 0.2;
     private static final double INTAKE_JAM_STOP_TPS = 60.0;
-    private static final double INTAKE_JAM_REVERSE_POWER = 0.5;
+    private static final double INTAKE_JAM_REVERSE_POWER = 0.335;
     private static final double INTAKE_JAM_REVERSE_SEC = 0.12;
     private static final double INTAKE_JAM_COOLDOWN_SEC = 0.2;
     private static final boolean INTAKE_TOP_INVERTED = true;
     private static final String TOROID_MOTOR_NAME = "coreHex";
+    private static final String TOROID_SENSOR_NAME = "color1";
+    private static final String TOROID_ZERO_FILE_NAME = "toroid_zero.txt";
     private static final double TOROID_TICKS_PER_REV = 288.0;
     private static final double TOROID_STEP_TICKS = TOROID_TICKS_PER_REV / 3.0; // 120 deg steps
     private static final double TOROID_POSITION_TOLERANCE_TICKS = 6.0;
@@ -163,7 +169,24 @@ public class DecodeRobotControl {
     private static final double TOROID_JAM_REVERSE_RPM = 40.0;
     private static final double TOROID_JAM_REVERSE_SEC = 0.08;
     private static final double TOROID_JAM_COOLDOWN_SEC = 0.08;
-    private static final boolean TOROID_TEST_ONLY = true; // temporary: disable non-toroid actuation
+    private static final boolean TOROID_TEST_ONLY = false; // temporary: disable non-toroid actuation
+    private static final double TOROID_PADDLE_SENSOR_OFFSET_DEG = 0.0;
+    private static final double TOROID_PADDLE_PROX_THRESHOLD_IN = 1.1;
+    private static final double TOROID_PADDLE_PROX_SOFT_IN = 0.25;
+    private static final double TOROID_PADDLE_WHITE_THRESHOLD = 0.62;
+    private static final double TOROID_PADDLE_WHITE_SOFT = 0.12;
+    private static final double TOROID_PADDLE_ENTER_THRESHOLD = 0.55;
+    private static final double TOROID_PADDLE_EXIT_THRESHOLD = 0.35;
+    private static final double TOROID_BALL_PROX_THRESHOLD_IN = 1.85;
+    private static final double TOROID_BALL_PROX_SOFT_IN = 0.5;
+    private static final double TOROID_BALL_MATCH_SOFT = 0.2;
+    private static final double TOROID_BALL_SUPPRESS_THRESHOLD = 0.35;
+    private static final double TOROID_PADDLE_MIN_SEPARATION_TICKS = TOROID_TICKS_PER_REV * 0.35;
+    private static final double TOROID_ZERO_BLEND = 0.25;
+    private static final double TOROID_ZERO_CONFIDENCE_DECAY_SEC = 6.0;
+    private static final double TOROID_ZERO_CONFIDENCE_GAIN = 0.6;
+    private static final double TOROID_ZERO_SAVE_INTERVAL_SEC = 0.8;
+    private static final double TOROID_ZERO_MIN_SAVE_CONFIDENCE = 0.35;
     private static final double AUTO_TURN_DEADBAND_RATIO = 0.68; // align with precise settle ratio
     private static final double SLOT_CHECK_SETTLE_SEC = 0.25;
     private static final double SLOT_CHECK_DWELL_SEC = 0.25;
@@ -195,6 +218,17 @@ public class DecodeRobotControl {
     // Front-side start for the same leave path; heading fixed to 180 deg instead of tag-derived.
     private static final double LEAVE_FRONT_START_X = 62.0;
     private static final double LEAVE_FRONT_START_Y = 10.0;
+
+    // Autonomous collection passes: intake faces 180 degrees (intake end forward).
+    private static final double AUTO_COLLECT_HEADING_RADIANS = Math.toRadians(180.0);
+
+    // Triad collection geometry (red side); blue mirrors across the X axis.
+    private static final double TRIAD_CENTER_Y_RED = 47.25;
+    private static final double TRIAD_SIDE_BALL_OFFSET_Y = 5.0; // touching 5" balls
+    private static final double[] TRIAD_CENTER_XS_RED = {-12.0, 12.0, 36.0};
+    private static final double TRIAD_APPROACH_Y_OFFSET = 12.0; // tune for intake engagement margin
+    private static final double TRIAD_EXIT_Y_OFFSET = 2.0; // tighter clearance on exit
+    private static final double TRIAD_COLLECT_DRIVE_POWER_SCALE = 0.5; // slow down while driving into balls
     private static final double LEAVE_FRONT_START_HEADING = Math.toRadians(180.0);
     private static final double SHOOTING_X_DELTA_FROM_START_INCHES = -4.0;
     private static final double BACK_SHOOT_X = -12.0;
@@ -278,6 +312,7 @@ public class DecodeRobotControl {
     // currently unused but attached
     //private final RevColorSensorV3 color1;
     //private final RevColorSensorV3 color2;
+    private RevColorSensorV3 toroidSensor;
     public final VisionPortal visionPortal;
     private DcMotorEx toroidMotor;
     private double intakePowerSmoothed = 0.0;
@@ -330,6 +365,17 @@ public class DecodeRobotControl {
     private int toroidPendingTargetSign = 0;
     private double toroidTargetRpm = 0.0;
     private double toroidTargetTps = 0.0;
+    private double toroidZeroTicks = 0.0;
+    private double toroidZeroConfidence = 0.0;
+    private boolean toroidPaddleSeen = false;
+    private boolean toroidZeroInitialized = false;
+    private double toroidLastPaddleObsTicks = Double.NaN;
+    private double toroidLastProximityInches = Double.NaN;
+    private double toroidLastWhiteBias = 0.0;
+    private double toroidLastBallPresence = 0.0;
+    private double toroidLastPaddlePresence = 0.0;
+    private final ElapsedTime toroidZeroUpdateTimer = new ElapsedTime();
+    private final ElapsedTime toroidZeroSaveTimer = new ElapsedTime();
 
     private final Pose2d initialPose;
     private Pose2d autonomousStartPose = null;
@@ -351,6 +397,15 @@ public class DecodeRobotControl {
         toroidMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         toroidMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         toroidMotor.setDirection(DcMotorSimple.Direction.FORWARD);
+        try {
+            toroidSensor = hardwareMap.get(RevColorSensorV3.class, TOROID_SENSOR_NAME);
+        } catch (Exception e) {
+            Log.w(TAG, "Toroid sensor not found: " + TOROID_SENSOR_NAME);
+            toroidSensor = null;
+        }
+        toroidZeroTicks = toroidMotor.getCurrentPosition();
+        toroidZeroInitialized = true;
+        loadToroidZeroEstimate();
         wheel = hardwareMap.get(DcMotorEx.class, "wheel");
         wheel.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         wheel.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
@@ -442,6 +497,17 @@ public class DecodeRobotControl {
         // Weight blue more than red to better favor purple samples over green spill/ambient.
         double ratio = ((0.3 * r) + (0.7 * b)) / (g + eps);    // >1 means magenta/purple-dominant
         return ratio / (ratio + 1.0);
+    }
+
+    static double whiteBias(double r, double g, double b) {
+        double eps = 1e-6;
+        double max = Math.max(r, Math.max(g, b));
+        double min = Math.min(r, Math.min(g, b));
+        double chroma = max - min;
+        double whiteness = 1.0 - (chroma / (max + eps));
+        double brightness = (r + g + b) / 3.0;
+        double brightnessGate = smoothstep(0.04, 0.25, brightness);
+        return clamp01(whiteness * brightnessGate);
     }
 
 //    private double sampleCollectorPresence() {
@@ -668,7 +734,7 @@ public class DecodeRobotControl {
         packet.put("ToroidCurrentA", toroidMotor != null ? toroidMotor.getCurrent(CurrentUnit.AMPS) : 0.0);
         packet.put("ToroidPosTicks", toroidMotor != null ? toroidMotor.getCurrentPosition() : 0);
         packet.put("ToroidTargetStep", toroidTargetStepIndex);
-        packet.put("ToroidTargetPosTicks", (int) Math.round(toroidTargetStepIndex * TOROID_STEP_TICKS));
+        packet.put("ToroidTargetPosTicks", (int) Math.round(toroidZeroTicks + toroidTargetStepIndex * TOROID_STEP_TICKS));
         packet.put("ToroidTransition", toroidTransitionPhase.name());
         packet.put("ToroidJamPhase", toroidJamPhase.name());
         packet.put("ToroidJamCondition", toroidJamConditionActive);
@@ -676,6 +742,14 @@ public class DecodeRobotControl {
         packet.put("ToroidJamTimerSec", toroidJamTimer.seconds());
         packet.put("ToroidJamResumeRpm", toroidJamResumeRpm);
         packet.put("ToroidJamCooldownSec", toroidJamCooldownTimer.seconds());
+        packet.put("ToroidZeroTicks", toroidZeroTicks);
+        packet.put("ToroidZeroDeg", toroidZeroTicks * 360.0 / TOROID_TICKS_PER_REV);
+        packet.put("ToroidZeroConf", toroidZeroConfidence);
+        packet.put("ToroidPaddleSeen", toroidPaddleSeen);
+        packet.put("ToroidPaddlePresence", toroidLastPaddlePresence);
+        packet.put("ToroidBallPresence", toroidLastBallPresence);
+        packet.put("ToroidWhiteBias", toroidLastWhiteBias);
+        packet.put("ToroidProxIn", toroidLastProximityInches);
         packet.put("ObeliskPattern", obeliskPattern.name());
         packet.put("ObeliskTagId", lastObeliskTagId);
         packet.put("ObeliskTagHeading", lastObeliskTagHeading);
@@ -999,6 +1073,9 @@ public class DecodeRobotControl {
         double actualTps = intakeMotor.getVelocity();
         double currentAmps = intakeMotor.getCurrent(CurrentUnit.AMPS);
         double requestedSign = Math.abs(intakePowerSmoothed) < 1e-3 ? 0.0 : Math.signum(intakePowerSmoothed);
+        double intakeTopPower = requestedSign == 0.0
+                ? 0.0
+                : (INTAKE_TOP_INVERTED ? -1.0 : 1.0) * requestedSign;
 
         boolean jamAllowed = requestedSign != 0.0
                 && intakeJamPhase == IntakeJamPhase.NONE
@@ -1026,7 +1103,8 @@ public class DecodeRobotControl {
             if (intakeJamPhase == IntakeJamPhase.RELAX) {
                 intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
                 intakeMotor.setPower(0.0);
-                intakeTop.setPower((INTAKE_TOP_INVERTED ? -1.0 : 1.0) * intakeJamResumePower);
+                double jamSign = Math.abs(intakeJamResumePower) < 1e-3 ? 0.0 : Math.signum(intakeJamResumePower);
+                intakeTop.setPower(jamSign == 0.0 ? 0.0 : (INTAKE_TOP_INVERTED ? -1.0 : 1.0) * jamSign);
                 if (Math.abs(actualTps) <= INTAKE_JAM_STOP_TPS
                         || intakeJamTimer.seconds() >= INTAKE_JAM_RELAX_MAX_SEC) {
                     intakeJamPhase = IntakeJamPhase.REVERSE;
@@ -1040,7 +1118,8 @@ public class DecodeRobotControl {
                     intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
                     double reversePower = -Math.signum(intakeJamResumePower) * INTAKE_JAM_REVERSE_POWER;
                     intakeMotor.setPower(reversePower);
-                    intakeTop.setPower((INTAKE_TOP_INVERTED ? -1.0 : 1.0) * intakeJamResumePower);
+                    double jamSign = Math.signum(intakeJamResumePower);
+                    intakeTop.setPower(jamSign == 0.0 ? 0.0 : (INTAKE_TOP_INVERTED ? -1.0 : 1.0) * jamSign);
                     if (intakeJamTimer.seconds() >= INTAKE_JAM_REVERSE_SEC) {
                         intakeJamPhase = IntakeJamPhase.NONE;
                         intakeJamCooldownTimer.reset();
@@ -1052,7 +1131,7 @@ public class DecodeRobotControl {
 
         intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         intakeMotor.setPower(intakePowerSmoothed);
-        intakeTop.setPower((INTAKE_TOP_INVERTED ? -1.0 : 1.0) * intakePowerSmoothed);
+        intakeTop.setPower(intakeTopPower);
     }
 
     private double solveTimeToHeight(double effectiveGravity, double exitVelocityIps, double targetHeight) {
@@ -1234,14 +1313,126 @@ public class DecodeRobotControl {
         return Math.copySign(scaled * scaled, value);
     }
 
+    private static double wrapDeltaTicks(double delta, double period) {
+        return delta - period * Math.round(delta / period);
+    }
+
+    private static double normalizeTicks(double ticks, double period) {
+        return wrapDeltaTicks(ticks, period);
+    }
+
+    private void loadToroidZeroEstimate() {
+        try {
+            String content = ReadWriteFile.readFile(AppUtil.getInstance().getSettingsFile(TOROID_ZERO_FILE_NAME));
+            String[] lines = content.split("\n");
+            if (lines.length >= 1) {
+                toroidZeroTicks = normalizeTicks(Double.parseDouble(lines[0]), TOROID_TICKS_PER_REV);
+            }
+            if (lines.length >= 2) {
+                toroidZeroConfidence = clamp01(Double.parseDouble(lines[1]));
+            }
+        } catch (Exception e) {
+            toroidZeroConfidence = 0.0;
+        }
+        toroidZeroInitialized = true;
+    }
+
+    private void saveToroidZeroEstimate() {
+        try {
+            String data = toroidZeroTicks + "\n" + toroidZeroConfidence;
+            ReadWriteFile.writeFile(AppUtil.getInstance().getSettingsFile(TOROID_ZERO_FILE_NAME), data);
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to save toroid zero: " + e.getMessage());
+        }
+    }
+
+    private void updateToroidZeroing() {
+        if (toroidSensor == null || toroidMotor == null) {
+            return;
+        }
+
+        double dt = toroidZeroUpdateTimer.seconds();
+        toroidZeroUpdateTimer.reset();
+        if (dt > 0.0) {
+            toroidZeroConfidence = clamp01(toroidZeroConfidence * Math.exp(-dt / TOROID_ZERO_CONFIDENCE_DECAY_SEC));
+        }
+
+        int colorReadingMaxInt = 2 << 11;
+        double red = (double) toroidSensor.red() / colorReadingMaxInt;
+        double green = (double) toroidSensor.green() / colorReadingMaxInt;
+        double blue = (double) toroidSensor.blue() / colorReadingMaxInt;
+        double proximityInches = toroidSensor.getDistance(DistanceUnit.INCH);
+
+        double greenMatch = greenResonance(red, green, blue);
+        double purpleMatch = purpleResonance(red, green, blue);
+        double ballGreenPresence = colorPresence(
+                proximityInches, greenMatch,
+                TOROID_BALL_PROX_THRESHOLD_IN, GREEN_MATCH_THRESHOLD,
+                TOROID_BALL_PROX_SOFT_IN, TOROID_BALL_MATCH_SOFT
+        );
+        double ballPurplePresence = colorPresence(
+                proximityInches, purpleMatch,
+                TOROID_BALL_PROX_THRESHOLD_IN, PURPLE_MATCH_THRESHOLD,
+                TOROID_BALL_PROX_SOFT_IN, TOROID_BALL_MATCH_SOFT
+        );
+        double ballPresence = Math.max(ballGreenPresence, ballPurplePresence);
+
+        double whiteBias = whiteBias(red, green, blue);
+        double paddleProx = belowThreshold(proximityInches, TOROID_PADDLE_PROX_THRESHOLD_IN, TOROID_PADDLE_PROX_SOFT_IN);
+        double paddleWhite = aboveThreshold(whiteBias, TOROID_PADDLE_WHITE_THRESHOLD, TOROID_PADDLE_WHITE_SOFT);
+        double paddlePresence = clamp01(paddleProx * paddleWhite);
+
+        boolean paddleCandidate = ballPresence <= TOROID_BALL_SUPPRESS_THRESHOLD;
+        boolean paddleSeenNow;
+        if (!toroidPaddleSeen) {
+            paddleSeenNow = paddleCandidate && paddlePresence >= TOROID_PADDLE_ENTER_THRESHOLD;
+        } else {
+            paddleSeenNow = paddleCandidate && paddlePresence >= TOROID_PADDLE_EXIT_THRESHOLD;
+        }
+
+        boolean risingEdge = !toroidPaddleSeen && paddleSeenNow;
+        toroidPaddleSeen = paddleSeenNow;
+
+        if (risingEdge) {
+            int currentPosition = toroidMotor.getCurrentPosition();
+            if (Double.isNaN(toroidLastPaddleObsTicks)
+                    || Math.abs(wrapDeltaTicks(currentPosition - toroidLastPaddleObsTicks, TOROID_TICKS_PER_REV))
+                    >= TOROID_PADDLE_MIN_SEPARATION_TICKS) {
+                double sensorOffsetTicks = TOROID_TICKS_PER_REV * (TOROID_PADDLE_SENSOR_OFFSET_DEG / 360.0);
+                double obsZero = currentPosition - sensorOffsetTicks;
+                double delta = wrapDeltaTicks(obsZero - toroidZeroTicks, TOROID_TICKS_PER_REV);
+                toroidZeroTicks = normalizeTicks(toroidZeroTicks + delta * TOROID_ZERO_BLEND, TOROID_TICKS_PER_REV);
+                toroidZeroConfidence = clamp01(toroidZeroConfidence + (paddlePresence * TOROID_ZERO_CONFIDENCE_GAIN));
+                toroidLastPaddleObsTicks = currentPosition;
+            }
+        }
+
+        if (toroidZeroSaveTimer.seconds() >= TOROID_ZERO_SAVE_INTERVAL_SEC
+                && toroidZeroConfidence >= TOROID_ZERO_MIN_SAVE_CONFIDENCE) {
+            saveToroidZeroEstimate();
+            toroidZeroSaveTimer.reset();
+        }
+
+        toroidLastProximityInches = proximityInches;
+        toroidLastWhiteBias = whiteBias;
+        toroidLastBallPresence = ballPresence;
+        toroidLastPaddlePresence = paddlePresence;
+    }
+
     private void updateToroidControl() {
         if (toroidMotor == null) {
             return;
         }
 
+        if (!toroidZeroInitialized) {
+            toroidZeroTicks = toroidMotor.getCurrentPosition();
+            toroidZeroInitialized = true;
+        }
+        updateToroidZeroing();
+
         double ccwSign = TOROID_CCW_IS_POSITIVE ? 1.0 : -1.0;
         int currentPosition = toroidMotor.getCurrentPosition();
-        int currentStepIndex = (int) Math.round(currentPosition / TOROID_STEP_TICKS);
+        int currentStepIndex = (int) Math.round((currentPosition - toroidZeroTicks) / TOROID_STEP_TICKS);
 
         int lead = toroidTargetStepIndex - currentStepIndex;
         if (Math.abs(lead) > 1) {
@@ -1251,6 +1442,7 @@ public class DecodeRobotControl {
         boolean transitStep = y2ActivatedEvaluator.evaluate();
         boolean shootStep = b2ActivatedEvaluator.evaluate();
         boolean stopStep = a2ActivatedEvaluator.evaluate();
+        boolean operatorStepCommanded = transitStep || shootStep || stopStep;
         if (transitStep) {
             int stepDir = (int) Math.signum(TOROID_TRANSIT_CCW ? ccwSign : -ccwSign);
             if (Math.abs(toroidTargetStepIndex - currentStepIndex) < 1) {
@@ -1268,7 +1460,7 @@ public class DecodeRobotControl {
             toroidMode = ToroidMode.STOP;
         }
 
-        int targetPosition = (int) Math.round(toroidTargetStepIndex * TOROID_STEP_TICKS);
+        int targetPosition = (int) Math.round(toroidZeroTicks + toroidTargetStepIndex * TOROID_STEP_TICKS);
         int positionError = targetPosition - currentPosition;
         boolean atTarget = Math.abs(positionError) <= TOROID_POSITION_TOLERANCE_TICKS;
         int desiredSign = atTarget ? 0 : (positionError > 0 ? 1 : -1);
@@ -1309,6 +1501,10 @@ public class DecodeRobotControl {
         }
 
         if (toroidJamPhase != ToroidJamPhase.NONE) {
+            if (operatorStepCommanded) {
+                toroidJamResumeSign = targetSign;
+                toroidJamResumeRpm = toroidTargetRpm;
+            }
             if (toroidJamPhase == ToroidJamPhase.RELAX) {
                 toroidMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
                 toroidMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
@@ -1319,7 +1515,8 @@ public class DecodeRobotControl {
                     toroidJamTimer.reset();
                 }
             } else if (toroidJamPhase == ToroidJamPhase.REVERSE) {
-                if (toroidJamResumeSign == 0) {
+                int jamSign = operatorStepCommanded ? targetSign : toroidJamResumeSign;
+                if (jamSign == 0) {
                     toroidJamPhase = ToroidJamPhase.NONE;
                     toroidJamCooldownTimer.reset();
                 } else {
@@ -1327,7 +1524,7 @@ public class DecodeRobotControl {
                         toroidMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
                     }
                     toroidMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-                    double reverseRpm = -toroidJamResumeSign * TOROID_JAM_REVERSE_RPM;
+                    double reverseRpm = -jamSign * TOROID_JAM_REVERSE_RPM;
                     toroidMotor.setVelocity(rpmToTicksPerSec(reverseRpm, TOROID_TICKS_PER_REV));
                     if (toroidJamTimer.seconds() >= TOROID_JAM_REVERSE_SEC) {
                         toroidJamPhase = ToroidJamPhase.NONE;
@@ -1422,6 +1619,7 @@ public class DecodeRobotControl {
     }
 
     private void updateAutonomousMechanisms(double dtMillis) {
+        updateToroidControl();
         if (autonomousIntakePower > 0.0) {
             intakeState = IntakeState.FORWARD;
         } else if (autonomousIntakePower < 0.0) {
@@ -1487,7 +1685,12 @@ public class DecodeRobotControl {
 
         currentAutoDriveTarget = currentCommand.DriveToPose;
         if (currentCommand.DriveToPose != null) {
-            setDrivePower(getPoseTargetAutoDriveControl(currentCommand.DriveToPose));
+            Pose2d drivePower = getPoseTargetAutoDriveControl(currentCommand.DriveToPose);
+            if (currentCommand.DrivePowerScale != null) {
+                double scale = currentCommand.DrivePowerScale;
+                drivePower = new Pose2d(drivePower.getX() * scale, drivePower.getY() * scale, drivePower.getHeading());
+            }
+            setDrivePower(drivePower);
         } else {
             setDrivePower(new Pose2d());
         }
@@ -1953,8 +2156,104 @@ public class DecodeRobotControl {
                 return getLeaveStartPose(allianceColor);
             case COLLECT_THREE_LINES_BLUE:
                 return getLeaveStartPose(allianceColor);
+            case COLLECT_TRIAD_LINE_TEST:
+                return getLeaveStartPose(allianceColor);
             default:
                 return getLeaveStartPose(allianceColor);
+        }
+    }
+
+    private static Pose2d poseFromHeadingAndOffset(Vector2d center, double headingRadians, double forwardOffsetInches) {
+        double dx = Math.cos(headingRadians) * forwardOffsetInches;
+        double dy = Math.sin(headingRadians) * forwardOffsetInches;
+        return new Pose2d(center.getX() + dx, center.getY() + dy, headingRadians);
+    }
+
+    private static List<Vector2d> getTriadCentersForAlliance(AllianceColor allianceColor) {
+        List<Vector2d> centers = new ArrayList<>();
+        double y = allianceColor == AllianceColor.RED ? TRIAD_CENTER_Y_RED : -TRIAD_CENTER_Y_RED;
+        for (double x : TRIAD_CENTER_XS_RED) {
+            centers.add(new Vector2d(x, y));
+        }
+        return centers;
+    }
+
+    private static double getTriadCollectHeading(AllianceColor allianceColor) {
+        // Intake is the robot's "back" (heading +180). To face +Y on red, set robot heading -90.
+        // For blue, intake faces -Y, so robot heading +90.
+        return allianceColor == AllianceColor.RED ? Math.toRadians(-90.0) : Math.toRadians(90.0);
+    }
+
+    private static void appendCollectPass(
+            List<OpModeCommand> commands,
+            Vector2d center,
+            double headingRadians,
+            double approachOffsetInches,
+            double exitOffsetInches,
+            double intakePower) {
+        Pose2d approachPose = poseFromHeadingAndOffset(center, headingRadians, approachOffsetInches);
+        Pose2d exitPose = poseFromHeadingAndOffset(center, headingRadians, -exitOffsetInches);
+        commands.add(OpModeCommand.intakePowerCommand(intakePower));
+        commands.add(OpModeCommand.driveDirectToPoseCommand(approachPose));
+        commands.add(OpModeCommand.driveDirectToPoseCommand(exitPose));
+        commands.add(OpModeCommand.intakePowerCommand(0.0));
+    }
+
+    private void appendTriadLineCollectPasses(
+            List<OpModeCommand> commands,
+            AllianceColor allianceColor,
+            double approachOffsetInches,
+            double exitOffsetInches) {
+        List<Vector2d> triadCenters = getTriadCentersForAlliance(allianceColor);
+        if (triadCenters.isEmpty()) {
+            return;
+        }
+        appendTriadLineCollectPasses(commands, allianceColor, approachOffsetInches, exitOffsetInches, triadCenters.size());
+    }
+
+    private void appendTriadLineCollectPasses(
+            List<OpModeCommand> commands,
+            AllianceColor allianceColor,
+            double approachOffsetInches,
+            double exitOffsetInches,
+            int maxTriads) {
+        List<Vector2d> triadCenters = getTriadCentersForAlliance(allianceColor);
+        if (triadCenters.isEmpty()) {
+            return;
+        }
+        int count = Math.min(Math.max(maxTriads, 0), triadCenters.size());
+        if (count <= 0) {
+            return;
+        }
+        double heading = getTriadCollectHeading(allianceColor);
+        double approachSign = allianceColor == AllianceColor.RED ? 1.0 : -1.0;
+        for (int i = 0; i < count; i++) {
+            Vector2d center = triadCenters.get(i);
+            Pose2d approachPose = new Pose2d(center.getX(), center.getY() + (approachSign * approachOffsetInches), heading);
+            Pose2d exitPose = new Pose2d(center.getX(), center.getY() - (approachSign * exitOffsetInches), heading);
+            commands.add(OpModeCommand.intakePowerCommand(INTAKE_MOTOR_POWER));
+            commands.add(OpModeCommand.driveDirectToPoseCommand(approachPose));
+            commands.add(OpModeCommand.driveDirectToPoseScaledCommand(exitPose, TRIAD_COLLECT_DRIVE_POWER_SCALE));
+            commands.add(OpModeCommand.intakePowerCommand(0.0));
+        }
+    }
+
+    private void appendTriadCollectPasses(
+            List<OpModeCommand> commands,
+            List<Vector2d> triadCenters,
+            double approachOffsetInches,
+            double exitOffsetInches) {
+        if (triadCenters == null || triadCenters.isEmpty()) {
+            return;
+        }
+        for (Vector2d center : triadCenters) {
+            appendCollectPass(
+                    commands,
+                    center,
+                    AUTO_COLLECT_HEADING_RADIANS,
+                    approachOffsetInches,
+                    exitOffsetInches,
+                    INTAKE_MOTOR_POWER);
         }
     }
 
@@ -2012,6 +2311,11 @@ public class DecodeRobotControl {
                 }
                 commands.add(OpModeCommand.shooterEnableCommand(false));
                 commands.add(OpModeCommand.driveDirectToPoseCommand(getLeaveTargetPose(allianceColor)));
+                break;
+            }
+            case COLLECT_TRIAD_LINE_TEST: {
+                // Single triad line pass for collection testing (intake faces +Y on red, -Y on blue).
+                appendTriadLineCollectPasses(commands, allianceColor, TRIAD_APPROACH_Y_OFFSET, TRIAD_EXIT_Y_OFFSET, 1);
                 break;
             }
             case LEAVE_FROM_FRONT:

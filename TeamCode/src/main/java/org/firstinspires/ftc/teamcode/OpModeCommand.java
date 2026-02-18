@@ -20,6 +20,7 @@ public class OpModeCommand {
     public final Double MinTimeMillis;
     public final Double SettleTimeMillis;
     public final Double DriveSettleThresholdRatio;
+    public final Double DrivePowerScale;
     public final Double IntakePower;
     public final Boolean ShooterEnabled;
     public final boolean RequireActionStarted;
@@ -31,6 +32,7 @@ public class OpModeCommand {
             @NonNull Double minTimeMillis,
             @NonNull Double settleTimeMillis,
             @NonNull Double settleThresholdRatio,
+            @Nullable Double drivePowerScale,
             @Nullable Double intakePower,
             @Nullable Boolean shooterEnabled,
             boolean requireActionStarted,
@@ -40,6 +42,7 @@ public class OpModeCommand {
         MinTimeMillis = minTimeMillis;
         SettleTimeMillis = settleTimeMillis;
         DriveSettleThresholdRatio = settleThresholdRatio;
+        DrivePowerScale = drivePowerScale;
         IntakePower = intakePower;
         ShooterEnabled = shooterEnabled;
         RequireActionStarted = requireActionStarted;
@@ -53,6 +56,7 @@ public class OpModeCommand {
             @NonNull Double settleTimeMillis,
             @NonNull Double settleThresholdRatio) {
         this(waitUntilElapsedMillis, driveDirectToPose, minTimeMillis, settleTimeMillis, settleThresholdRatio,
+                null,
                 null, null, false, false);
     }
 
@@ -62,12 +66,13 @@ public class OpModeCommand {
             @NonNull Double settleTimeMillis,
             @NonNull Double settleThresholdRatio) {
         this(0, driveDirectToPose, minTimeMillis, settleTimeMillis, settleThresholdRatio,
+                null,
                 null, null, false, false);
     }
 
     public OpModeCommand withWaitUntil(int elapsedMillis) {
         return new OpModeCommand(elapsedMillis, DriveToPose, MinTimeMillis, SettleTimeMillis, DriveSettleThresholdRatio,
-                IntakePower, ShooterEnabled, RequireActionStarted, RequireShooterEnabled);
+                DrivePowerScale, IntakePower, ShooterEnabled, RequireActionStarted, RequireShooterEnabled);
     }
 
     public static OpModeCommand driveDirectToPoseCommand(Pose2d pose) {
@@ -77,6 +82,7 @@ public class OpModeCommand {
                 MIN_TIME_STANDARD,
                 SETTLE_TIME_STANDARD,
                 SETTLE_RATIO_STANDARD,
+                null,
                 null,
                 null,
                 false,
@@ -92,6 +98,7 @@ public class OpModeCommand {
                 PRECISE_SETTLE_RATIO,
                 null,
                 null,
+                null,
                 false,
                 false);
     }
@@ -103,6 +110,22 @@ public class OpModeCommand {
                 MIN_TIME_NONE,
                 SETTLE_TIME_NONE,
                 SETTLE_RATIO_COARSE,
+                null,
+                null,
+                null,
+                false,
+                false);
+    }
+
+    public static OpModeCommand driveDirectToPoseScaledCommand(Pose2d pose, double drivePowerScale) {
+        double scale = Math.max(0.0, Math.min(1.0, drivePowerScale));
+        return new OpModeCommand(
+                null,
+                pose,
+                MIN_TIME_STANDARD,
+                SETTLE_TIME_STANDARD,
+                SETTLE_RATIO_STANDARD,
+                scale,
                 null,
                 null,
                 false,
@@ -118,6 +141,7 @@ public class OpModeCommand {
                 SETTLE_RATIO_STANDARD,
                 null,
                 null,
+                null,
                 false,
                 false);
     }
@@ -129,6 +153,7 @@ public class OpModeCommand {
                 waitMillis,
                 SETTLE_TIME_NONE,
                 SETTLE_RATIO_STANDARD,
+                null,
                 null,
                 null,
                 false,
@@ -143,6 +168,7 @@ public class OpModeCommand {
                 SETTLE_TIME_NONE,
                 SETTLE_RATIO_STANDARD,
                 null,
+                null,
                 enabled,
                 true,
                 true);
@@ -155,6 +181,7 @@ public class OpModeCommand {
                 MIN_TIME_NONE,
                 SETTLE_TIME_NONE,
                 SETTLE_RATIO_STANDARD,
+                null,
                 power,
                 null,
                 true,
