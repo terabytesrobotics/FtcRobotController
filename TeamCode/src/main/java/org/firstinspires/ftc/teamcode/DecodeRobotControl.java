@@ -155,6 +155,9 @@ public class DecodeRobotControl {
     private static final double TOROID_POSITION_TOLERANCE_TICKS = 6.0;
     private static final double TOROID_TRANSIT_RPM = 78.0;
     private static final double TOROID_SHOOT_RPM = 180.0;
+    private static final double TOROID_APPROACH_START_RATIO = 0.45;
+    private static final double TOROID_APPROACH_START_TICKS = TOROID_STEP_TICKS * TOROID_APPROACH_START_RATIO;
+    private static final double TOROID_APPROACH_RPM = 35.0;
     private static final boolean TOROID_CCW_IS_POSITIVE = true;
     private static final boolean TOROID_TRANSIT_CCW = false;
     private static final boolean TOROID_SHOOT_CCW = true;
@@ -164,10 +167,15 @@ public class DecodeRobotControl {
     private static final double TOROID_JAM_CURRENT_AMPS = 2.2;
     private static final double TOROID_JAM_SPEED_TPS = 40.0;
     private static final double TOROID_JAM_DETECT_SEC = 0.08;
+    private static final double TOROID_STALL_DETECT_SEC = 0.12;
+    private static final double TOROID_STALL_PROGRESS_TICKS = 4.0;
+    private static final double TOROID_STALL_MIN_ERROR_TICKS = TOROID_POSITION_TOLERANCE_TICKS * 2.0;
     private static final double TOROID_JAM_RELAX_MAX_SEC = 0.15;
     private static final double TOROID_JAM_STOP_TPS = 10.0;
     private static final double TOROID_JAM_REVERSE_RPM = 40.0;
     private static final double TOROID_JAM_REVERSE_SEC = 0.08;
+    private static final double TOROID_JAM_FORWARD_RPM = 30.0;
+    private static final double TOROID_JAM_FORWARD_SEC = 0.06;
     private static final double TOROID_JAM_COOLDOWN_SEC = 0.08;
     private static final boolean TOROID_TEST_ONLY = false; // temporary: disable non-toroid actuation
     private static final double TOROID_PADDLE_SENSOR_OFFSET_DEG = 0.0;
@@ -187,6 +195,7 @@ public class DecodeRobotControl {
     private static final double TOROID_ZERO_CONFIDENCE_GAIN = 0.6;
     private static final double TOROID_ZERO_SAVE_INTERVAL_SEC = 0.8;
     private static final double TOROID_ZERO_MIN_SAVE_CONFIDENCE = 0.35;
+    private static final double TOROID_ZERO_MAX_TPS = 20.0;
     private static final double AUTO_TURN_DEADBAND_RATIO = 0.68; // align with precise settle ratio
     private static final double SLOT_CHECK_SETTLE_SEC = 0.25;
     private static final double SLOT_CHECK_DWELL_SEC = 0.25;
@@ -298,6 +307,7 @@ public class DecodeRobotControl {
     private final OnActivatedEvaluator lb2ActivatedEvaluator;
     private final OnActivatedEvaluator rs2ActivatedEvaluator;
     private final OnActivatedEvaluator ls2ActivatedEvaluator;
+    private final OnActivatedEvaluator shooterOffEvaluator;
     private final OnActivatedEvaluator y2ActivatedEvaluator;
     private final OnActivatedEvaluator b2ActivatedEvaluator;
     private final OnActivatedEvaluator a2ActivatedEvaluator;
@@ -356,6 +366,7 @@ public class DecodeRobotControl {
     private final ElapsedTime toroidJamTimer = new ElapsedTime();
     private final ElapsedTime toroidJamDetectTimer = new ElapsedTime();
     private final ElapsedTime toroidJamCooldownTimer = new ElapsedTime();
+    private final ElapsedTime toroidStallTimer = new ElapsedTime();
     private boolean toroidJamConditionActive = false;
     private double toroidJamResumeRpm = 0.0;
     private int toroidJamResumeSign = 0;
@@ -365,6 +376,9 @@ public class DecodeRobotControl {
     private int toroidPendingTargetSign = 0;
     private double toroidTargetRpm = 0.0;
     private double toroidTargetTps = 0.0;
+    private double toroidLastErrorAbsTicks = Double.NaN;
+    private double toroidLastApproachScale = 1.0;
+    private double toroidLastApproachRpm = 0.0;
     private double toroidZeroTicks = 0.0;
     private double toroidZeroConfidence = 0.0;
     private boolean toroidPaddleSeen = false;
@@ -456,6 +470,7 @@ public class DecodeRobotControl {
         lb2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.left_bumper);
         rs2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_stick_button);
         ls2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.left_stick_button);
+        shooterOffEvaluator = new OnActivatedEvaluator(() -> gamepad2.left_stick_button && gamepad2.right_stick_button);
         y2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.y);
         b2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.b);
         a2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.a);
@@ -742,6 +757,10 @@ public class DecodeRobotControl {
         packet.put("ToroidJamTimerSec", toroidJamTimer.seconds());
         packet.put("ToroidJamResumeRpm", toroidJamResumeRpm);
         packet.put("ToroidJamCooldownSec", toroidJamCooldownTimer.seconds());
+        packet.put("ToroidApproachScale", toroidLastApproachScale);
+        packet.put("ToroidApproachRpm", toroidLastApproachRpm);
+        packet.put("ToroidStallSec", toroidStallTimer.seconds());
+        packet.put("ToroidErrorAbsTicks", toroidLastErrorAbsTicks);
         packet.put("ToroidZeroTicks", toroidZeroTicks);
         packet.put("ToroidZeroDeg", toroidZeroTicks * 360.0 / TOROID_TICKS_PER_REV);
         packet.put("ToroidZeroConf", toroidZeroConfidence);
@@ -836,6 +855,9 @@ public class DecodeRobotControl {
             if (ls2ActivatedEvaluator.evaluate()) {
                 shooterEnabled = false;
             }
+            if (shooterOffEvaluator.evaluate()) {
+                shooterEnabled = false;
+            }
             updateShooterControl(true);
             boolean intakeToggleRequest = x2ActivatedEvaluator.evaluate();
             if (intakeToggleRequest) {
@@ -847,6 +869,9 @@ public class DecodeRobotControl {
             } else if (intakeEnabled) {
                 intakeState = IntakeState.FORWARD;
             } else {
+                intakeState = IntakeState.OFF;
+            }
+            if (toroidJamPhase != ToroidJamPhase.NONE) {
                 intakeState = IntakeState.OFF;
             }
             double intakePowerTarget = 0.0;
@@ -1168,8 +1193,10 @@ public class DecodeRobotControl {
     }
 
     private OpModeState evaluateManualControl(double dtMillis) {
-        // Default shooter on; right bumper toggles off/on via the edge evaluator.
-        updateShooterControl(true);
+        // Default shooter on; explicit combo press shuts it down.
+        if (shooterOffEvaluator.evaluate()) {
+            shooterEnabled = false;
+        }
 
         boolean intakeToggleRequest = x2ActivatedEvaluator.evaluate();
         boolean trimFasterRequest = rb2ActivatedEvaluator.evaluate();
@@ -1184,6 +1211,8 @@ public class DecodeRobotControl {
         } else if (trimSlowerRequest && shooterTransferTrimClicks < SHOOTER_TRANSFER_CLICK_LIMIT) {
             shooterTransferTrimClicks++;
         }
+
+        updateShooterControl(true);
 
         updateToroidControl();
 
@@ -1205,6 +1234,9 @@ public class DecodeRobotControl {
         } else if (intakeEnabled) {
             intakeState = IntakeState.FORWARD;
         } else {
+            intakeState = IntakeState.OFF;
+        }
+        if (toroidJamPhase != ToroidJamPhase.NONE) {
             intakeState = IntakeState.OFF;
         }
 
@@ -1356,6 +1388,12 @@ public class DecodeRobotControl {
         if (dt > 0.0) {
             toroidZeroConfidence = clamp01(toroidZeroConfidence * Math.exp(-dt / TOROID_ZERO_CONFIDENCE_DECAY_SEC));
         }
+        if (toroidTransitionPhase != TransitionPhase.NONE || toroidJamPhase != ToroidJamPhase.NONE) {
+            return;
+        }
+        if (Math.abs(toroidMotor.getVelocity()) > TOROID_ZERO_MAX_TPS) {
+            return;
+        }
 
         int colorReadingMaxInt = 2 << 11;
         double red = (double) toroidSensor.red() / colorReadingMaxInt;
@@ -1464,7 +1502,18 @@ public class DecodeRobotControl {
         int positionError = targetPosition - currentPosition;
         boolean atTarget = Math.abs(positionError) <= TOROID_POSITION_TOLERANCE_TICKS;
         int desiredSign = atTarget ? 0 : (positionError > 0 ? 1 : -1);
-        double targetRpmMag = (toroidMode == ToroidMode.SHOOT) ? TOROID_SHOOT_RPM : TOROID_TRANSIT_RPM;
+        double errorAbsTicks = Math.abs(positionError);
+        double baseRpmMag = (toroidMode == ToroidMode.SHOOT) ? TOROID_SHOOT_RPM : TOROID_TRANSIT_RPM;
+        double approachScale = 1.0;
+        if (!atTarget && errorAbsTicks <= TOROID_APPROACH_START_TICKS) {
+            approachScale = Range.clip(errorAbsTicks / TOROID_APPROACH_START_TICKS, 0.2, 1.0);
+        }
+        double targetRpmMag = baseRpmMag * approachScale;
+        if (!atTarget) {
+            targetRpmMag = Math.max(TOROID_APPROACH_RPM, targetRpmMag);
+        }
+        toroidLastApproachScale = approachScale;
+        toroidLastApproachRpm = targetRpmMag;
         toroidTargetRpm = desiredSign * targetRpmMag;
 
         int targetSign = toroidTargetRpm == 0.0 ? 0 : (toroidTargetRpm > 0.0 ? 1 : -1);
@@ -1479,9 +1528,19 @@ public class DecodeRobotControl {
                 && toroidTransitionPhase == TransitionPhase.NONE
                 && toroidJamPhase == ToroidJamPhase.NONE
                 && toroidJamCooldownTimer.seconds() >= TOROID_JAM_COOLDOWN_SEC;
+        boolean stallMonitoring = jamAllowed && errorAbsTicks >= TOROID_STALL_MIN_ERROR_TICKS;
+        boolean stallProgressGood = Double.isNaN(toroidLastErrorAbsTicks)
+                || (toroidLastErrorAbsTicks - errorAbsTicks) >= TOROID_STALL_PROGRESS_TICKS;
+        if (!stallMonitoring || stallProgressGood) {
+            toroidStallTimer.reset();
+        }
+        boolean stallCondition = stallMonitoring
+                && !stallProgressGood
+                && toroidStallTimer.seconds() >= TOROID_STALL_DETECT_SEC;
         boolean jamCondition = jamAllowed
-                && Math.abs(actualTps) <= TOROID_JAM_SPEED_TPS
-                && currentAmps >= TOROID_JAM_CURRENT_AMPS;
+                && ((Math.abs(actualTps) <= TOROID_JAM_SPEED_TPS
+                && currentAmps >= TOROID_JAM_CURRENT_AMPS)
+                || stallCondition);
         if (jamCondition) {
             if (!toroidJamConditionActive) {
                 toroidJamConditionActive = true;
@@ -1527,6 +1586,23 @@ public class DecodeRobotControl {
                     double reverseRpm = -jamSign * TOROID_JAM_REVERSE_RPM;
                     toroidMotor.setVelocity(rpmToTicksPerSec(reverseRpm, TOROID_TICKS_PER_REV));
                     if (toroidJamTimer.seconds() >= TOROID_JAM_REVERSE_SEC) {
+                        toroidJamPhase = ToroidJamPhase.FORWARD;
+                        toroidJamTimer.reset();
+                    }
+                }
+            } else if (toroidJamPhase == ToroidJamPhase.FORWARD) {
+                int jamSign = operatorStepCommanded ? targetSign : toroidJamResumeSign;
+                if (jamSign == 0) {
+                    toroidJamPhase = ToroidJamPhase.NONE;
+                    toroidJamCooldownTimer.reset();
+                } else {
+                    if (toroidMotor.getMode() != DcMotor.RunMode.RUN_USING_ENCODER) {
+                        toroidMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+                    }
+                    toroidMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+                    double forwardRpm = jamSign * TOROID_JAM_FORWARD_RPM;
+                    toroidMotor.setVelocity(rpmToTicksPerSec(forwardRpm, TOROID_TICKS_PER_REV));
+                    if (toroidJamTimer.seconds() >= TOROID_JAM_FORWARD_SEC) {
                         toroidJamPhase = ToroidJamPhase.NONE;
                         toroidJamCooldownTimer.reset();
                     }
@@ -1556,6 +1632,10 @@ public class DecodeRobotControl {
             if (toroidTransitionTimer.seconds() >= TOROID_BRAKE_BEFORE_REVERSE_SEC) {
                 toroidTransitionPhase = TransitionPhase.NONE;
             }
+        } else if (atTarget && !operatorStepCommanded) {
+            toroidMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+            toroidMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+            toroidMotor.setPower(0.0);
         } else {
             toroidMotor.setTargetPosition(targetPosition);
             if (toroidMotor.getMode() != DcMotor.RunMode.RUN_TO_POSITION) {
@@ -1565,6 +1645,8 @@ public class DecodeRobotControl {
             toroidMotor.setVelocity(Math.abs(toroidTargetTps));
             toroidLastTargetSign = toroidPendingTargetSign;
         }
+
+        toroidLastErrorAbsTicks = errorAbsTicks;
     }
 
     private static double rpmToTicksPerSec(double rpm, double ticksPerRev) {
@@ -1590,7 +1672,8 @@ public class DecodeRobotControl {
     private enum ToroidJamPhase {
         NONE,
         RELAX,
-        REVERSE
+        REVERSE,
+        FORWARD
     }
 
     private enum TransitionPhase {
@@ -1627,7 +1710,12 @@ public class DecodeRobotControl {
         } else {
             intakeState = IntakeState.OFF;
         }
-        updateIntakePower(autonomousIntakePower, dtMillis);
+        double intakePowerTarget = autonomousIntakePower;
+        if (toroidJamPhase != ToroidJamPhase.NONE) {
+            intakeState = IntakeState.OFF;
+            intakePowerTarget = 0.0;
+        }
+        updateIntakePower(intakePowerTarget, dtMillis);
         lift.setPosition(lifted ? 0.0 : 1.0);
     }
 
