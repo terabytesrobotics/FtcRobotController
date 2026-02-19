@@ -14,11 +14,14 @@ import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_SANITY_MAX_YAW;
 import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_TRUSTED_MAX_BEARING;
 import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_TRUSTED_MAX_RANGE;
 import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_TRUSTED_MAX_YAW;
+import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_ELEVATION_OFFSET_DEG;
+import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_RANGE_SCALE;
 import static org.firstinspires.ftc.teamcode.Constants.DRIVE_TO_POSE_THRESHOLD;
 import static org.firstinspires.ftc.teamcode.Constants.FRONT_CAMERA_LATERAL_OFFSET_INCHES;
 import static org.firstinspires.ftc.teamcode.Constants.FRONT_CAMERA_HEIGHT_INCHES;
 import static org.firstinspires.ftc.teamcode.Constants.FRONT_CAMERA_OFFSET_INCHES;
 import static org.firstinspires.ftc.teamcode.Constants.APRIL_TAG_MIN_QUEUE_SAMPLES;
+import static org.firstinspires.ftc.teamcode.Constants.TOROID_JOYSTICK_DEADBAND;
 import static org.firstinspires.ftc.teamcode.Constants.SPEED_GAIN;
 import static org.firstinspires.ftc.teamcode.Constants.TURN_ERROR_THRESHOLD;
 import static org.firstinspires.ftc.teamcode.Constants.TURN_GAIN;
@@ -146,7 +149,6 @@ public class DecodeRobotControl {
     private static final double INTAKE_JAM_REVERSE_POWER = 0.335;
     private static final double INTAKE_JAM_REVERSE_SEC = 0.12;
     private static final double INTAKE_JAM_COOLDOWN_SEC = 0.2;
-    private static final boolean INTAKE_TOP_INVERTED = true;
     private static final String TOROID_MOTOR_NAME = "coreHex";
     private static final String TOROID_SENSOR_NAME = "color1";
     private static final String TOROID_ZERO_FILE_NAME = "toroid_zero.txt";
@@ -313,7 +315,6 @@ public class DecodeRobotControl {
     private final OnActivatedEvaluator a2ActivatedEvaluator;
     private final DcMotorEx wheel;
     private final DcMotorEx intakeMotor;
-    private final CRServo intakeTop;
     private final SampleMecanumDrive drive;
     private final Servo lift;
     private final WebcamName camera;
@@ -430,8 +431,6 @@ public class DecodeRobotControl {
         intakeMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         intakeMotor.setDirection(DcMotorSimple.Direction.FORWARD);
         intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        intakeTop = hardwareMap.get(CRServo.class, "intakeTop");
-        intakeTop.setPower(0.0);
 
         aprilTagProcessor = new AprilTagProcessor.Builder().build();
 
@@ -1098,10 +1097,6 @@ public class DecodeRobotControl {
         double actualTps = intakeMotor.getVelocity();
         double currentAmps = intakeMotor.getCurrent(CurrentUnit.AMPS);
         double requestedSign = Math.abs(intakePowerSmoothed) < 1e-3 ? 0.0 : Math.signum(intakePowerSmoothed);
-        double intakeTopPower = requestedSign == 0.0
-                ? 0.0
-                : (INTAKE_TOP_INVERTED ? -1.0 : 1.0) * requestedSign;
-
         boolean jamAllowed = requestedSign != 0.0
                 && intakeJamPhase == IntakeJamPhase.NONE
                 && intakeJamCooldownTimer.seconds() >= INTAKE_JAM_COOLDOWN_SEC;
@@ -1128,8 +1123,6 @@ public class DecodeRobotControl {
             if (intakeJamPhase == IntakeJamPhase.RELAX) {
                 intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
                 intakeMotor.setPower(0.0);
-                double jamSign = Math.abs(intakeJamResumePower) < 1e-3 ? 0.0 : Math.signum(intakeJamResumePower);
-                intakeTop.setPower(jamSign == 0.0 ? 0.0 : (INTAKE_TOP_INVERTED ? -1.0 : 1.0) * jamSign);
                 if (Math.abs(actualTps) <= INTAKE_JAM_STOP_TPS
                         || intakeJamTimer.seconds() >= INTAKE_JAM_RELAX_MAX_SEC) {
                     intakeJamPhase = IntakeJamPhase.REVERSE;
@@ -1143,8 +1136,6 @@ public class DecodeRobotControl {
                     intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
                     double reversePower = -Math.signum(intakeJamResumePower) * INTAKE_JAM_REVERSE_POWER;
                     intakeMotor.setPower(reversePower);
-                    double jamSign = Math.signum(intakeJamResumePower);
-                    intakeTop.setPower(jamSign == 0.0 ? 0.0 : (INTAKE_TOP_INVERTED ? -1.0 : 1.0) * jamSign);
                     if (intakeJamTimer.seconds() >= INTAKE_JAM_REVERSE_SEC) {
                         intakeJamPhase = IntakeJamPhase.NONE;
                         intakeJamCooldownTimer.reset();
@@ -1156,7 +1147,6 @@ public class DecodeRobotControl {
 
         intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         intakeMotor.setPower(intakePowerSmoothed);
-        intakeTop.setPower(intakeTopPower);
     }
 
     private double solveTimeToHeight(double effectiveGravity, double exitVelocityIps, double targetHeight) {
@@ -1345,6 +1335,12 @@ public class DecodeRobotControl {
         return Math.copySign(scaled * scaled, value);
     }
 
+    private double applySignedLinearDeadband(double value, double deadband) {
+        if (Math.abs(value) <= deadband) return 0.0;
+        double scaled = (Math.abs(value) - deadband) / (1.0 - deadband);
+        return Math.copySign(scaled, value);
+    }
+
     private static double wrapDeltaTicks(double delta, double period) {
         return delta - period * Math.round(delta / period);
     }
@@ -1468,185 +1464,36 @@ public class DecodeRobotControl {
         }
         updateToroidZeroing();
 
-        double ccwSign = TOROID_CCW_IS_POSITIVE ? 1.0 : -1.0;
         int currentPosition = toroidMotor.getCurrentPosition();
-        int currentStepIndex = (int) Math.round((currentPosition - toroidZeroTicks) / TOROID_STEP_TICKS);
+        toroidTargetStepIndex = (int) Math.round((currentPosition - toroidZeroTicks) / TOROID_STEP_TICKS);
 
-        int lead = toroidTargetStepIndex - currentStepIndex;
-        if (Math.abs(lead) > 1) {
-            toroidTargetStepIndex = currentStepIndex + (lead > 0 ? 1 : -1);
-        }
+        double stick = -gamepad2.right_stick_y;
+        double command = applySignedLinearDeadband(stick, TOROID_JOYSTICK_DEADBAND);
+        double targetRpm = command * TOROID_TRANSIT_RPM;
+        toroidTargetRpm = targetRpm;
+        toroidTargetTps = rpmToTicksPerSec(targetRpm, TOROID_TICKS_PER_REV);
 
-        boolean transitStep = y2ActivatedEvaluator.evaluate();
-        boolean shootStep = b2ActivatedEvaluator.evaluate();
-        boolean stopStep = a2ActivatedEvaluator.evaluate();
-        boolean operatorStepCommanded = transitStep || shootStep || stopStep;
-        if (transitStep) {
-            int stepDir = (int) Math.signum(TOROID_TRANSIT_CCW ? ccwSign : -ccwSign);
-            if (Math.abs(toroidTargetStepIndex - currentStepIndex) < 1) {
-                toroidTargetStepIndex += stepDir;
-            }
-            toroidMode = ToroidMode.TRANSIT;
-        } else if (shootStep) {
-            int stepDir = (int) Math.signum(TOROID_SHOOT_CCW ? ccwSign : -ccwSign);
-            if (Math.abs(toroidTargetStepIndex - currentStepIndex) < 1) {
-                toroidTargetStepIndex += stepDir;
-            }
-            toroidMode = ToroidMode.SHOOT;
-        } else if (stopStep) {
-            toroidTargetStepIndex = currentStepIndex;
-            toroidMode = ToroidMode.STOP;
-        }
+        toroidMode = Math.abs(command) > 1e-3 ? ToroidMode.TRANSIT : ToroidMode.STOP;
+        toroidTransitionPhase = TransitionPhase.NONE;
+        toroidJamPhase = ToroidJamPhase.NONE;
+        toroidJamConditionActive = false;
 
-        int targetPosition = (int) Math.round(toroidZeroTicks + toroidTargetStepIndex * TOROID_STEP_TICKS);
-        int positionError = targetPosition - currentPosition;
-        boolean atTarget = Math.abs(positionError) <= TOROID_POSITION_TOLERANCE_TICKS;
-        int desiredSign = atTarget ? 0 : (positionError > 0 ? 1 : -1);
-        double errorAbsTicks = Math.abs(positionError);
-        double baseRpmMag = (toroidMode == ToroidMode.SHOOT) ? TOROID_SHOOT_RPM : TOROID_TRANSIT_RPM;
-        double approachScale = 1.0;
-        if (!atTarget && errorAbsTicks <= TOROID_APPROACH_START_TICKS) {
-            approachScale = Range.clip(errorAbsTicks / TOROID_APPROACH_START_TICKS, 0.2, 1.0);
+        if (toroidMotor.getMode() != DcMotor.RunMode.RUN_USING_ENCODER) {
+            toroidMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         }
-        double targetRpmMag = baseRpmMag * approachScale;
-        if (!atTarget) {
-            targetRpmMag = Math.max(TOROID_APPROACH_RPM, targetRpmMag);
-        }
-        toroidLastApproachScale = approachScale;
-        toroidLastApproachRpm = targetRpmMag;
-        toroidTargetRpm = desiredSign * targetRpmMag;
-
-        int targetSign = toroidTargetRpm == 0.0 ? 0 : (toroidTargetRpm > 0.0 ? 1 : -1);
-        double actualTps = toroidMotor.getVelocity();
-        double currentAmps = toroidMotor.getCurrent(CurrentUnit.AMPS);
-        int actualSign = Math.abs(actualTps) > TOROID_VELOCITY_SIGN_THRESHOLD_TPS ? (actualTps > 0.0 ? 1 : -1) : 0;
-        boolean reversing = targetSign != 0 && actualSign != 0 && targetSign != actualSign;
-        toroidPendingTargetRpm = toroidTargetRpm;
-        toroidPendingTargetSign = targetSign;
-
-        boolean jamAllowed = targetSign != 0
-                && toroidTransitionPhase == TransitionPhase.NONE
-                && toroidJamPhase == ToroidJamPhase.NONE
-                && toroidJamCooldownTimer.seconds() >= TOROID_JAM_COOLDOWN_SEC;
-        boolean stallMonitoring = jamAllowed && errorAbsTicks >= TOROID_STALL_MIN_ERROR_TICKS;
-        boolean stallProgressGood = Double.isNaN(toroidLastErrorAbsTicks)
-                || (toroidLastErrorAbsTicks - errorAbsTicks) >= TOROID_STALL_PROGRESS_TICKS;
-        if (!stallMonitoring || stallProgressGood) {
-            toroidStallTimer.reset();
-        }
-        boolean stallCondition = stallMonitoring
-                && !stallProgressGood
-                && toroidStallTimer.seconds() >= TOROID_STALL_DETECT_SEC;
-        boolean jamCondition = jamAllowed
-                && ((Math.abs(actualTps) <= TOROID_JAM_SPEED_TPS
-                && currentAmps >= TOROID_JAM_CURRENT_AMPS)
-                || stallCondition);
-        if (jamCondition) {
-            if (!toroidJamConditionActive) {
-                toroidJamConditionActive = true;
-                toroidJamDetectTimer.reset();
-            }
-            if (toroidJamDetectTimer.seconds() >= TOROID_JAM_DETECT_SEC) {
-                toroidJamPhase = ToroidJamPhase.RELAX;
-                toroidJamTimer.reset();
-                toroidJamResumeRpm = toroidTargetRpm;
-                toroidJamResumeSign = targetSign;
-                toroidJamConditionActive = false;
-                toroidJamDetectTimer.reset();
-                toroidTransitionPhase = TransitionPhase.NONE;
-            }
-        } else {
-            toroidJamConditionActive = false;
-        }
-
-        if (toroidJamPhase != ToroidJamPhase.NONE) {
-            if (operatorStepCommanded) {
-                toroidJamResumeSign = targetSign;
-                toroidJamResumeRpm = toroidTargetRpm;
-            }
-            if (toroidJamPhase == ToroidJamPhase.RELAX) {
-                toroidMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-                toroidMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-                toroidMotor.setPower(0.0);
-                if (Math.abs(actualTps) <= TOROID_JAM_STOP_TPS
-                        || toroidJamTimer.seconds() >= TOROID_JAM_RELAX_MAX_SEC) {
-                    toroidJamPhase = ToroidJamPhase.REVERSE;
-                    toroidJamTimer.reset();
-                }
-            } else if (toroidJamPhase == ToroidJamPhase.REVERSE) {
-                int jamSign = operatorStepCommanded ? targetSign : toroidJamResumeSign;
-                if (jamSign == 0) {
-                    toroidJamPhase = ToroidJamPhase.NONE;
-                    toroidJamCooldownTimer.reset();
-                } else {
-                    if (toroidMotor.getMode() != DcMotor.RunMode.RUN_USING_ENCODER) {
-                        toroidMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-                    }
-                    toroidMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-                    double reverseRpm = -jamSign * TOROID_JAM_REVERSE_RPM;
-                    toroidMotor.setVelocity(rpmToTicksPerSec(reverseRpm, TOROID_TICKS_PER_REV));
-                    if (toroidJamTimer.seconds() >= TOROID_JAM_REVERSE_SEC) {
-                        toroidJamPhase = ToroidJamPhase.FORWARD;
-                        toroidJamTimer.reset();
-                    }
-                }
-            } else if (toroidJamPhase == ToroidJamPhase.FORWARD) {
-                int jamSign = operatorStepCommanded ? targetSign : toroidJamResumeSign;
-                if (jamSign == 0) {
-                    toroidJamPhase = ToroidJamPhase.NONE;
-                    toroidJamCooldownTimer.reset();
-                } else {
-                    if (toroidMotor.getMode() != DcMotor.RunMode.RUN_USING_ENCODER) {
-                        toroidMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-                    }
-                    toroidMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-                    double forwardRpm = jamSign * TOROID_JAM_FORWARD_RPM;
-                    toroidMotor.setVelocity(rpmToTicksPerSec(forwardRpm, TOROID_TICKS_PER_REV));
-                    if (toroidJamTimer.seconds() >= TOROID_JAM_FORWARD_SEC) {
-                        toroidJamPhase = ToroidJamPhase.NONE;
-                        toroidJamCooldownTimer.reset();
-                    }
-                }
-            }
-            return;
-        }
-
-        if (toroidTransitionPhase == TransitionPhase.NONE && reversing) {
-            toroidTransitionPhase = TransitionPhase.COAST;
-            toroidTransitionTimer.reset();
-        }
-
-        toroidTargetTps = rpmToTicksPerSec(toroidPendingTargetRpm, TOROID_TICKS_PER_REV);
-        if (toroidTransitionPhase == TransitionPhase.COAST) {
-            toroidMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-            toroidMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-            toroidMotor.setPower(0.0);
-            if (toroidTransitionTimer.seconds() >= TOROID_COAST_BEFORE_BRAKE_SEC) {
-                toroidTransitionPhase = TransitionPhase.BRAKE;
-                toroidTransitionTimer.reset();
-            }
-        } else if (toroidTransitionPhase == TransitionPhase.BRAKE) {
-            toroidMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-            toroidMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-            toroidMotor.setPower(0.0);
-            if (toroidTransitionTimer.seconds() >= TOROID_BRAKE_BEFORE_REVERSE_SEC) {
-                toroidTransitionPhase = TransitionPhase.NONE;
-            }
-        } else if (atTarget && !operatorStepCommanded) {
-            toroidMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-            toroidMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        toroidMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        if (Math.abs(command) <= 1e-3) {
             toroidMotor.setPower(0.0);
         } else {
-            toroidMotor.setTargetPosition(targetPosition);
-            if (toroidMotor.getMode() != DcMotor.RunMode.RUN_TO_POSITION) {
-                toroidMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-            }
-            toroidMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-            toroidMotor.setVelocity(Math.abs(toroidTargetTps));
-            toroidLastTargetSign = toroidPendingTargetSign;
+            toroidMotor.setVelocity(toroidTargetTps);
         }
 
-        toroidLastErrorAbsTicks = errorAbsTicks;
+        toroidLastApproachScale = 1.0;
+        toroidLastApproachRpm = Math.abs(targetRpm);
+        toroidPendingTargetRpm = targetRpm;
+        toroidPendingTargetSign = targetRpm == 0.0 ? 0 : (targetRpm > 0.0 ? 1 : -1);
+        toroidLastTargetSign = toroidPendingTargetSign;
+        toroidLastErrorAbsTicks = 0.0;
     }
 
     private static double rpmToTicksPerSec(double rpm, double ticksPerRev) {
@@ -2120,8 +1967,9 @@ public class DecodeRobotControl {
 
         double yaw = Math.toRadians(detection.ftcPose.yaw);
         double bearing = Math.toRadians(detection.ftcPose.bearing);
-        double elevation = Math.toRadians(detection.ftcPose.elevation);
-        double range = detection.ftcPose.range;
+        double elevation = Math.toRadians(detection.ftcPose.elevation)
+                + Math.toRadians(APRIL_TAG_ELEVATION_OFFSET_DEG);
+        double range = detection.ftcPose.range * APRIL_TAG_RANGE_SCALE;
         lastDetectionYaw = yaw;
         lastDetectionBearing = bearing;
         lastDetectionElevation = elevation;

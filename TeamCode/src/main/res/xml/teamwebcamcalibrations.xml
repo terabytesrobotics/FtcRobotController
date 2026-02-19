@@ -146,6 +146,18 @@
 
     <!-- ======================================================================================= -->
 
+    <!-- Logitech C922 Pro, calibrated 2026-02-19 from screen checkerboard (9x6 inner corners) -->
+    <Camera vid="Logitech" pid="0x085C">
+        <Calibration
+            size="640 480"
+            focalLength="870.409f 842.628f"
+            principalPoint="281.256f 222.692f"
+            distortionCoefficients="0.259799 -0.782813 -0.008232 0.003613 1.74449 0 0 0"
+            />
+    </Camera>
+
+    <!-- ======================================================================================= -->
+
     <!-- Logitech HD Webcam C270, Calibrated by Noah Andrews, 2019.03.13 using 3DF Zephyr -->
     <!--<Camera vid="Logitech" pid="0x0825">
         <Calibration

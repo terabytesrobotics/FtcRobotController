@@ -78,4 +78,8 @@ lint/intermediates/
 lint/generated/
 lint/outputs/
 lint/tmp/
+
+.venv/**
+camera_frames/**
 # lint/reports/
+

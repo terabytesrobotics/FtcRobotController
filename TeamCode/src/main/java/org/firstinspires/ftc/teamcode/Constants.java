@@ -15,13 +15,18 @@ public class Constants {
     public static double APRIL_TAG_RECOGNITION_YAW_THRESHOLD = Math.PI / 6;
     public static double APRIL_TAG_RECOGNITION_BEARING_THRESHOLD = Math.PI / 6;
     // Sanity limits for pose acceptance (looser than recognition thresholds).
-    public static double APRIL_TAG_SANITY_MAX_RANGE = 168; // 14 feet
+    public static double APRIL_TAG_SANITY_MAX_RANGE = 183.3; // ~15.3 feet
     public static double APRIL_TAG_SANITY_MAX_BEARING = Math.toRadians(60.0);
     public static double APRIL_TAG_SANITY_MAX_YAW = Math.toRadians(60.0);
     // Only trust tag-based pose corrections when we're close and squared up.
     public static double APRIL_TAG_TRUSTED_MAX_RANGE = 96; // inches
     public static double APRIL_TAG_TRUSTED_MAX_BEARING = Math.toRadians(12.0);
     public static double APRIL_TAG_TRUSTED_MAX_YAW = Math.toRadians(10.0);
+    // Calibration knobs for camera pose estimates.
+    // If tag range feels consistently long/short, adjust APRIL_TAG_RANGE_SCALE (e.g., 0.93 to shrink).
+    public static double APRIL_TAG_RANGE_SCALE = 1.0;
+    // If camera is pitched up/down relative to robot forward, compensate here (degrees).
+    public static double APRIL_TAG_ELEVATION_OFFSET_DEG = 0.0;
     public static double APRIL_TAG_MIN_DECISION_MARGIN = 60.0;
     public static final int APRIL_TAG_QUEUE_CAPACITY = 8;
     // Minimum samples needed before fusing (useful for smoothing but still lets us react quickly).
@@ -37,6 +42,7 @@ public class Constants {
     public static final double SLOW_MODE_SCALE = 0.3;
     public static final double FAST_MODE_SCALE = 1;
     public static final boolean INVERT_TILT_SERVO = true; // Switches direction for new servo Set to false if switching back
+    public static final double TOROID_JOYSTICK_DEADBAND = 0.15;
 
     public static void sleep(int millis) {
         try {
