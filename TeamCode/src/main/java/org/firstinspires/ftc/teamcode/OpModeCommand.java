@@ -23,6 +23,8 @@ public class OpModeCommand {
     public final Double DrivePowerScale;
     public final Double IntakePower;
     public final Boolean ShooterEnabled;
+    public final Integer ToroidShootSteps;
+    public final Double ToroidTimeoutMillis;
     public final boolean RequireActionStarted;
     public final boolean RequireShooterEnabled;
 
@@ -35,6 +37,8 @@ public class OpModeCommand {
             @Nullable Double drivePowerScale,
             @Nullable Double intakePower,
             @Nullable Boolean shooterEnabled,
+            @Nullable Integer toroidShootSteps,
+            @Nullable Double toroidTimeoutMillis,
             boolean requireActionStarted,
             boolean requireShooterEnabled) {
         WaitUntilElapsedMillis = waitUntilElapsedMillis;
@@ -45,6 +49,8 @@ public class OpModeCommand {
         DrivePowerScale = drivePowerScale;
         IntakePower = intakePower;
         ShooterEnabled = shooterEnabled;
+        ToroidShootSteps = toroidShootSteps;
+        ToroidTimeoutMillis = toroidTimeoutMillis;
         RequireActionStarted = requireActionStarted;
         RequireShooterEnabled = requireShooterEnabled;
     }
@@ -57,7 +63,7 @@ public class OpModeCommand {
             @NonNull Double settleThresholdRatio) {
         this(waitUntilElapsedMillis, driveDirectToPose, minTimeMillis, settleTimeMillis, settleThresholdRatio,
                 null,
-                null, null, false, false);
+                null, null, null, null, false, false);
     }
 
     public OpModeCommand(
@@ -67,12 +73,13 @@ public class OpModeCommand {
             @NonNull Double settleThresholdRatio) {
         this(0, driveDirectToPose, minTimeMillis, settleTimeMillis, settleThresholdRatio,
                 null,
-                null, null, false, false);
+                null, null, null, null, false, false);
     }
 
     public OpModeCommand withWaitUntil(int elapsedMillis) {
         return new OpModeCommand(elapsedMillis, DriveToPose, MinTimeMillis, SettleTimeMillis, DriveSettleThresholdRatio,
-                DrivePowerScale, IntakePower, ShooterEnabled, RequireActionStarted, RequireShooterEnabled);
+                DrivePowerScale, IntakePower, ShooterEnabled, ToroidShootSteps, ToroidTimeoutMillis,
+                RequireActionStarted, RequireShooterEnabled);
     }
 
     public static OpModeCommand driveDirectToPoseCommand(Pose2d pose) {
@@ -82,6 +89,8 @@ public class OpModeCommand {
                 MIN_TIME_STANDARD,
                 SETTLE_TIME_STANDARD,
                 SETTLE_RATIO_STANDARD,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -99,6 +108,8 @@ public class OpModeCommand {
                 null,
                 null,
                 null,
+                null,
+                null,
                 false,
                 false);
     }
@@ -110,6 +121,8 @@ public class OpModeCommand {
                 MIN_TIME_NONE,
                 SETTLE_TIME_NONE,
                 SETTLE_RATIO_COARSE,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -128,6 +141,8 @@ public class OpModeCommand {
                 scale,
                 null,
                 null,
+                null,
+                null,
                 false,
                 false);
     }
@@ -139,6 +154,8 @@ public class OpModeCommand {
                 MIN_TIME_NONE,
                 SETTLE_TIME_NONE,
                 SETTLE_RATIO_STANDARD,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -156,6 +173,8 @@ public class OpModeCommand {
                 null,
                 null,
                 null,
+                null,
+                null,
                 false,
                 false);
     }
@@ -170,6 +189,8 @@ public class OpModeCommand {
                 null,
                 null,
                 enabled,
+                null,
+                null,
                 true,
                 true);
     }
@@ -184,6 +205,24 @@ public class OpModeCommand {
                 null,
                 power,
                 null,
+                null,
+                null,
+                true,
+                false);
+    }
+
+    public static OpModeCommand toroidShootStepsCommand(int steps, double timeoutMillis) {
+        return new OpModeCommand(
+                null,
+                null,
+                MIN_TIME_NONE,
+                SETTLE_TIME_NONE,
+                SETTLE_RATIO_STANDARD,
+                null,
+                null,
+                null,
+                steps,
+                timeoutMillis,
                 true,
                 false);
     }

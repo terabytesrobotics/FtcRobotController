@@ -8,7 +8,7 @@ public class Constants {
     public static final int FRONT_CAMERA_OFFSET_INCHES = 8;
     public static final double FRONT_CAMERA_LATERAL_OFFSET_INCHES = 0.5;
     // Height of the camera above the field plane (robot origin assumed at carpet height). Tune on-robot.
-    public static final double FRONT_CAMERA_HEIGHT_INCHES = 14.0;
+    public static final double FRONT_CAMERA_HEIGHT_INCHES = 13.0;
     public static final double DRIVE_TO_POSE_THRESHOLD = 1.5f;
     public static double APRIL_TAG_RECOGNITION_MAX_RANGE = 144;
     public static double APRIL_TAG_RECOGNITION_MIN_RANGE = 5;
@@ -24,7 +24,7 @@ public class Constants {
     public static double APRIL_TAG_TRUSTED_MAX_YAW = Math.toRadians(10.0);
     // Calibration knobs for camera pose estimates.
     // If tag range feels consistently long/short, adjust APRIL_TAG_RANGE_SCALE (e.g., 0.93 to shrink).
-    public static double APRIL_TAG_RANGE_SCALE = 1.0;
+    public static double APRIL_TAG_RANGE_SCALE = 0.825;
     // If camera is pitched up/down relative to robot forward, compensate here (degrees).
     public static double APRIL_TAG_ELEVATION_OFFSET_DEG = 0.0;
     public static double APRIL_TAG_MIN_DECISION_MARGIN = 60.0;
