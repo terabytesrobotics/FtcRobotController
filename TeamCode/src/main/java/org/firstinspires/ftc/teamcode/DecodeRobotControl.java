@@ -84,7 +84,7 @@ public class DecodeRobotControl {
     private static final double FIELD_RIM_HEIGHT_INCHES = 39.0;
     private static final double RIM_CLEARANCE_INCHES = BALL_RADIUS_INCHES; // center clears rim by a radius
     private static final double TARGET_PLANE_HEIGHT_INCHES = FIELD_RIM_HEIGHT_INCHES + RIM_CLEARANCE_INCHES;
-    private static final Vector2d RED_BASKET_POSITION_INCHES = new Vector2d(-62.5, 52.5);
+    private static final Vector2d RED_BASKET_POSITION_INCHES = new Vector2d(-62.5, 62.5);
     private static final double SHOOTER_EXIT_ANGLE_RADIANS = Math.toRadians(50.0);
     // Ball exit height: bottom of ball at 13" above carpet -> center at 13" + radius.
     private static final double SHOOTER_EXIT_HEIGHT_INCHES = 13.0 + BALL_RADIUS_INCHES;
@@ -109,14 +109,14 @@ public class DecodeRobotControl {
     // Empirical efficiency for how much of the ideal spin makes it to the ball (slip/compliance losses).
     private static final double SHOOTER_SPIN_EFFICIENCY = 0.35;
     // Efficiency factor baseline: exit velocity tends to trail the wheel surface speed because of slip/compression.
-    private static final double SHOOTER_EXIT_VELOCITY_TRANSFER_BASE = 0.738625;
+    private static final double SHOOTER_EXIT_VELOCITY_TRANSFER_BASE = 0.7922718125;
     private static final double SHOOTER_TRANSFER_CLICK_STEP = 0.0125; // 1.25% per click
     private static final int SHOOTER_TRANSFER_CLICK_LIMIT = 4;
     private static final double SHOOTER_TRANSFER_MIN = 0.75;
     private static final double SHOOTER_TRANSFER_MAX = 1.05;
     private static final double SHOOTER_MIN_EXIT_VELOCITY_INCHES_PER_SECOND = 180.0;
     private static final double SHOOTER_MAX_EXIT_VELOCITY_INCHES_PER_SECOND = 450.0;
-    private static final double SHOOTER_CLOSE_RANGE_BOOST = 0.175; // +17.5% close-range boost
+    private static final double SHOOTER_CLOSE_RANGE_BOOST = 0.075; // +7.5% close-range boost
     private static final double SHOOTER_CLOSE_RANGE_MAX_DISTANCE_INCHES = 9.5 * 12.0;
     private static final double SHOOTER_WHEEL_AXLE_HEIGHT_INCHES = 6.75;
     private static final double SHOOTER_WHEEL_COMPRESSION_INCHES = BALL_DIAMETER_INCHES + SHOOTER_WHEEL_RADIUS_INCHES - SHOOTER_WHEEL_AXLE_HEIGHT_INCHES;
@@ -156,11 +156,11 @@ public class DecodeRobotControl {
     private static final double TOROID_TICKS_PER_REV = 288.0;
     private static final double TOROID_STEP_TICKS = TOROID_TICKS_PER_REV / 3.0; // 120 deg steps
     private static final double TOROID_POSITION_TOLERANCE_TICKS = 6.0;
-    private static final double TOROID_TRANSIT_MAX_RPM_POS = 46.875;
-    private static final double TOROID_TRANSIT_MAX_RPM_NEG = 46.875;
+    private static final double TOROID_TRANSIT_MAX_RPM_POS = 71.291015625;
+    private static final double TOROID_TRANSIT_MAX_RPM_NEG = 71.291015625;
     private static final double TOROID_SHOOT_RPM = 180.0;
     private static final int TOROID_SHOOT_STEPS = 6; // 2 full rotations (6 x 120deg)
-    private static final double TOROID_SHOOT_TIMEOUT_MILLIS = 1500.0;
+    private static final double TOROID_SHOOT_TIMEOUT_MILLIS = 3000.0;
     private static final boolean TOROID_IDLE_JOSTLE_ENABLED = false;
     private static final double TOROID_IDLE_JOSTLE_RPM = 15.0;
     private static final double TOROID_IDLE_JOSTLE_ON_SEC = 0.25;
@@ -217,7 +217,7 @@ public class DecodeRobotControl {
     private static final double DRIVE_NORMAL_TURN_CAP = 0.85;
     private static final double DRIVE_FAST_TURN_CAP = 1.0;
     private static final double AIM_ASSIST_TURN_GAIN = 2.3;
-    private static final double AUTO_MIN_TRANSLATION_POWER = 0.21;
+    private static final double AUTO_MIN_TRANSLATION_POWER = 0.275;
     private static final double AUTO_MIN_ROTATION_POWER = 0.5;
 
     // Only trust the large field tags for localization.
@@ -247,13 +247,13 @@ public class DecodeRobotControl {
     private static final double TRIAD_CENTER_Y_RED = 47.25;
     private static final double TRIAD_SIDE_BALL_OFFSET_Y = 5.0; // touching 5" balls
     private static final double[] TRIAD_CENTER_XS_RED = {-12.0, 12.0, 36.0};
-    private static final double TRIAD_APPROACH_Y_OFFSET = 12.0; // tune for intake engagement margin
-    private static final double TRIAD_EXIT_Y_OFFSET = 2.0; // tighter clearance on exit
+    private static final double TRIAD_APPROACH_Y_OFFSET = 20.0; // start farther out before first ball
+    private static final double TRIAD_EXIT_Y_OFFSET = 0.0; // stop at center on exit
     private static final double TRIAD_COLLECT_DRIVE_POWER_SCALE = 0.5; // slow down while driving into balls
-    private static final double TRIAD_COLLECT_FORWARD_OFFSET_INCHES = 5.0; // shift robot forward so intake aligns to target
+    private static final double TRIAD_COLLECT_FORWARD_OFFSET_INCHES = 7.0; // shift robot forward so intake aligns to target
     private static final double AUDIENCE_START_HEADING = Math.toRadians(180.0);
     private static final double SHOOTING_X_DELTA_FROM_START_INCHES = -4.0;
-    private static final double BACK_SHOOT_X = -12.0;
+    private static final double BACK_SHOOT_X = -16.0;
     private static final double BACK_SHOOT_Y = 12.0;
     private static final double BACK_PARK_X = 12.0;
     private static final double BACK_PARK_Y = 12.0;
@@ -315,7 +315,6 @@ public class DecodeRobotControl {
     private final OnActivatedEvaluator lb1ActivatedEvaluator;
     private final OnActivatedEvaluator a1ActivatedEvaluator;
     private final OnActivatedEvaluator liftToggleEvaluator;
-    private final OnActivatedEvaluator x2ActivatedEvaluator;
     private final OnActivatedEvaluator rb2ActivatedEvaluator;
     private final OnActivatedEvaluator lb2ActivatedEvaluator;
     private final OnActivatedEvaluator rs2ActivatedEvaluator;
@@ -481,7 +480,6 @@ public class DecodeRobotControl {
         rb1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.right_bumper);
         a1ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad1.a);
         liftToggleEvaluator = new OnActivatedEvaluator(() -> gamepad1.b && gamepad1.y);
-        x2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.x);
         rb2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_bumper);
         lb2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.left_bumper);
         rs2ActivatedEvaluator = new OnActivatedEvaluator(() -> gamepad2.right_stick_button);
@@ -873,12 +871,11 @@ public class DecodeRobotControl {
                 shooterEnabled = false;
             }
             updateShooterControl(true);
-            boolean intakeToggleRequest = x2ActivatedEvaluator.evaluate();
-            if (intakeToggleRequest) {
-                intakeEnabled = !intakeEnabled;
-            }
+            boolean intakeStopHeld = gamepad2.x;
             boolean manualIntakeReverse = gamepad2.dpad_down;
-            if (manualIntakeReverse) {
+            if (intakeStopHeld) {
+                intakeState = IntakeState.OFF;
+            } else if (manualIntakeReverse) {
                 intakeState = IntakeState.REVERSE_REJECT;
             } else if (intakeEnabled) {
                 intakeState = IntakeState.FORWARD;
@@ -1203,14 +1200,10 @@ public class DecodeRobotControl {
             shooterEnabled = false;
         }
 
-        boolean intakeToggleRequest = x2ActivatedEvaluator.evaluate();
         boolean trimFasterRequest = rb2ActivatedEvaluator.evaluate();
         boolean trimSlowerRequest = lb2ActivatedEvaluator.evaluate();
 
         //sampleCollectorPresence(); // keep telemetry updated; no longer drives intake control
-        if (intakeToggleRequest) {
-            intakeEnabled = !intakeEnabled;
-        }
         if (trimFasterRequest && shooterTransferTrimClicks > -SHOOTER_TRANSFER_CLICK_LIMIT) {
             shooterTransferTrimClicks--;
         } else if (trimSlowerRequest && shooterTransferTrimClicks < SHOOTER_TRANSFER_CLICK_LIMIT) {
@@ -1231,10 +1224,13 @@ public class DecodeRobotControl {
 
         lift.setPosition(lifted ? 0.0 : 1.0);
 
+        boolean intakeStopHeld = gamepad2.x;
         boolean manualIntakeReverse = gamepad2.dpad_down;
 
-        // Manual-only intake control: dpad down reverses; toggle controls forward vs off.
-        if (manualIntakeReverse) {
+        // Manual-only intake control: dpad down reverses; hold X to stop.
+        if (intakeStopHeld) {
+            intakeState = IntakeState.OFF;
+        } else if (manualIntakeReverse) {
             intakeState = IntakeState.REVERSE_REJECT;
         } else if (intakeEnabled) {
             intakeState = IntakeState.FORWARD;
@@ -2185,6 +2181,16 @@ public class DecodeRobotControl {
         return alliance == AllianceColor.RED ? base : mirrorPoseForBlue(base);
     }
 
+    private Pose2d getGoalStartLeavePose(AllianceColor alliance) {
+        Pose2d redShootPose = getBackShootPose(AllianceColor.RED);
+        Pose2d redLeavePose = new Pose2d(
+                redShootPose.getX() + 12.0,
+                redShootPose.getY() + 12.0,
+                redShootPose.getHeading()
+        );
+        return alliance == AllianceColor.RED ? redLeavePose : mirrorPoseForBlue(redLeavePose);
+    }
+
     private static Pose2d getBackParkPose(AllianceColor alliance) {
         Pose2d base = new Pose2d(BACK_PARK_X, BACK_PARK_Y, BACK_PARK_HEADING);
         return alliance == AllianceColor.RED ? base : mirrorPoseForBlue(base);
@@ -2220,10 +2226,6 @@ public class DecodeRobotControl {
             case SHOOT_COLLECT_SHOOT_FROM_AUDIENCE:
                 return getAudienceStartPose(allianceColor);
             case SHOOT_COLLECT_SHOOT_FROM_GOAL:
-                return getGoalStartPose(allianceColor);
-            case COLLECT_THREE_LINES_BLUE:
-                return getGoalStartPose(allianceColor);
-            case COLLECT_TRIAD_LINE_TEST:
                 return getGoalStartPose(allianceColor);
             default:
                 return getGoalStartPose(allianceColor);
@@ -2269,6 +2271,42 @@ public class DecodeRobotControl {
         commands.add(OpModeCommand.intakePowerCommand(intakePower));
         commands.add(OpModeCommand.driveDirectToPoseCommand(approachPose));
         commands.add(OpModeCommand.driveDirectToPoseCommand(exitPose));
+        commands.add(OpModeCommand.intakePowerCommand(0.0));
+    }
+
+    private static Vector2d getMostPositiveXTriadCenter(AllianceColor allianceColor) {
+        List<Vector2d> triadCenters = getTriadCentersForAlliance(allianceColor);
+        if (triadCenters.isEmpty()) {
+            return null;
+        }
+        Vector2d best = triadCenters.get(0);
+        for (Vector2d center : triadCenters) {
+            if (center.getX() > best.getX()) {
+                best = center;
+            }
+        }
+        return best;
+    }
+
+    private void appendTriadLineCollectPassForCenter(
+            List<OpModeCommand> commands,
+            AllianceColor allianceColor,
+            double approachOffsetInches,
+            double exitOffsetInches,
+            Vector2d center) {
+        if (center == null) {
+            return;
+        }
+        double heading = getTriadCollectHeading(allianceColor);
+        // Red: start lower Y and move toward +Y. Blue: start higher Y and move toward -Y.
+        double approachSign = allianceColor == AllianceColor.RED ? -1.0 : 1.0;
+        Pose2d approachPose = new Pose2d(center.getX(), center.getY() + (approachSign * approachOffsetInches), heading);
+        Pose2d exitPose = new Pose2d(center.getX(), center.getY() - (approachSign * exitOffsetInches), heading);
+        approachPose = applyForwardOffset(approachPose, heading, TRIAD_COLLECT_FORWARD_OFFSET_INCHES);
+        exitPose = applyForwardOffset(exitPose, heading, TRIAD_COLLECT_FORWARD_OFFSET_INCHES);
+        commands.add(OpModeCommand.intakePowerCommand(INTAKE_MOTOR_POWER));
+        commands.add(OpModeCommand.driveDirectToPoseCommand(approachPose));
+        commands.add(OpModeCommand.driveDirectToPoseScaledCommand(exitPose, TRIAD_COLLECT_DRIVE_POWER_SCALE));
         commands.add(OpModeCommand.intakePowerCommand(0.0));
     }
 
@@ -2358,39 +2396,7 @@ public class DecodeRobotControl {
                 commands.add(OpModeCommand.toroidShootStepsCommand(TOROID_SHOOT_STEPS, TOROID_SHOOT_TIMEOUT_MILLIS));
                 commands.add(OpModeCommand.waitCommand(300.0));
                 commands.add(OpModeCommand.shooterEnableCommand(false));
-                commands.add(OpModeCommand.driveDirectToPoseCommand(getBackParkPose(allianceColor)));
-                break;
-            }
-            case COLLECT_THREE_LINES_BLUE: {
-                if (allianceColor != AllianceColor.BLUE) {
-                    commands.add(OpModeCommand.driveDirectToPoseCommand(getLeaveTargetPose(allianceColor)));
-                    break;
-                }
-                Pose2d start = autonomousStartPose != null ? autonomousStartPose : getStartPoseForPlan(allianceColor, plan);
-                Pose2d shootingPose = getShootingPoseFromStart(start);
-                double intakeHeading = Math.toRadians(-90.0);
-                double approachY = BLUE_LINE_CENTER_Y + BLUE_LINE_APPROACH_Y_OFFSET;
-                double exitY = BLUE_LINE_CENTER_Y - BLUE_LINE_APPROACH_Y_OFFSET;
-                commands.add(OpModeCommand.shooterEnableCommand(true));
-                commands.add(OpModeCommand.waitCommand(750.0));
-                commands.add(OpModeCommand.driveDirectToPosePreciseCommand(shootingPose));
-                commands.add(OpModeCommand.waitCommand(300.0));
-                commands.add(OpModeCommand.toroidShootStepsCommand(TOROID_SHOOT_STEPS, TOROID_SHOOT_TIMEOUT_MILLIS));
-                for (int i = 0; i < 3; i++) {
-                    double lineX = BLUE_LINE_CENTER_X + (i * BLUE_LINE_X_SPACING);
-                    Pose2d approachPose = new Pose2d(lineX, approachY, intakeHeading);
-                    Pose2d exitPose = new Pose2d(lineX, exitY, intakeHeading);
-                    commands.add(OpModeCommand.intakePowerCommand(INTAKE_MOTOR_POWER));
-                    commands.add(OpModeCommand.driveDirectToPoseCommand(approachPose));
-                    commands.add(OpModeCommand.driveDirectToPoseCommand(exitPose));
-                    commands.add(OpModeCommand.intakePowerCommand(0.0));
-                    commands.add(OpModeCommand.driveDirectToPosePreciseCommand(shootingPose));
-                    commands.add(OpModeCommand.waitCommand(300.0));
-                    commands.add(OpModeCommand.toroidShootStepsCommand(TOROID_SHOOT_STEPS, TOROID_SHOOT_TIMEOUT_MILLIS));
-                    commands.add(OpModeCommand.waitCommand(300.0));
-                }
-                commands.add(OpModeCommand.shooterEnableCommand(false));
-                commands.add(OpModeCommand.driveDirectToPoseCommand(getLeaveTargetPose(allianceColor)));
+                commands.add(OpModeCommand.driveDirectToPoseCommand(getGoalStartLeavePose(allianceColor)));
                 break;
             }
             case SHOOT_COLLECT_SHOOT_FROM_AUDIENCE: {
@@ -2402,12 +2408,18 @@ public class DecodeRobotControl {
                 commands.add(OpModeCommand.waitCommand(300.0));
                 commands.add(OpModeCommand.toroidShootStepsCommand(TOROID_SHOOT_STEPS, TOROID_SHOOT_TIMEOUT_MILLIS));
                 commands.add(OpModeCommand.waitCommand(300.0));
-                appendTriadLineCollectPasses(commands, allianceColor, TRIAD_APPROACH_Y_OFFSET, TRIAD_EXIT_Y_OFFSET, 1);
+                appendTriadLineCollectPassForCenter(
+                        commands,
+                        allianceColor,
+                        TRIAD_APPROACH_Y_OFFSET,
+                        TRIAD_EXIT_Y_OFFSET,
+                        getMostPositiveXTriadCenter(allianceColor));
                 commands.add(OpModeCommand.driveDirectToPosePreciseCommand(shootingPose));
                 commands.add(OpModeCommand.waitCommand(300.0));
                 commands.add(OpModeCommand.toroidShootStepsCommand(TOROID_SHOOT_STEPS, TOROID_SHOOT_TIMEOUT_MILLIS));
                 commands.add(OpModeCommand.waitCommand(300.0));
                 commands.add(OpModeCommand.shooterEnableCommand(false));
+                commands.add(OpModeCommand.driveDirectToPoseCommand(getLeaveTargetPose(allianceColor)));
                 break;
             }
             case SHOOT_COLLECT_SHOOT_FROM_GOAL: {
@@ -2424,18 +2436,18 @@ public class DecodeRobotControl {
                 commands.add(OpModeCommand.toroidShootStepsCommand(TOROID_SHOOT_STEPS, TOROID_SHOOT_TIMEOUT_MILLIS));
                 commands.add(OpModeCommand.waitCommand(300.0));
                 commands.add(OpModeCommand.shooterEnableCommand(false));
-                break;
-            }
-            case COLLECT_TRIAD_LINE_TEST: {
-                // Single triad line pass for collection testing (intake faces +Y on red, -Y on blue).
-                appendTriadLineCollectPasses(commands, allianceColor, TRIAD_APPROACH_Y_OFFSET, TRIAD_EXIT_Y_OFFSET, 1);
+                commands.add(OpModeCommand.driveDirectToPoseCommand(getGoalStartLeavePose(allianceColor)));
                 break;
             }
             case LEAVE_FROM_AUDIENCE:
             case LEAVE_FROM_GOAL:
             default:
                 // Single-move leave: target depends on alliance.
-                commands.add(OpModeCommand.driveDirectToPoseCommand(getLeaveTargetPose(allianceColor)));
+                if (plan == AutonomousPlan.LEAVE_FROM_GOAL) {
+                    commands.add(OpModeCommand.driveDirectToPoseCommand(getGoalStartLeavePose(allianceColor)));
+                } else {
+                    commands.add(OpModeCommand.driveDirectToPoseCommand(getLeaveTargetPose(allianceColor)));
+                }
                 break;
         }
         return commands;
