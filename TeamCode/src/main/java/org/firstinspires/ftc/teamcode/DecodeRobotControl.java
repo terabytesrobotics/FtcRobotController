@@ -116,7 +116,7 @@ public class DecodeRobotControl {
     private static final double SHOOTER_TRANSFER_MAX = 1.05;
     private static final double SHOOTER_MIN_EXIT_VELOCITY_INCHES_PER_SECOND = 180.0;
     private static final double SHOOTER_MAX_EXIT_VELOCITY_INCHES_PER_SECOND = 450.0;
-    private static final double SHOOTER_CLOSE_RANGE_BOOST = 0.075; // +7.5% close-range boost
+    private static final double SHOOTER_CLOSE_RANGE_BOOST = 0.05; // +5% close-range boost
     private static final double SHOOTER_CLOSE_RANGE_MAX_DISTANCE_INCHES = 9.5 * 12.0;
     private static final double SHOOTER_WHEEL_AXLE_HEIGHT_INCHES = 6.75;
     private static final double SHOOTER_WHEEL_COMPRESSION_INCHES = BALL_DIAMETER_INCHES + SHOOTER_WHEEL_RADIUS_INCHES - SHOOTER_WHEEL_AXLE_HEIGHT_INCHES;
@@ -217,8 +217,8 @@ public class DecodeRobotControl {
     private static final double DRIVE_NORMAL_TURN_CAP = 0.85;
     private static final double DRIVE_FAST_TURN_CAP = 1.0;
     private static final double AIM_ASSIST_TURN_GAIN = 2.3;
-    private static final double AUTO_MIN_TRANSLATION_POWER = 0.275;
-    private static final double AUTO_MIN_ROTATION_POWER = 0.5;
+    private static final double AUTO_MIN_TRANSLATION_POWER = 0.260153125;
+    private static final double AUTO_MIN_ROTATION_POWER = 0.51;
 
     // Only trust the large field tags for localization.
     private static final int[] APRIL_TAG_ALLOWED_IDS = {20, 24};
@@ -1587,16 +1587,94 @@ public class DecodeRobotControl {
         toroidTargetRpm = targetRpm;
         toroidTargetTps = rpmToTicksPerSec(targetRpm, TOROID_TICKS_PER_REV);
 
+        if (updateToroidJamControl(targetRpm)) {
+            toroidMode = ToroidMode.SHOOT;
+            toroidTransitionPhase = TransitionPhase.NONE;
+            return;
+        }
+
         toroidMode = ToroidMode.SHOOT;
         toroidTransitionPhase = TransitionPhase.NONE;
-        toroidJamPhase = ToroidJamPhase.NONE;
-        toroidJamConditionActive = false;
 
         if (toroidMotor.getMode() != DcMotor.RunMode.RUN_USING_ENCODER) {
             toroidMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         }
         toroidMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         toroidMotor.setVelocity(toroidTargetTps);
+    }
+
+    private boolean updateToroidJamControl(double targetRpm) {
+        double actualTps = toroidMotor.getVelocity();
+        double currentAmps = toroidMotor.getCurrent(CurrentUnit.AMPS);
+        boolean jamAllowed = Math.abs(targetRpm) > 1e-3
+                && toroidJamCooldownTimer.seconds() >= TOROID_JAM_COOLDOWN_SEC;
+        boolean jamCondition = jamAllowed
+                && Math.abs(actualTps) <= TOROID_JAM_SPEED_TPS
+                && currentAmps >= TOROID_JAM_CURRENT_AMPS;
+
+        if (toroidJamPhase == ToroidJamPhase.NONE) {
+            if (jamCondition) {
+                if (!toroidJamConditionActive) {
+                    toroidJamConditionActive = true;
+                    toroidJamDetectTimer.reset();
+                }
+                if (toroidJamDetectTimer.seconds() >= TOROID_JAM_DETECT_SEC) {
+                    toroidJamPhase = ToroidJamPhase.RELAX;
+                    toroidJamTimer.reset();
+                    toroidJamResumeRpm = targetRpm;
+                    toroidJamResumeSign = targetRpm == 0.0 ? 0 : (targetRpm > 0.0 ? 1 : -1);
+                    toroidJamConditionActive = false;
+                    toroidJamDetectTimer.reset();
+                } else {
+                    return false;
+                }
+            } else {
+                toroidJamConditionActive = false;
+                toroidJamDetectTimer.reset();
+                return false;
+            }
+        }
+
+        if (toroidMotor.getMode() != DcMotor.RunMode.RUN_USING_ENCODER) {
+            toroidMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        }
+
+        if (toroidJamPhase == ToroidJamPhase.RELAX) {
+            toroidMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+            toroidMotor.setPower(0.0);
+            if (Math.abs(actualTps) <= TOROID_JAM_STOP_TPS
+                    || toroidJamTimer.seconds() >= TOROID_JAM_RELAX_MAX_SEC) {
+                toroidJamPhase = ToroidJamPhase.REVERSE;
+                toroidJamTimer.reset();
+            }
+            return true;
+        }
+
+        if (toroidJamPhase == ToroidJamPhase.REVERSE) {
+            toroidMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+            int reverseSign = toroidJamResumeSign != 0 ? -toroidJamResumeSign : -1;
+            double reverseRpm = TOROID_JAM_REVERSE_RPM * reverseSign;
+            toroidMotor.setVelocity(rpmToTicksPerSec(reverseRpm, TOROID_TICKS_PER_REV));
+            if (toroidJamTimer.seconds() >= TOROID_JAM_REVERSE_SEC) {
+                toroidJamPhase = ToroidJamPhase.FORWARD;
+                toroidJamTimer.reset();
+            }
+            return true;
+        }
+
+        if (toroidJamPhase == ToroidJamPhase.FORWARD) {
+            toroidMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+            int forwardSign = toroidJamResumeSign != 0 ? toroidJamResumeSign : 1;
+            double forwardRpm = TOROID_JAM_FORWARD_RPM * forwardSign;
+            toroidMotor.setVelocity(rpmToTicksPerSec(forwardRpm, TOROID_TICKS_PER_REV));
+            if (toroidJamTimer.seconds() >= TOROID_JAM_FORWARD_SEC) {
+                toroidJamPhase = ToroidJamPhase.NONE;
+                toroidJamCooldownTimer.reset();
+            }
+            return true;
+        }
+
+        return false;
     }
 
     private int getToroidDirectionSign(boolean ccw) {
