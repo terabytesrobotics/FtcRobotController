@@ -3,7 +3,7 @@ package org.firstinspires.ftc.teamcode;
 public class Constants {
 
     static final double TURN_ERROR_THRESHOLD = Math.PI / 24;
-    static final double SPEED_GAIN = 1d / 36;
+    static final double SPEED_GAIN = (1d / 36) * 1.15;
     static final double TURN_GAIN =  1d / (5 * Math.PI / 8);
     public static final int FRONT_CAMERA_OFFSET_INCHES = 8;
     public static final double FRONT_CAMERA_LATERAL_OFFSET_INCHES = 0.5;

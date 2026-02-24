@@ -160,7 +160,7 @@ public class DecodeRobotControl {
     private static final double TOROID_TRANSIT_MAX_RPM_NEG = 71.291015625;
     private static final double TOROID_SHOOT_RPM = 180.0;
     private static final int TOROID_SHOOT_STEPS = 6; // 2 full rotations (6 x 120deg)
-    private static final double TOROID_SHOOT_TIMEOUT_MILLIS = 3000.0;
+    private static final double TOROID_SHOOT_TIMEOUT_MILLIS = 5000.0;
     private static final boolean TOROID_IDLE_JOSTLE_ENABLED = false;
     private static final double TOROID_IDLE_JOSTLE_RPM = 15.0;
     private static final double TOROID_IDLE_JOSTLE_ON_SEC = 0.25;
@@ -212,13 +212,11 @@ public class DecodeRobotControl {
     private static final int SLOT_CHECK_BURST_SAMPLES = 5;
     private static final double SLOT_CHECK_SAMPLE_SPACING_SEC = 0.02;
     // Teleop drive scaling: higher caps = more authority; fast mode bumps to full send.
-    private static final double DRIVE_NORMAL_TRANSLATION_CAP = 0.85;
-    private static final double DRIVE_FAST_TRANSLATION_CAP = 1.0;
-    private static final double DRIVE_NORMAL_TURN_CAP = 0.85;
-    private static final double DRIVE_FAST_TURN_CAP = 1.0;
+    private static final double DRIVE_TRANSLATION_CAP = 0.90;
+    private static final double DRIVE_TURN_CAP = 0.90;
     private static final double AIM_ASSIST_TURN_GAIN = 2.3;
     private static final double AUTO_MIN_TRANSLATION_POWER = 0.260153125;
-    private static final double AUTO_MIN_ROTATION_POWER = 0.51;
+    private static final double AUTO_MIN_ROTATION_POWER = 0.42;
 
     // Only trust the large field tags for localization.
     private static final int[] APRIL_TAG_ALLOWED_IDS = {20, 24};
@@ -238,7 +236,7 @@ public class DecodeRobotControl {
     private static final double LEAVE_TARGET_HEADING = Math.toRadians(180.0);
     // Audience-side start for the same leave path; heading fixed to 180 deg instead of tag-derived.
     private static final double AUDIENCE_START_X = 62.0;
-    private static final double AUDIENCE_START_Y = 10.0;
+    private static final double AUDIENCE_START_Y = 16.0;
 
     // Autonomous collection passes: intake faces 180 degrees (intake end forward).
     private static final double AUTO_COLLECT_HEADING_RADIANS = Math.toRadians(180.0);
@@ -360,8 +358,8 @@ public class DecodeRobotControl {
     private Pose2d currentAutoDriveTarget = null;
     private ShotSolution lastShotSolution = null;
     private boolean lastShotBlockedByRim = false;
-    private double lastDriveTranslationCap = DRIVE_NORMAL_TRANSLATION_CAP;
-    private double lastDriveTurnCap = DRIVE_NORMAL_TURN_CAP;
+    private double lastDriveTranslationCap = DRIVE_TRANSLATION_CAP;
+    private double lastDriveTurnCap = DRIVE_TURN_CAP;
     private boolean driveFrontReversed = false;
     private ObeliskPattern obeliskPattern = ObeliskPattern.UNKNOWN;
     private final int[] obeliskPatternVotes = new int[ObeliskPattern.values().length];
@@ -1255,11 +1253,9 @@ public class DecodeRobotControl {
             driveFrontReversed = !driveFrontReversed;
         }
 
-        boolean fastMode = gamepad1.left_bumper;
-
         driveInput = getRobotRelativeDriveInput(gamepad1, driveFrontReversed);
-        double translationCap = fastMode ? DRIVE_FAST_TRANSLATION_CAP : DRIVE_NORMAL_TRANSLATION_CAP;
-        double turnCap = fastMode ? DRIVE_FAST_TURN_CAP : DRIVE_NORMAL_TURN_CAP;
+        double translationCap = DRIVE_TRANSLATION_CAP;
+        double turnCap = DRIVE_TURN_CAP;
         lastDriveTranslationCap = translationCap;
         lastDriveTurnCap = turnCap;
         driveInput = capDriveInput(driveInput, translationCap, turnCap);
@@ -1329,7 +1325,7 @@ public class DecodeRobotControl {
             transMag = translationCap;
         }
 
-        double combined = transMag + Math.abs(h);
+        double combined = Math.hypot(transMag, Math.abs(h));
         if (combined > 1.0) {
             double scale = 1.0 / combined;
             x *= scale;
@@ -2567,7 +2563,7 @@ public class DecodeRobotControl {
             transMag = 1.0;
         }
 
-        double combined = transMag + Math.abs(h);
+        double combined = Math.hypot(transMag, Math.abs(h));
         if (combined > 1.0) {
             double scale = 1.0 / combined;
             x *= scale;
