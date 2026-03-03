@@ -43,6 +43,7 @@ import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.TouchSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.ReadWriteFile;
 import com.qualcomm.robotcore.util.Range;
@@ -84,7 +85,7 @@ public class DecodeRobotControl {
     private static final double FIELD_RIM_HEIGHT_INCHES = 39.0;
     private static final double RIM_CLEARANCE_INCHES = BALL_RADIUS_INCHES; // center clears rim by a radius
     private static final double TARGET_PLANE_HEIGHT_INCHES = FIELD_RIM_HEIGHT_INCHES + RIM_CLEARANCE_INCHES;
-    private static final Vector2d RED_BASKET_POSITION_INCHES = new Vector2d(-62.5, 62.5);
+    private static final Vector2d RED_BASKET_POSITION_INCHES = new Vector2d(-69.5, 62.5);
     private static final double SHOOTER_EXIT_ANGLE_RADIANS = Math.toRadians(50.0);
     // Ball exit height: bottom of ball at 13" above carpet -> center at 13" + radius.
     private static final double SHOOTER_EXIT_HEIGHT_INCHES = 13.0 + BALL_RADIUS_INCHES;
@@ -152,12 +153,19 @@ public class DecodeRobotControl {
     private static final double INTAKE_JAM_COOLDOWN_SEC = 0.2;
     private static final String TOROID_MOTOR_NAME = "coreHex";
     private static final String TOROID_SENSOR_NAME = "color1";
+    private static final String PADDLE_LIMIT_SWITCH_NAME = "mag";
     private static final String TOROID_ZERO_FILE_NAME = "toroid_zero.txt";
     private static final double TOROID_TICKS_PER_REV = 288.0;
     private static final double TOROID_STEP_TICKS = TOROID_TICKS_PER_REV / 3.0; // 120 deg steps
     private static final double TOROID_POSITION_TOLERANCE_TICKS = 6.0;
     private static final double TOROID_TRANSIT_MAX_RPM_POS = 71.291015625;
     private static final double TOROID_TRANSIT_MAX_RPM_NEG = 71.291015625;
+    private static final double TOROID_LIMIT_SEEK_RPM = 18.0;
+    private static final double TOROID_LIMIT_DEBOUNCE_SEC = 0.04;
+    private static final double TOROID_HOME_OFFSET_DEGREES = -90.0;
+    private static final double TOROID_HOME_HOLD_TOLERANCE_TICKS = 6.0;
+    private static final double TOROID_HOME_HOLD_MAX_RPM = 12.0;
+    private static final double TOROID_HOME_HOLD_KP_RPM_PER_TICK = 0.25;
     private static final double TOROID_SHOOT_RPM = 180.0;
     private static final int TOROID_SHOOT_STEPS = 6; // 2 full rotations (6 x 120deg)
     private static final double TOROID_SHOOT_TIMEOUT_MILLIS = 5000.0;
@@ -332,6 +340,7 @@ public class DecodeRobotControl {
     //private final RevColorSensorV3 color1;
     //private final RevColorSensorV3 color2;
     private RevColorSensorV3 toroidSensor;
+    private TouchSensor paddleLimitSwitch;
     public final VisionPortal visionPortal;
     private DcMotorEx toroidMotor;
     private double intakePowerSmoothed = 0.0;
@@ -405,6 +414,11 @@ public class DecodeRobotControl {
     private final ElapsedTime toroidAutoTimer = new ElapsedTime();
     private final ElapsedTime toroidIdleTimer = new ElapsedTime();
     private int toroidIdleSign = 1;
+    private boolean paddleLimitSwitchSeen = false;
+    private boolean paddleLimitPressedRaw = false;
+    private boolean paddleLimitPressedStable = false;
+    private boolean paddleLimitPressedStablePrev = false;
+    private final ElapsedTime paddleLimitDebounceTimer = new ElapsedTime();
 
     private final Pose2d initialPose;
     private Pose2d autonomousStartPose = null;
@@ -432,6 +446,16 @@ public class DecodeRobotControl {
             Log.w(TAG, "Toroid sensor not found: " + TOROID_SENSOR_NAME);
             toroidSensor = null;
         }
+        try {
+            paddleLimitSwitch = hardwareMap.get(TouchSensor.class, PADDLE_LIMIT_SWITCH_NAME);
+        } catch (Exception e) {
+            Log.w(TAG, "Paddle limit switch not found: " + PADDLE_LIMIT_SWITCH_NAME);
+            paddleLimitSwitch = null;
+        }
+        paddleLimitPressedRaw = paddleLimitSwitch != null && paddleLimitSwitch.isPressed();
+        paddleLimitPressedStable = paddleLimitPressedRaw;
+        paddleLimitPressedStablePrev = paddleLimitPressedStable;
+        paddleLimitDebounceTimer.reset();
         toroidZeroTicks = toroidMotor.getCurrentPosition();
         toroidZeroInitialized = true;
         loadToroidZeroEstimate();
@@ -754,6 +778,29 @@ public class DecodeRobotControl {
         packet.put("DriveFrontReversed", driveFrontReversed);
         packet.put("DriveTranslationCap", lastDriveTranslationCap);
         packet.put("DriveTurnCap", lastDriveTurnCap);
+        if (currentAutoDriveTarget != null) {
+            Pose2d autoError = getPoseTargetError(currentAutoDriveTarget);
+            Pose2d autoCommand = getPoseTargetAutoDriveControl(currentAutoDriveTarget);
+            if (autoError != null) {
+                packet.put("AutoErrFieldX", autoError.getX());
+                packet.put("AutoErrFieldY", autoError.getY());
+                packet.put("AutoErrHeadingDeg", Math.toDegrees(autoError.getHeading()));
+                packet.put("AutoErrDistance", Math.hypot(autoError.getX(), autoError.getY()));
+            }
+            packet.put("AutoCmdRobotX", autoCommand.getX());
+            packet.put("AutoCmdRobotY", autoCommand.getY());
+            packet.put("AutoCmdTurn", autoCommand.getHeading());
+        }
+        Double[] driveMotorPowers = drive.getMotorPowers();
+        Double[] driveMotorVelocities = drive.getMotorVelocities();
+        packet.put("DrivePwrFL", driveMotorPowers[0]);
+        packet.put("DrivePwrBL", driveMotorPowers[1]);
+        packet.put("DrivePwrBR", driveMotorPowers[2]);
+        packet.put("DrivePwrFR", driveMotorPowers[3]);
+        packet.put("DriveVelFL", driveMotorVelocities[0]);
+        packet.put("DriveVelBL", driveMotorVelocities[1]);
+        packet.put("DriveVelBR", driveMotorVelocities[2]);
+        packet.put("DriveVelFR", driveMotorVelocities[3]);
         packet.put("ToroidMode", toroidMode.name());
         packet.put("ToroidTargetRpm", toroidTargetRpm);
         packet.put("ToroidTargetTps", toroidTargetTps);
@@ -781,6 +828,10 @@ public class DecodeRobotControl {
         packet.put("ToroidBallPresence", toroidLastBallPresence);
         packet.put("ToroidWhiteBias", toroidLastWhiteBias);
         packet.put("ToroidProxIn", toroidLastProximityInches);
+        packet.put("PaddleLimitPressed", paddleLimitPressedStable);
+        packet.put("PaddleLimitRaw", paddleLimitPressedRaw);
+        packet.put("PaddleLimitSeen", paddleLimitSwitchSeen);
+        packet.put("PaddleHomeOffsetDeg", TOROID_HOME_OFFSET_DEGREES);
         packet.put("ObeliskPattern", obeliskPattern.name());
         packet.put("ObeliskTagId", lastObeliskTagId);
         packet.put("ObeliskTagHeading", lastObeliskTagHeading);
@@ -866,7 +917,7 @@ public class DecodeRobotControl {
                 shooterEnabled = false;
             }
             if (shooterOffEvaluator.evaluate()) {
-                shooterEnabled = false;
+                shooterEnabled = !shooterEnabled;
             }
             updateShooterControl(true);
             boolean intakeStopHeld = gamepad2.x;
@@ -1193,9 +1244,9 @@ public class DecodeRobotControl {
     }
 
     private OpModeState evaluateManualControl(double dtMillis) {
-        // Default shooter on; explicit combo press shuts it down.
+        // Default shooter on; combo press toggles it.
         if (shooterOffEvaluator.evaluate()) {
-            shooterEnabled = false;
+            shooterEnabled = !shooterEnabled;
         }
 
         boolean trimFasterRequest = rb2ActivatedEvaluator.evaluate();
@@ -1385,6 +1436,10 @@ public class DecodeRobotControl {
         if (toroidSensor == null || toroidMotor == null) {
             return;
         }
+        // Magnetic switch homing is authoritative when present.
+        if (paddleLimitSwitch != null) {
+            return;
+        }
 
         double dt = toroidZeroUpdateTimer.seconds();
         toroidZeroUpdateTimer.reset();
@@ -1477,13 +1532,34 @@ public class DecodeRobotControl {
         }
 
         int currentPosition = toroidMotor.getCurrentPosition();
+        updatePaddleLimitSwitchState();
+        if (paddleLimitPressedStable && !paddleLimitPressedStablePrev) {
+            captureToroidHomeFromLimitSwitch(currentPosition);
+        }
+        paddleLimitPressedStablePrev = paddleLimitPressedStable;
         toroidTargetStepIndex = (int) Math.round((currentPosition - toroidZeroTicks) / TOROID_STEP_TICKS);
 
         double stick = -gamepad2.right_stick_y;
         double command = applySignedLinearDeadband(stick, TOROID_JOYSTICK_DEADBAND);
         double maxRpm = command >= 0.0 ? TOROID_TRANSIT_MAX_RPM_POS : TOROID_TRANSIT_MAX_RPM_NEG;
         double targetRpm = command * maxRpm;
-        if (Math.abs(command) <= 1e-3 && TOROID_IDLE_JOSTLE_ENABLED && !isAutonomous) {
+        boolean paddleLimitAvailable = paddleLimitSwitch != null;
+        if (Math.abs(command) <= 1e-3 && paddleLimitAvailable && !paddleLimitSwitchSeen) {
+            int transitSign = getToroidDirectionSign(TOROID_TRANSIT_CCW);
+            targetRpm = TOROID_LIMIT_SEEK_RPM * transitSign;
+        } else if (Math.abs(command) <= 1e-3 && paddleLimitAvailable && paddleLimitSwitchSeen) {
+            double errorTicks = wrapDeltaTicks(toroidZeroTicks - currentPosition, TOROID_TICKS_PER_REV);
+            double errorAbs = Math.abs(errorTicks);
+            if (errorAbs <= TOROID_HOME_HOLD_TOLERANCE_TICKS) {
+                targetRpm = 0.0;
+            } else {
+                targetRpm = Range.clip(
+                        errorTicks * TOROID_HOME_HOLD_KP_RPM_PER_TICK,
+                        -TOROID_HOME_HOLD_MAX_RPM,
+                        TOROID_HOME_HOLD_MAX_RPM
+                );
+            }
+        } else if (Math.abs(command) <= 1e-3 && TOROID_IDLE_JOSTLE_ENABLED && !isAutonomous) {
             double onSec = Math.max(0.0, TOROID_IDLE_JOSTLE_ON_SEC);
             double offSec = Math.max(0.0, TOROID_IDLE_JOSTLE_OFF_SEC);
             double cycleSec = onSec + offSec;
@@ -1679,6 +1755,26 @@ public class DecodeRobotControl {
             sign = -sign;
         }
         return sign;
+    }
+
+    private void updatePaddleLimitSwitchState() {
+        boolean rawPressed = paddleLimitSwitch != null && paddleLimitSwitch.isPressed();
+        if (rawPressed != paddleLimitPressedRaw) {
+            paddleLimitPressedRaw = rawPressed;
+            paddleLimitDebounceTimer.reset();
+        }
+        if (paddleLimitDebounceTimer.seconds() >= TOROID_LIMIT_DEBOUNCE_SEC) {
+            paddleLimitPressedStable = paddleLimitPressedRaw;
+        }
+    }
+
+    private void captureToroidHomeFromLimitSwitch(int currentPositionTicks) {
+        double offsetTicks = TOROID_TICKS_PER_REV * (TOROID_HOME_OFFSET_DEGREES / 360.0);
+        toroidZeroTicks = normalizeTicks(currentPositionTicks - offsetTicks, TOROID_TICKS_PER_REV);
+        toroidZeroConfidence = 1.0;
+        toroidZeroInitialized = true;
+        paddleLimitSwitchSeen = true;
+        saveToroidZeroEstimate();
     }
 
     private static double rpmToTicksPerSec(double rpm, double ticksPerRev) {
@@ -2301,6 +2397,8 @@ public class DecodeRobotControl {
                 return getAudienceStartPose(allianceColor);
             case SHOOT_COLLECT_SHOOT_FROM_GOAL:
                 return getGoalStartPose(allianceColor);
+            case DRIVE_SQUARE_TEST:
+                return getAudienceStartPose(allianceColor);
             default:
                 return getGoalStartPose(allianceColor);
         }
@@ -2310,6 +2408,13 @@ public class DecodeRobotControl {
         double dx = Math.cos(headingRadians) * forwardOffsetInches;
         double dy = Math.sin(headingRadians) * forwardOffsetInches;
         return new Pose2d(center.getX() + dx, center.getY() + dy, headingRadians);
+    }
+
+    private static Pose2d applyRobotRelativeOffset(Pose2d pose, double forwardInches, double leftInches) {
+        double heading = pose.getHeading();
+        double dx = (forwardInches * Math.cos(heading)) - (leftInches * Math.sin(heading));
+        double dy = (forwardInches * Math.sin(heading)) + (leftInches * Math.cos(heading));
+        return new Pose2d(pose.getX() + dx, pose.getY() + dy, heading);
     }
 
     private static Pose2d applyForwardOffset(Pose2d pose, double headingRadians, double forwardOffsetInches) {
@@ -2511,6 +2616,12 @@ public class DecodeRobotControl {
                 commands.add(OpModeCommand.waitCommand(300.0));
                 commands.add(OpModeCommand.shooterEnableCommand(false));
                 commands.add(OpModeCommand.driveDirectToPoseCommand(getGoalStartLeavePose(allianceColor)));
+                break;
+            }
+            case DRIVE_SQUARE_TEST: {
+                Pose2d start = autonomousStartPose != null ? autonomousStartPose : getStartPoseForPlan(allianceColor, plan);
+                Pose2d forward = applyRobotRelativeOffset(start, 12.0, 0.0);
+                commands.add(OpModeCommand.driveDirectToPoseCommand(forward));
                 break;
             }
             case LEAVE_FROM_AUDIENCE:
