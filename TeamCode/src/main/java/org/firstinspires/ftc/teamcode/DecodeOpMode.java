@@ -181,7 +181,9 @@ public abstract class DecodeOpMode extends LinearOpMode {
                 gamepad2,
                 hardwareMap,
                 debugMode);
-        dashboard.startCameraStream(terabytes.visionPortal, 15);
+        if (terabytes.visionPortal != null) {
+            dashboard.startCameraStream(terabytes.visionPortal, 15);
+        }
         if (autonomousPlan != null) {
             terabytes.autonomousInit(autonomousPlan, initPose);
         } else {
@@ -195,6 +197,7 @@ public abstract class DecodeOpMode extends LinearOpMode {
                 // Keep the autonomous start pose locked in case Pinpoint resets finish late.
                 terabytes.refreshPoseEstimate();
                 terabytes.forcePoseEstimate(initPose);
+                terabytes.updateAutonomousInitToroidStaging();
             }
             dashboard.sendTelemetryPacket(terabytes.getTelemetryPacket());
             idle();
