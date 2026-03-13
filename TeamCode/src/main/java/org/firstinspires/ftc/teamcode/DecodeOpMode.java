@@ -194,11 +194,11 @@ public abstract class DecodeOpMode extends LinearOpMode {
 
         while (!isStarted() && !isStopRequested()) {
             if (autonomousPlan != null) {
-                // Keep the autonomous start pose locked in case Pinpoint resets finish late.
+                // Let pre-start nudges update odometry; startup() latches the pose at START.
                 terabytes.refreshPoseEstimate();
-                terabytes.forcePoseEstimate(initPose);
                 terabytes.updateAutonomousInitToroidStaging();
             }
+            terabytes.refreshIndicators();
             dashboard.sendTelemetryPacket(terabytes.getTelemetryPacket());
             idle();
         }

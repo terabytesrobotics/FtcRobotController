@@ -22,6 +22,8 @@ import static org.firstinspires.ftc.teamcode.Constants.TURN_GAIN;
 import android.util.ArrayMap;
 import android.util.Log;
 
+import androidx.annotation.Nullable;
+
 import com.acmerobotics.dashboard.canvas.Canvas;
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.acmerobotics.roadrunner.geometry.Pose2d;
@@ -40,6 +42,7 @@ import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.ServoImplEx;
 import com.qualcomm.robotcore.hardware.TouchSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.ReadWriteFile;
@@ -51,7 +54,6 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 import org.firstinspires.ftc.robotcore.external.navigation.UnnormalizedAngleUnit;
 import org.firstinspires.ftc.robotcore.internal.system.AppUtil;
-import org.firstinspires.ftc.teamcode.Processors.SampleDetectVisionProcessor;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 import org.firstinspires.ftc.teamcode.util.AllianceColor;
 import org.firstinspires.ftc.teamcode.util.OnActivatedEvaluator;
@@ -63,7 +65,6 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagMetadata;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
@@ -86,7 +87,7 @@ public class DecodeRobotControl {
     private static final double FIELD_RIM_HEIGHT_INCHES = 39.0;
     private static final double RIM_CLEARANCE_INCHES = BALL_RADIUS_INCHES; // center clears rim by a radius
     private static final double TARGET_PLANE_HEIGHT_INCHES = FIELD_RIM_HEIGHT_INCHES + RIM_CLEARANCE_INCHES;
-    private static final Vector2d RED_BASKET_POSITION_INCHES = new Vector2d(-69.5, 62.5);
+    private static final Vector2d RED_BASKET_POSITION_INCHES = new Vector2d(-68.0, 68.0);
     private static final double SHOOTER_EXIT_ANGLE_RADIANS = Math.toRadians(50.0);
     // Ball exit height: bottom of ball at 13" above carpet -> center at 13" + radius.
     private static final double SHOOTER_EXIT_HEIGHT_INCHES = 13.0 + BALL_RADIUS_INCHES;
@@ -111,9 +112,9 @@ public class DecodeRobotControl {
     // Empirical efficiency for how much of the ideal spin makes it to the ball (slip/compliance losses).
     private static final double SHOOTER_SPIN_EFFICIENCY = 0.35;
     // Efficiency factor baseline: exit velocity tends to trail the wheel surface speed because of slip/compression.
-    private static final double SHOOTER_EXIT_VELOCITY_TRANSFER_BASE = 0.775;
-    private static final double SHOOTER_TRANSFER_CLICK_STEP = 0.0125; // 1.25% per click
-    private static final int SHOOTER_TRANSFER_CLICK_LIMIT = 4;
+    private static final double SHOOTER_EXIT_VELOCITY_TRANSFER_BASE = 0.78625;
+    private static final double SHOOTER_TRANSFER_CLICK_STEP = 0.01; // 1.0% per click
+    private static final int SHOOTER_TRANSFER_CLICK_LIMIT = 5;
     private static final double SHOOTER_TRANSFER_MIN = 0.75;
     private static final double SHOOTER_TRANSFER_MAX = 1.05;
     private static final double SHOOTER_MIN_EXIT_VELOCITY_INCHES_PER_SECOND = 180.0;
@@ -121,7 +122,7 @@ public class DecodeRobotControl {
     private static final double SHOOTER_REVERSE_UNJAM_TRIGGER_THRESHOLD = 0.9;
     private static final double SHOOTER_REVERSE_UNJAM_RPM = 120.0;
     private static final double SHOOTER_REVERSE_UNJAM_MAX_WHEEL_TPS = 250.0;
-    private static final double SHOOTER_CLOSE_RANGE_BOOST = 0.05; // +5% close-range boost
+    private static final double SHOOTER_CLOSE_RANGE_BOOST = 0.04; // +4.0% close-range boost
     private static final double SHOOTER_CLOSE_RANGE_MAX_DISTANCE_INCHES = 9.5 * 12.0;
     private static final double SHOOTER_WHEEL_AXLE_HEIGHT_INCHES = 6.75;
     private static final double SHOOTER_WHEEL_COMPRESSION_INCHES = BALL_DIAMETER_INCHES + SHOOTER_WHEEL_RADIUS_INCHES - SHOOTER_WHEEL_AXLE_HEIGHT_INCHES;
@@ -168,6 +169,22 @@ public class DecodeRobotControl {
     private static final String TOROID_MOTOR_NAME = "coreHex";
     private static final String TOROID_SENSOR_NAME = "color1";
     private static final String PADDLE_LIMIT_SWITCH_NAME = "mag";
+    private static final String INDICATOR_TOP_NAME = "indicatorTop";
+    private static final String INDICATOR_BOTTOM_NAME = "indicatorBottom";
+    // Tune color pulse values against goBILDA Product Insight #4 for your desired palette.
+    // Direct FTC servo positions from goBILDA spectrum chart.
+    private static final double INDICATOR_RED_POS = 0.277;
+    private static final double INDICATOR_ORANGE_POS = 0.333;
+    private static final double INDICATOR_ORANGE_LOW_POS = 0.305;
+    private static final double INDICATOR_ORANGE_HIGH_POS = 0.360;
+    private static final double INDICATOR_YELLOW_POS = 0.388;
+    private static final double INDICATOR_GREEN_LOW_POS = 0.472;
+    private static final double INDICATOR_GREEN_POS = 0.500;
+    private static final double INDICATOR_GREEN_HIGH_POS = 0.528;
+    private static final double INDICATOR_BLUE_POS = 0.611;
+    private static final double INDICATOR_WHITE_POS = 1.000;
+    private static final double INDICATOR_ALLIANCE_RED_POS = 0.277;
+    private static final double INDICATOR_ALLIANCE_BLUE_POS = 0.555;
     private static final String TOROID_ZERO_FILE_NAME = "toroid_zero.txt";
     private static final long TOROID_ZERO_FRESHNESS_MILLIS = 30_000L;
     private static final double TOROID_TICKS_PER_REV = 288.0;
@@ -177,21 +194,31 @@ public class DecodeRobotControl {
     private static final double TOROID_LIMIT_SEEK_RPM = 18.0;
     private static final double TOROID_AUTON_INIT_SEEK_RPM = 10.0;
     private static final double TOROID_AUTON_INIT_STAGE_RPM = 10.0;
-    private static final double TOROID_AUTON_START_OFFSET_DEGREES = 250.0;
     private static final double TOROID_HOME_OFFSET_DEGREES = -70.0;
     private static final double TOROID_HOME_HOLD_TOLERANCE_TICKS = 6.0;
     private static final double TOROID_HOME_HOLD_MAX_RPM = 12.0;
     private static final double TOROID_HOME_HOLD_KP_RPM_PER_TICK = 0.25;
     private static final double TOROID_HOME_DIRECT_THRESHOLD_TICKS = TOROID_STEP_TICKS; // 120 deg (one slot)
+    private static final double PADDLE_HUMAN_PLAYER_OFFSET_FROM_LIMIT_SWITCH_DEGREES = -120.0;
+    private static final double PADDLE_HUMAN_PLAYER_HOLD_TOLERANCE_TICKS = 6.0;
+    private static final double PADDLE_HUMAN_PLAYER_SPEED_MULTIPLIER = 1.75;
+    private static final double PADDLE_HUMAN_PLAYER_MAX_RPM =
+            TOROID_TRANSIT_MAX_RPM * PADDLE_HUMAN_PLAYER_SPEED_MULTIPLIER;
+    private static final double PADDLE_HUMAN_PLAYER_KP_RPM_PER_TICK =
+            0.35 * PADDLE_HUMAN_PLAYER_SPEED_MULTIPLIER;
     // Keep autonomous shoot speed at or below what teleop can command at full stick.
-    private static final double TOROID_SHOOT_RPM = TOROID_TRANSIT_MAX_RPM;
-    private static final double TOROID_SHOOT_REVOLUTIONS = 2.5;
-    private static final double TOROID_SHOOT_TIMEOUT_MILLIS = 7500.0;
-    private static final int TOROID_KNOWN_OPENING_SHOT_COUNT = 3;
+    private static final double TOROID_SHOOT_SPEED_REDUCTION_RATIO = 0.125;
+    private static final double TOROID_SHOOT_RPM =
+            TOROID_TRANSIT_MAX_RPM * (1.0 - TOROID_SHOOT_SPEED_REDUCTION_RATIO);
+    private static final double TOROID_SHOOT_REVOLUTIONS = 2.0;
+    private static final double TOROID_AUTON_SHOOT_REVOLUTIONS = 2.5;
+    private static final double TOROID_SHOOT_TIMEOUT_MILLIS = 10000.0;
     private static final double TOROID_SHOT_DETECT_ARM_MILLIS = 350.0;
-    private static final double TOROID_SHOT_DETECT_REFRACTORY_MILLIS = 250.0;
+    private static final double TOROID_SHOT_DETECT_REFRACTORY_MILLIS = 75.0;
     private static final double TOROID_SHOT_DETECT_CURRENT_SPIKE_AMPS = 0.35;
-    private static final double TOROID_SHOT_DETECT_VELOCITY_DROP_RATIO = 0.18;
+    private static final double TOROID_SHOT_DETECT_VELOCITY_DROP_RATIO = 0.10;
+    private static final double TOROID_SHOT_DETECT_READY_RATIO = 0.94;
+    private static final double TOROID_SHOT_DETECT_ACCEL_DROP_TPS_PER_SEC = 900.0;
     private static final double TOROID_SHOT_DETECT_BASELINE_ALPHA = 0.08;
     private static final boolean TOROID_IDLE_JOSTLE_ENABLED = false;
     private static final double TOROID_IDLE_JOSTLE_RPM = 15.0;
@@ -247,12 +274,28 @@ public class DecodeRobotControl {
     private static final double DRIVE_TRANSLATION_CAP = 0.90;
     private static final double DRIVE_TURN_CAP = 0.90;
     private static final double AIM_ASSIST_TURN_GAIN = 2.3;
+    private static final double AIM_ASSIST_AUTO_TURN_CAP = 0.45;
+    private static final double AIM_ASSIST_MANUAL_TURN_SCALE = 0.25;
+    private static final double AIM_ASSIST_MANUAL_TURN_CAP = 0.18;
+    private static final long AIM_ASSIST_FINESSE_STICKY_MILLIS = 250L;
     private static final double AUTO_MIN_TRANSLATION_POWER = 0.3;
     private static final double AUTO_TRANSLATION_GAIN_SCALE = 1.15;
     private static final double AUTO_MIN_ROTATION_POWER = 0.42;
     private static final double AUTO_STRAFE_PRIORITY_DISTANCE_INCHES = 10.0;
     private static final double AUTO_STRAFE_PRIORITY_AXIS_RATIO = 1.25;
     private static final double AUTO_STRAFE_PRIORITY_TURN_SCALE = 0.35;
+    private static final double SHOOT_READY_SPEED_TOLERANCE_RATIO = 0.08;
+    private static final double SHOOT_READY_SPEED_TOLERANCE_MIN_TPS = 30.0;
+    private static final double SHOOT_READY_AIM_TOLERANCE_RADIANS = TURN_ERROR_THRESHOLD;
+    private static final int SHOOT_READY_CRITERIA_TOTAL = 5;
+    private static final double SHOOT_ZONE_ROBOT_RADIUS_INCHES = 12.0;
+    private static final boolean DEBUG_MIRROR_TOP_TO_BOTTOM_INDICATOR = false;
+    private static final Vector2d SHOOT_ZONE_LEFT_APEX = new Vector2d(0.0, 0.0);
+    private static final Vector2d SHOOT_ZONE_LEFT_TOP = new Vector2d(-72.0, 72.0);
+    private static final Vector2d SHOOT_ZONE_LEFT_BOTTOM = new Vector2d(-72.0, -72.0);
+    private static final Vector2d SHOOT_ZONE_RIGHT_APEX = new Vector2d(48.0, 0.0);
+    private static final Vector2d SHOOT_ZONE_RIGHT_TOP = new Vector2d(72.0, 24.0);
+    private static final Vector2d SHOOT_ZONE_RIGHT_BOTTOM = new Vector2d(72.0, -24.0);
 
     // Only trust the large field tags for localization.
     private static final int[] APRIL_TAG_ALLOWED_IDS = {20, 24};
@@ -263,7 +306,7 @@ public class DecodeRobotControl {
     private static final double OBELISK_TARGET_HEADING_RADIANS = 0.0;
     private static final double OBELISK_HEADING_TOLERANCE_RADIANS = Math.toRadians(20.0);
     // Simple goal-start autonomous definitions (base on red side; blue mirrors Y/heading).
-    private static final double GOAL_START_X = -53.5;
+    private static final double GOAL_START_X = -54.0;
     private static final double GOAL_START_Y = 47.0;
     private static final int GOAL_RED_START_TAG_ID = 24;
     private static final int GOAL_BLUE_START_TAG_ID = 20;
@@ -274,7 +317,7 @@ public class DecodeRobotControl {
     private static final double AUDIENCE_START_X = 62.0;
     private static final double AUDIENCE_START_Y = 16.0;
     // Audience leave path: drive forward from the audience start instead of strafing.
-    private static final double AUDIENCE_LEAVE_FORWARD_INCHES = 16.0;
+    private static final double AUDIENCE_LEAVE_FORWARD_INCHES = 20.0;
 
     // Autonomous collection passes: intake faces 180 degrees (intake end forward).
     private static final double AUTO_COLLECT_HEADING_RADIANS = Math.toRadians(180.0);
@@ -288,11 +331,14 @@ public class DecodeRobotControl {
     private static final double TRIAD_EXIT_Y_OFFSET = TRIAD_SIDE_BALL_OFFSET_Y;
     // Non-blocking post-collect flush duration: intake keeps running while later commands can proceed.
     private static final double TRIAD_INTAKE_FLUSH_MILLIS = 7500.0;
-    private static final double TRIAD_COLLECT_DRIVE_POWER_SCALE = 0.5; // slow down while driving into balls
+    private static final double TRIAD_INTAKE_SPINUP_WAIT_MILLIS = 150.0;
+    private static final double TRIAD_COLLECT_DRIVE_POWER_SCALE = 0.45; // slow down while driving into balls
     private static final double TRIAD_COLLECT_FORWARD_OFFSET_INCHES = 7.0; // shift robot forward so intake aligns to target
+    private static final double AUTON_SHOOT_SETTLE_WAIT_MILLIS = 300.0;
+    private static final double AUTON_STARTUP_POSE_SETTLE_WAIT_MILLIS = 250.0;
     private static final double AUDIENCE_START_HEADING = Math.toRadians(180.0);
     private static final double SHOOTING_X_DELTA_FROM_START_INCHES = -4.0;
-    private static final double BACK_SHOOT_X = -16.0;
+    private static final double BACK_SHOOT_X = -8.0;
     private static final double BACK_SHOOT_Y = 12.0;
     private static final double BACK_PARK_X = 12.0;
     private static final double BACK_PARK_Y = 12.0;
@@ -333,6 +379,7 @@ public class DecodeRobotControl {
     private static final AprilTagLibrary APRIL_TAG_LIBRARY = AprilTagGameDatabase.getDecodeTagLibrary();
     private final boolean debugMode;
     private boolean isAutonomous = false;
+    private boolean matchStarted = false;
     private OpModeState state;
     private final ElapsedTime loopTime = new ElapsedTime();
     private ElapsedTime timeSinceInit = new ElapsedTime();
@@ -342,6 +389,8 @@ public class DecodeRobotControl {
     private final AllianceColor allianceColor;
     private Pose2d lastAprilTagFieldPosition = null;
     private final ArrayList<OpModeCommand> commandSequence = new ArrayList<>();
+    @Nullable
+    private AutonomousPlan activeAutonomousPlan = null;
     private OpModeCommand currentCommand = null;
     private final ElapsedTime currentCommandTime = new ElapsedTime();
     private final ElapsedTime currentCommandSettledTime = new ElapsedTime();
@@ -368,11 +417,14 @@ public class DecodeRobotControl {
     private final Servo lift;
     private final Limelight3A limelight;
     private final GoBildaPinpointDriver pinpoint;
-    // currently unused but attached
-    //private final RevColorSensorV3 color1;
-    //private final RevColorSensorV3 color2;
     private RevColorSensorV3 toroidSensor;
     private TouchSensor paddleLimitSwitch;
+    private Servo indicatorTop;
+    private Servo indicatorBottom;
+    private ServoImplEx indicatorTopEx = null;
+    private ServoImplEx indicatorBottomEx = null;
+    private IndicatorSignal indicatorTopSignal = IndicatorSignal.OFF;
+    private IndicatorSignal indicatorBottomSignal = IndicatorSignal.OFF;
     public final VisionPortal visionPortal;
     private DcMotorEx toroidMotor;
     private double intakePowerSmoothed = 0.0;
@@ -437,6 +489,7 @@ public class DecodeRobotControl {
     private boolean lastShotBlockedByRim = false;
     private double lastDriveTranslationCap = DRIVE_TRANSLATION_CAP;
     private double lastDriveTurnCap = DRIVE_TURN_CAP;
+    private long lastAimAssistRequestMs = Long.MIN_VALUE;
     private boolean driveFrontReversed = false;
     private ObeliskPattern obeliskPattern = ObeliskPattern.UNKNOWN;
     private final int[] obeliskPatternVotes = new int[ObeliskPattern.values().length];
@@ -484,12 +537,26 @@ public class DecodeRobotControl {
     private final ElapsedTime toroidAutoTimer = new ElapsedTime();
     private final ElapsedTime toroidAutoLoopTimer = new ElapsedTime();
     private double toroidAutoJamAccumulatedMillis = 0.0;
-    private int toroidAutoExpectedShots = 0;
     private int toroidAutoDetectedShots = 0;
     private double toroidAutoWheelCurrentBaselineA = Double.NaN;
+    private double toroidShotDetectActualTps = Double.NaN;
+    private double toroidShotDetectDesiredTps = Double.NaN;
+    private double toroidShotDetectVelocityDroopRatio = 0.0;
+    private double toroidShotDetectCurrentDeltaA = Double.NaN;
+    private double toroidShotDetectAccelTpsPerSec = Double.NaN;
+    private boolean toroidShotDetectVelocityDroop = false;
+    private boolean toroidShotDetectCurrentSpike = false;
+    private boolean toroidShotDetectAccelDrop = false;
+    private boolean toroidShotDetectCandidate = false;
+    private boolean toroidShotDetectEvent = false;
+    private boolean toroidShotDetectReadySeen = false;
     private boolean toroidAutoShotCandidatePrev = false;
+    private boolean toroidShotDetectVelocityDroopPrev = false;
+    private boolean toroidShotDetectAccelDropPrev = false;
     private long toroidShotDetectCommandedSinceNs = Long.MIN_VALUE;
     private long toroidLastShotDetectTimeNs = Long.MIN_VALUE;
+    private double toroidShotDetectPrevActualTps = Double.NaN;
+    private long toroidShotDetectPrevTimeNs = Long.MIN_VALUE;
     private final ElapsedTime toroidIdleTimer = new ElapsedTime();
     private int toroidIdleSign = 1;
     private boolean autonomousToroidHomingEnabled = true;
@@ -499,6 +566,7 @@ public class DecodeRobotControl {
     private boolean paddleLimitPressedRaw = false;
     private boolean paddleLimitPressedStable = false;
     private boolean paddleLimitPressedStablePrev = false;
+    private boolean paddleHumanPlayerHoldActive = false;
 
     private final Pose2d initialPose;
     private Pose2d autonomousStartPose = null;
@@ -506,6 +574,22 @@ public class DecodeRobotControl {
     private static class TimedPose {
         long timeNs;
         Pose2d pose;
+    }
+
+    private enum IndicatorSignal {
+        OFF,
+        RED,
+        ORANGE_LOW,
+        ORANGE,
+        ORANGE_HIGH,
+        YELLOW,
+        GREEN_LOW,
+        GREEN,
+        GREEN_HIGH,
+        ALLIANCE_RED,
+        ALLIANCE_BLUE,
+        BLUE,
+        WHITE
     }
 
     public DecodeRobotControl(AllianceColor allianceColor, Pose2d initialPose, Gamepad gamepad1, Gamepad gamepad2, HardwareMap hardwareMap, boolean debugMode) {
@@ -520,8 +604,6 @@ public class DecodeRobotControl {
         limelight = hardwareMap.get(Limelight3A.class, LIMELIGHT_NAME);
         limelight.pipelineSwitch(LIMELIGHT_APRILTAG_PIPELINE);
         limelight.start();
-        //color1 = hardwareMap.get(RevColorSensorV3.class, "color1");
-        //color2 = hardwareMap.get(RevColorSensorV3.class, "color2");
         toroidMotor = hardwareMap.get(DcMotorEx.class, TOROID_MOTOR_NAME);
         toroidMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         toroidMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
@@ -539,6 +621,26 @@ public class DecodeRobotControl {
             Log.w(TAG, "Paddle limit switch not found: " + PADDLE_LIMIT_SWITCH_NAME);
             paddleLimitSwitch = null;
         }
+        try {
+            indicatorTop = hardwareMap.get(Servo.class, INDICATOR_TOP_NAME);
+            if (indicatorTop instanceof ServoImplEx) {
+                indicatorTopEx = (ServoImplEx) indicatorTop;
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Top indicator not found: " + INDICATOR_TOP_NAME);
+            indicatorTop = null;
+            indicatorTopEx = null;
+        }
+        try {
+            indicatorBottom = hardwareMap.get(Servo.class, INDICATOR_BOTTOM_NAME);
+            if (indicatorBottom instanceof ServoImplEx) {
+                indicatorBottomEx = (ServoImplEx) indicatorBottom;
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Bottom indicator not found: " + INDICATOR_BOTTOM_NAME);
+            indicatorBottom = null;
+            indicatorBottomEx = null;
+        }
         paddleLimitPressedRaw = paddleLimitSwitch != null && paddleLimitSwitch.isPressed();
         paddleLimitPressedStable = paddleLimitPressedRaw;
         paddleLimitPressedStablePrev = paddleLimitPressedStable;
@@ -555,24 +657,6 @@ public class DecodeRobotControl {
         intakeMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         intakeMotor.setDirection(DcMotorSimple.Direction.FORWARD);
         intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-
-        EnumSet<SampleDetectVisionProcessor.DetectableColor> colorsToDetect;
-        switch (allianceColor) {
-            case RED:
-                colorsToDetect = EnumSet.of(SampleDetectVisionProcessor.DetectableColor.RED,
-                        SampleDetectVisionProcessor.DetectableColor.YELLOW);
-                break;
-            case BLUE:
-                colorsToDetect = EnumSet.of(SampleDetectVisionProcessor.DetectableColor.BLUE,
-                        SampleDetectVisionProcessor.DetectableColor.YELLOW);
-                break;
-            default:
-                colorsToDetect = EnumSet.of(
-                    SampleDetectVisionProcessor.DetectableColor.RED,
-                    SampleDetectVisionProcessor.DetectableColor.BLUE,
-                    SampleDetectVisionProcessor.DetectableColor.YELLOW);
-                break;
-        }
 
         visionPortal = null;
 
@@ -642,66 +726,6 @@ public class DecodeRobotControl {
         return clamp01(whiteness * brightnessGate);
     }
 
-//    private double sampleCollectorPresence() {
-//        int colorReadingMaxInt = 2 << 11;
-//        double red = (double) color1.red() / colorReadingMaxInt;
-//        double green = (double) color1.green() / colorReadingMaxInt;
-//        double blue = (double) color1.blue() / colorReadingMaxInt;
-//        double color1ProximityInches = color1.getDistance(DistanceUnit.INCH);
-//        double red2 = (double) color2.red() / colorReadingMaxInt;
-//        double green2 = (double) color2.green() / colorReadingMaxInt;
-//        double blue2 = (double) color2.blue() / colorReadingMaxInt;
-//        double color2ProximityInches = color2.getDistance(DistanceUnit.INCH);
-//
-//        double greenMatch = greenResonance(red, green, blue);
-//        double purpleMatch = purpleResonance(red, green, blue);
-//        double greenMatch2 = greenResonance(red2, green2, blue2);
-//        double purpleMatch2 = purpleResonance(red2, green2, blue2);
-//
-//        double proxSoft = 0.5;   // inches past threshold to fade out
-//        double matchSoft = 0.2;  // match past threshold to fade in
-//
-//        double greenPresence = colorPresence(
-//                color1ProximityInches, greenMatch,
-//                PRESENCE_PROXIMITY_THRESHOLD_INCHES, GREEN_MATCH_THRESHOLD,
-//                proxSoft, matchSoft
-//        );
-//
-//        double purplePresence = colorPresence(
-//                color1ProximityInches, purpleMatch,
-//                PRESENCE_PROXIMITY_THRESHOLD_INCHES, PURPLE_MATCH_THRESHOLD,
-//                proxSoft, matchSoft
-//        );
-//
-//        double greenPresence2 = colorPresence(
-//                color2ProximityInches, greenMatch2,
-//                PRESENCE_PROXIMITY_THRESHOLD_INCHES, GREEN_MATCH_THRESHOLD,
-//                proxSoft, matchSoft
-//        );
-//
-//        double purplePresence2 = colorPresence(
-//                color2ProximityInches, purpleMatch2,
-//                PRESENCE_PROXIMITY_THRESHOLD_INCHES, PURPLE_MATCH_THRESHOLD,
-//                proxSoft, matchSoft
-//        );
-//
-//        double collectorPresence = Math.max(
-//                Math.max(greenPresence, purplePresence),
-//                Math.max(greenPresence2, purplePresence2)
-//        );
-//
-//        lastCollectorPresence = collectorPresence;
-//        lastColor1ProximityInches = color1ProximityInches;
-//        lastColor2ProximityInches = color2ProximityInches;
-//        lastColor1GreenPresence = greenPresence;
-//        lastColor1PurplePresence = purplePresence;
-//        lastColor2GreenPresence = greenPresence2;
-//        lastColor2PurplePresence = purplePresence2;
-//
-//        updateCollectorPresence(collectorPresence);
-//        return collectorPresence;
-//    }
-
     private Pose2d driveInput = new Pose2d();
     public TelemetryPacket getTelemetryPacket() {
         TelemetryPacket packet = new TelemetryPacket();
@@ -734,6 +758,9 @@ public class DecodeRobotControl {
         double shotLen = 12;
         double shx = sx + shotLen * Math.cos(sheading);
         double shy = sy + shotLen * Math.sin(sheading);
+        boolean shootZoneReadyOverlay = isRobotInAnyShootZone(poseForOverlay);
+
+        drawShootZoneOverlay(overlay, poseForOverlay, shootZoneReadyOverlay);
 
         if (lastTagDerivedPose != null) {
             overlay.setStroke("#1E90FF");
@@ -761,6 +788,14 @@ public class DecodeRobotControl {
 
         overlay.fillCircle(sx, sy, 5)
                 .strokeLine(sx, sy, shx, shy);
+
+        // Indicator badges on-field: top = left badge, bottom = right badge near the robot.
+        overlay.setStroke("#000000");
+        overlay.setFill(indicatorSignalToHex(indicatorTopSignal));
+        overlay.fillCircle(sx - 4.5, sy + 8.0, 2.2);
+        overlay.setFill(indicatorSignalToHex(indicatorBottomSignal));
+        overlay.fillCircle(sx + 4.5, sy + 8.0, 2.2);
+        overlay.setFill("#000000");
         if (intakeObsLastDetectNs != Long.MIN_VALUE
                 && (System.nanoTime() - intakeObsLastDetectNs) <= 500_000_000L) {
             overlay.setStroke("#1E90FF");
@@ -931,9 +966,19 @@ public class DecodeRobotControl {
         packet.put("ToroidAutoElapsedMs", toroidAutoTimer.milliseconds());
         packet.put("ToroidAutoJamAccumulatedMs", toroidAutoJamAccumulatedMillis);
         packet.put("ToroidAutoEffectiveElapsedMs", Math.max(0.0, toroidAutoTimer.milliseconds() - toroidAutoJamAccumulatedMillis));
-        packet.put("ToroidAutoExpectedShots", toroidAutoExpectedShots);
         packet.put("ToroidAutoDetectedShots", toroidAutoDetectedShots);
         packet.put("ToroidAutoShotCurrentBaselineA", toroidAutoWheelCurrentBaselineA);
+        packet.put("ShotDetectActualTps", toroidShotDetectActualTps);
+        packet.put("ShotDetectDesiredTps", toroidShotDetectDesiredTps);
+        packet.put("ShotDetectVelocityDroopRatio", toroidShotDetectVelocityDroopRatio);
+        packet.put("ShotDetectCurrentDeltaA", toroidShotDetectCurrentDeltaA);
+        packet.put("ShotDetectAccelTpsPerSec", toroidShotDetectAccelTpsPerSec);
+        packet.put("ShotDetectVelocityDroop", toroidShotDetectVelocityDroop ? 1 : 0);
+        packet.put("ShotDetectCurrentSpike", toroidShotDetectCurrentSpike ? 1 : 0);
+        packet.put("ShotDetectAccelDrop", toroidShotDetectAccelDrop ? 1 : 0);
+        packet.put("ShotDetectEvent", toroidShotDetectEvent ? 1 : 0);
+        packet.put("ShotDetectReadySeen", toroidShotDetectReadySeen ? 1 : 0);
+        packet.put("ShotDetectCandidate", toroidShotDetectCandidate ? 1 : 0);
         packet.put("ToroidApproachScale", toroidLastApproachScale);
         packet.put("ToroidApproachRpm", toroidLastApproachRpm);
         packet.put("ToroidStallSec", toroidStallTimer.seconds());
@@ -955,9 +1000,26 @@ public class DecodeRobotControl {
         packet.put("PaddleLimitPresent", paddleLimitSwitch != null);
         packet.put("PaddleLimitSeen", paddleLimitSwitchSeen);
         packet.put("PaddleLimitCaptureTicks", paddleLimitCaptureTicks);
+        packet.put("PaddleHumanPlayerHold", paddleHumanPlayerHoldActive);
+        packet.put("IndicatorTopSignal", indicatorTopSignal.name());
+        packet.put("IndicatorBottomSignal", indicatorBottomSignal.name());
+        packet.put("IndicatorTopPresent", indicatorTop != null);
+        packet.put("IndicatorBottomPresent", indicatorBottom != null);
+        double indicatorTopPosCmd = indicatorSignalToPosition(indicatorTopSignal);
+        double indicatorBottomPosCmd = indicatorSignalToPosition(indicatorBottomSignal);
+        packet.put("IndicatorTopPosCmd", indicatorTopPosCmd);
+        packet.put("IndicatorBottomPosCmd", indicatorBottomPosCmd);
+        packet.put("MatchStarted", matchStarted);
+        double matchElapsedSec = timeSinceStart.seconds();
+        packet.put("MatchElapsedSec", matchElapsedSec);
+        packet.put("AutonPoseStartupHold", shouldHoldAutonomousStartPose());
+        packet.put("AutonPoseStartupHoldRemainingMs",
+                shouldHoldAutonomousStartPose()
+                        ? Math.max(0.0, AUTON_STARTUP_POSE_SETTLE_WAIT_MILLIS - timeSinceStart.milliseconds())
+                        : 0.0);
         packet.put("AutonInitToroidStaged", autonomousInitToroidStagingComplete);
         packet.put("PaddleHomeOffsetDeg", TOROID_HOME_OFFSET_DEGREES);
-        packet.put("PaddleAutonStartOffsetDeg", TOROID_AUTON_START_OFFSET_DEGREES);
+        packet.put("PaddleAutonInitCollectsHome", true);
         packet.put("ObeliskPattern", obeliskPattern.name());
         packet.put("ObeliskTagId", lastObeliskTagId);
         packet.put("ObeliskTagHeading", lastObeliskTagHeading);
@@ -969,6 +1031,34 @@ public class DecodeRobotControl {
         packet.put("ShooterTransferRatio", shooterTransferRatio);
         packet.put("ShooterTransferTrimClicks", shooterTransferTrimClicks);
         packet.put("ShootAimError", getShooterHeadingError());
+        Pose2d shootReadyPose = latestPoseEstimate != null ? latestPoseEstimate : lastAprilTagFieldPosition;
+        boolean shootReadyShooterEnabled = shooterEnabled;
+        boolean shootReadyGeometryValid = lastShotSolution != null && !lastShotBlockedByRim;
+        boolean shootReadyZoneValid = isRobotInAnyShootZone(shootReadyPose);
+        boolean shootReadyWheelAtSpeed = false;
+        if (shootReadyShooterEnabled && wheel != null) {
+            double desiredAbs = Math.abs(shooterDesiredWheelTicksPerSecond);
+            if (desiredAbs > 1e-3) {
+                double actualAbs = Math.abs(wheel.getVelocity());
+                double tolerance = Math.max(
+                        SHOOT_READY_SPEED_TOLERANCE_MIN_TPS,
+                        desiredAbs * SHOOT_READY_SPEED_TOLERANCE_RATIO);
+                shootReadyWheelAtSpeed = Math.abs(desiredAbs - actualAbs) <= tolerance;
+            }
+        }
+        boolean shootReadyAimed = shootReadyShooterEnabled
+                && shootReadyPose != null
+                && Math.abs(getShooterHeadingError()) <= SHOOT_READY_AIM_TOLERANCE_RADIANS;
+        int shootReadyCriteriaMet = 0;
+        shootReadyCriteriaMet += shootReadyShooterEnabled ? 1 : 0;
+        shootReadyCriteriaMet += shootReadyGeometryValid ? 1 : 0;
+        shootReadyCriteriaMet += shootReadyZoneValid ? 1 : 0;
+        shootReadyCriteriaMet += shootReadyWheelAtSpeed ? 1 : 0;
+        shootReadyCriteriaMet += shootReadyAimed ? 1 : 0;
+        packet.put("ShootReadyCriteriaMet", shootReadyCriteriaMet);
+        packet.put("ShootReadyCriteriaTotal", 5);
+        packet.put("ShootZoneReady", shootZoneReadyOverlay);
+        packet.put("ShootZoneRobotRadiusIn", SHOOT_ZONE_ROBOT_RADIUS_INCHES);
 
         packet.put("PinpointHeading", pinpoint.getHeading(UnnormalizedAngleUnit.RADIANS));
         packet.put("PinpointX", pinpoint.getEncoderX());
@@ -980,6 +1070,8 @@ public class DecodeRobotControl {
     public void autonomousInit(AutonomousPlan autonomousPlan, Pose2d startPose) {
         timeSinceInit.reset();
         isAutonomous = true;
+        matchStarted = false;
+        activeAutonomousPlan = autonomousPlan;
         autonomousToroidHomingEnabled = false;
         autonomousInitToroidStagingComplete = false;
         paddleLimitCaptureTicks = Double.NaN;
@@ -1012,6 +1104,7 @@ public class DecodeRobotControl {
 
     public void teleopInit(Pose2d startPose) {
         timeSinceInit.reset();
+        matchStarted = false;
         autonomousToroidHomingEnabled = true;
         autonomousInitToroidStagingComplete = false;
         toroidZeroFreshForTeleop = isToroidZeroFreshNow();
@@ -1080,9 +1173,8 @@ public class DecodeRobotControl {
         if (Double.isNaN(paddleLimitCaptureTicks)) {
             paddleLimitCaptureTicks = currentPosition;
         }
-        double startOffsetTicks = TOROID_TICKS_PER_REV * (TOROID_AUTON_START_OFFSET_DEGREES / 360.0);
-        double startTargetTicks = paddleLimitCaptureTicks + startOffsetTicks;
-        double errorTicks = startTargetTicks - currentPosition;
+        double collectTargetTicks = toroidZeroTicks;
+        double errorTicks = wrapDeltaTicks(collectTargetTicks - currentPosition, TOROID_TICKS_PER_REV);
         if (Math.abs(errorTicks) <= TOROID_POSITION_TOLERANCE_TICKS) {
             toroidMotor.setPower(0.0);
             autonomousInitToroidStagingComplete = true;
@@ -1095,13 +1187,160 @@ public class DecodeRobotControl {
     }
 
     public void startup(OpModeState startupState) {
+        if (isAutonomous) {
+            if (autonomousStartPose != null) {
+                forcePoseEstimate(autonomousStartPose);
+            }
+            if (activeAutonomousPlan != null) {
+                setCommandSequence(buildAutonomousCommands(activeAutonomousPlan));
+            }
+        }
         timeSinceStart.reset();
+        matchStarted = true;
         timeInState.reset();
         state = startupState;
     }
 
     private void evaluateSwitchCamera() {
         // One Limelight camera only; pipeline is selected during init.
+    }
+
+    private double indicatorSignalToPosition(IndicatorSignal signal) {
+        switch (signal) {
+            case RED:
+                return INDICATOR_RED_POS;
+            case ORANGE_LOW:
+                return INDICATOR_ORANGE_LOW_POS;
+            case ORANGE:
+                return INDICATOR_ORANGE_POS;
+            case ORANGE_HIGH:
+                return INDICATOR_ORANGE_HIGH_POS;
+            case YELLOW:
+                return INDICATOR_YELLOW_POS;
+            case GREEN_LOW:
+                return INDICATOR_GREEN_LOW_POS;
+            case GREEN:
+                return INDICATOR_GREEN_POS;
+            case GREEN_HIGH:
+                return INDICATOR_GREEN_HIGH_POS;
+            case ALLIANCE_RED:
+                return INDICATOR_ALLIANCE_RED_POS;
+            case ALLIANCE_BLUE:
+                return INDICATOR_ALLIANCE_BLUE_POS;
+            case BLUE:
+                return INDICATOR_BLUE_POS;
+            case WHITE:
+                return INDICATOR_WHITE_POS;
+            case OFF:
+            default:
+                return Double.NaN;
+        }
+    }
+
+    private IndicatorSignal getAllianceIndicatorSignal() {
+        return allianceColor == AllianceColor.RED
+                ? IndicatorSignal.ALLIANCE_RED
+                : IndicatorSignal.ALLIANCE_BLUE;
+    }
+
+    private void setIndicatorSignal(
+            Servo indicator,
+            ServoImplEx indicatorEx,
+            IndicatorSignal signal,
+            boolean isTop
+    ) {
+        if (indicator == null) {
+            return;
+        }
+
+        IndicatorSignal currentSignal = isTop ? indicatorTopSignal : indicatorBottomSignal;
+        if (currentSignal == signal) {
+            return;
+        }
+
+        double position = signal == IndicatorSignal.OFF
+                ? 0.0
+                : Range.clip(indicatorSignalToPosition(signal), 0.0, 1.0);
+        indicator.setPosition(position);
+
+        if (isTop) {
+            indicatorTopSignal = signal;
+        } else {
+            indicatorBottomSignal = signal;
+        }
+    }
+
+    private void updateIndicators() {
+        IndicatorSignal topSignal;
+        if (toroidJamPhase != ToroidJamPhase.NONE || shooterReverseUnjamActive) {
+            topSignal = IndicatorSignal.RED;
+        } else {
+            Pose2d basePose = latestPoseEstimate != null ? latestPoseEstimate : lastAprilTagFieldPosition;
+            boolean conditionShooterEnabled = shooterEnabled;
+            boolean conditionShotGeometryValid = lastShotSolution != null && !lastShotBlockedByRim;
+            boolean conditionShootZoneValid = isRobotInAnyShootZone(basePose);
+            boolean conditionWheelAtSpeed = false;
+            if (conditionShooterEnabled && wheel != null) {
+                double desiredAbs = Math.abs(shooterDesiredWheelTicksPerSecond);
+                if (desiredAbs > 1e-3) {
+                    double actualAbs = Math.abs(wheel.getVelocity());
+                    double tolerance = Math.max(
+                            SHOOT_READY_SPEED_TOLERANCE_MIN_TPS,
+                            desiredAbs * SHOOT_READY_SPEED_TOLERANCE_RATIO);
+                    conditionWheelAtSpeed = Math.abs(desiredAbs - actualAbs) <= tolerance;
+                }
+            }
+            boolean conditionAimed = false;
+            if (conditionShooterEnabled && basePose != null) {
+                conditionAimed = Math.abs(getShooterHeadingError()) <= SHOOT_READY_AIM_TOLERANCE_RADIANS;
+            }
+
+            int fulfilled = 0;
+            fulfilled += conditionShooterEnabled ? 1 : 0;
+            fulfilled += conditionShotGeometryValid ? 1 : 0;
+            fulfilled += conditionShootZoneValid ? 1 : 0;
+            fulfilled += conditionWheelAtSpeed ? 1 : 0;
+            fulfilled += conditionAimed ? 1 : 0;
+            int required = 5;
+            if (conditionShooterEnabled
+                    && conditionShotGeometryValid
+                    && conditionShootZoneValid
+                    && conditionWheelAtSpeed
+                    && conditionAimed) {
+                topSignal = IndicatorSignal.GREEN;
+            } else if (fulfilled == 0) {
+                topSignal = IndicatorSignal.RED;
+            } else {
+                double progress = fulfilled / (double) required;
+                if (progress <= 0.34) {
+                    topSignal = IndicatorSignal.ORANGE_LOW;
+                } else if (progress <= 0.67) {
+                    topSignal = IndicatorSignal.ORANGE;
+                } else {
+                    topSignal = IndicatorSignal.ORANGE_HIGH;
+                }
+            }
+        }
+        setIndicatorSignal(indicatorTop, indicatorTopEx, topSignal, true);
+
+        IndicatorSignal bottomSignal;
+        if (DEBUG_MIRROR_TOP_TO_BOTTOM_INDICATOR) {
+            bottomSignal = topSignal;
+        } else {
+            bottomSignal = getAllianceIndicatorSignal();
+        }
+        setIndicatorSignal(indicatorBottom, indicatorBottomEx, bottomSignal, false);
+    }
+
+    public void refreshIndicators() {
+        updateIndicators();
+    }
+
+    private boolean shouldHoldAutonomousStartPose() {
+        return isAutonomous
+                && autonomousStartPose != null
+                && matchStarted
+                && timeSinceStart.milliseconds() < AUTON_STARTUP_POSE_SETTLE_WAIT_MILLIS;
     }
 
     public boolean evaluate() {
@@ -1144,7 +1383,12 @@ public class DecodeRobotControl {
             updateIntakePower(intakePowerTarget, dt);
             lift.setPosition(1.0);
             updateIntakeObservationDetection();
-            updateToroidShotDetection();
+            if (isAutonomous) {
+                clearToroidShotDetectionTelemetry();
+            } else {
+                updateToroidShotDetection();
+            }
+            updateIndicators();
             return state != OpModeState.HALT_OPMODE;
         }
         drive.update();
@@ -1152,6 +1396,9 @@ public class DecodeRobotControl {
         recordOdometryPose(latestPoseEstimate);
         evaluateSwitchCamera();
         evaluatePositioningSystems();
+        if (shouldHoldAutonomousStartPose()) {
+            forcePoseEstimate(autonomousStartPose);
+        }
 
         OpModeState currentState = state;
         OpModeState nextState = currentState;
@@ -1174,13 +1421,132 @@ public class DecodeRobotControl {
             state = nextState;
         }
         updateIntakeObservationDetection();
-        updateToroidShotDetection();
+        if (isAutonomous) {
+            clearToroidShotDetectionTelemetry();
+        } else {
+            updateToroidShotDetection();
+        }
+        updateIndicators();
 
         return state != OpModeState.HALT_OPMODE;
     }
 
     private double dist(Pose2d a, Pose2d b) {
         return Math.hypot(a.getX() - b.getX(), a.getY() - b.getY());
+    }
+
+    private static double cross2d(Vector2d a, Vector2d b, Vector2d p) {
+        return (b.getX() - a.getX()) * (p.getY() - a.getY())
+                - (b.getY() - a.getY()) * (p.getX() - a.getX());
+    }
+
+    private static boolean isPointInsideTriangle(Vector2d p, Vector2d a, Vector2d b, Vector2d c) {
+        double d1 = cross2d(a, b, p);
+        double d2 = cross2d(b, c, p);
+        double d3 = cross2d(c, a, p);
+        boolean hasNeg = d1 < 0.0 || d2 < 0.0 || d3 < 0.0;
+        boolean hasPos = d1 > 0.0 || d2 > 0.0 || d3 > 0.0;
+        return !(hasNeg && hasPos);
+    }
+
+    private static double pointToSegmentDistance(Vector2d p, Vector2d a, Vector2d b) {
+        double abX = b.getX() - a.getX();
+        double abY = b.getY() - a.getY();
+        double abLen2 = (abX * abX) + (abY * abY);
+        if (abLen2 <= 1e-9) {
+            return Math.hypot(p.getX() - a.getX(), p.getY() - a.getY());
+        }
+        double apX = p.getX() - a.getX();
+        double apY = p.getY() - a.getY();
+        double t = Range.clip(((apX * abX) + (apY * abY)) / abLen2, 0.0, 1.0);
+        double closestX = a.getX() + (abX * t);
+        double closestY = a.getY() + (abY * t);
+        return Math.hypot(p.getX() - closestX, p.getY() - closestY);
+    }
+
+    private static boolean overlapsTriangleWithRadius(
+            Vector2d center,
+            double radiusInches,
+            Vector2d a,
+            Vector2d b,
+            Vector2d c
+    ) {
+        if (isPointInsideTriangle(center, a, b, c)) {
+            return true;
+        }
+        return pointToSegmentDistance(center, a, b) <= radiusInches
+                || pointToSegmentDistance(center, b, c) <= radiusInches
+                || pointToSegmentDistance(center, c, a) <= radiusInches;
+    }
+
+    private boolean isRobotInAnyShootZone(Pose2d pose) {
+        if (pose == null) {
+            return false;
+        }
+        Vector2d center = new Vector2d(pose.getX(), pose.getY());
+        return overlapsTriangleWithRadius(
+                center,
+                SHOOT_ZONE_ROBOT_RADIUS_INCHES,
+                SHOOT_ZONE_LEFT_APEX,
+                SHOOT_ZONE_LEFT_TOP,
+                SHOOT_ZONE_LEFT_BOTTOM)
+                || overlapsTriangleWithRadius(
+                center,
+                SHOOT_ZONE_ROBOT_RADIUS_INCHES,
+                SHOOT_ZONE_RIGHT_APEX,
+                SHOOT_ZONE_RIGHT_TOP,
+                SHOOT_ZONE_RIGHT_BOTTOM);
+    }
+
+    private String indicatorSignalToHex(IndicatorSignal signal) {
+        switch (signal) {
+            case RED:
+                return "#FF3030";
+            case ORANGE_LOW:
+                return "#B34700";
+            case ORANGE:
+                return "#FF8C00";
+            case ORANGE_HIGH:
+                return "#FF9C1A";
+            case YELLOW:
+                return "#FFD400";
+            case GREEN_LOW:
+                return "#198A45";
+            case GREEN:
+                return "#22C55E";
+            case GREEN_HIGH:
+                return "#39E57C";
+            case ALLIANCE_RED:
+                return "#FF3030";
+            case ALLIANCE_BLUE:
+                return "#1E90FF";
+            case BLUE:
+                return "#1E90FF";
+            case WHITE:
+                return "#F5F5F5";
+            case OFF:
+            default:
+                return "#606060";
+        }
+    }
+
+    private void drawTriangle(Canvas overlay, Vector2d a, Vector2d b, Vector2d c) {
+        overlay.strokeLine(a.getX(), a.getY(), b.getX(), b.getY());
+        overlay.strokeLine(b.getX(), b.getY(), c.getX(), c.getY());
+        overlay.strokeLine(c.getX(), c.getY(), a.getX(), a.getY());
+    }
+
+    private void drawShootZoneOverlay(Canvas overlay, Pose2d pose, boolean shootZoneReady) {
+        overlay.setStroke(shootZoneReady ? "#22C55E" : "#FFB000");
+        overlay.setStrokeWidth(1);
+        drawTriangle(overlay, SHOOT_ZONE_LEFT_APEX, SHOOT_ZONE_LEFT_TOP, SHOOT_ZONE_LEFT_BOTTOM);
+        drawTriangle(overlay, SHOOT_ZONE_RIGHT_APEX, SHOOT_ZONE_RIGHT_TOP, SHOOT_ZONE_RIGHT_BOTTOM);
+
+        if (pose != null) {
+            overlay.setStroke(shootZoneReady ? "#22C55E" : "#FF3030");
+            overlay.strokeCircle(pose.getX(), pose.getY(), SHOOT_ZONE_ROBOT_RADIUS_INCHES);
+        }
+        overlay.setStroke("#000000");
     }
 
     private boolean lifted = false;
@@ -1546,7 +1912,6 @@ public class DecodeRobotControl {
         boolean trimFasterRequest = rb2ActivatedEvaluator.evaluate();
         boolean trimSlowerRequest = lb2ActivatedEvaluator.evaluate();
 
-        //sampleCollectorPresence(); // keep telemetry updated; no longer drives intake control
         if (trimFasterRequest && shooterTransferTrimClicks > -SHOOTER_TRANSFER_CLICK_LIMIT) {
             shooterTransferTrimClicks--;
         } else if (trimSlowerRequest && shooterTransferTrimClicks < SHOOTER_TRANSFER_CLICK_LIMIT) {
@@ -1607,13 +1972,34 @@ public class DecodeRobotControl {
         driveInput = capDriveInput(driveInput, translationCap, turnCap);
 
         Pose2d driveCommand = driveInput;
+        long nowMs = System.currentTimeMillis();
         boolean aimAssistActive = gamepad1.right_stick_button && latestPoseEstimate != null;
+        if (aimAssistActive) {
+            lastAimAssistRequestMs = nowMs;
+        }
+        boolean aimAssistFinesseStickyActive = latestPoseEstimate != null
+                && lastAimAssistRequestMs != Long.MIN_VALUE
+                && (nowMs - lastAimAssistRequestMs) < AIM_ASSIST_FINESSE_STICKY_MILLIS;
         if (aimAssistActive) {
             Vector2d basket = getActiveBasketPosition();
             double desiredHeading = getAimHeadingFromRobotPose(latestPoseEstimate, basket);
             double headingError = Angle.normDelta(desiredHeading - latestPoseEstimate.getHeading());
-            double turnCommand = Range.clip(headingError * AIM_ASSIST_TURN_GAIN, -turnCap, turnCap);
+            double autoTurnCommand = Range.clip(
+                    headingError * AIM_ASSIST_TURN_GAIN,
+                    -AIM_ASSIST_AUTO_TURN_CAP,
+                    AIM_ASSIST_AUTO_TURN_CAP);
+            double manualTurnTrim = Range.clip(
+                    driveInput.getHeading() * AIM_ASSIST_MANUAL_TURN_SCALE,
+                    -AIM_ASSIST_MANUAL_TURN_CAP,
+                    AIM_ASSIST_MANUAL_TURN_CAP);
+            double turnCommand = Range.clip(autoTurnCommand + manualTurnTrim, -turnCap, turnCap);
             driveCommand = new Pose2d(driveInput.getX(), driveInput.getY(), turnCommand);
+        } else if (aimAssistFinesseStickyActive) {
+            double manualTurnTrim = Range.clip(
+                    driveInput.getHeading() * AIM_ASSIST_MANUAL_TURN_SCALE,
+                    -AIM_ASSIST_MANUAL_TURN_CAP,
+                    AIM_ASSIST_MANUAL_TURN_CAP);
+            driveCommand = new Pose2d(driveInput.getX(), driveInput.getY(), manualTurnTrim);
         }
 
         setDrivePower(driveCommand);
@@ -1883,8 +2269,24 @@ public class DecodeRobotControl {
         double stick = isAutonomous ? 0.0 : -gamepad2.right_stick_y;
         double command = applySignedLinearDeadband(stick, TOROID_JOYSTICK_DEADBAND);
         double targetRpm = command * TOROID_TRANSIT_MAX_RPM;
+        paddleHumanPlayerHoldActive = !isAutonomous && gamepad2.a;
         boolean paddleLimitAvailable = paddleLimitSwitch != null;
-        if (Math.abs(command) <= 1e-3 && isAutonomous && !autonomousToroidHomingEnabled) {
+        if (paddleHumanPlayerHoldActive) {
+            double targetTicks = toroidZeroTicks
+                    + (TOROID_TICKS_PER_REV * (TOROID_HOME_OFFSET_DEGREES / 360.0))
+                    + (TOROID_TICKS_PER_REV * (PADDLE_HUMAN_PLAYER_OFFSET_FROM_LIMIT_SWITCH_DEGREES / 360.0));
+            double errorTicks = wrapDeltaTicks(targetTicks - currentPosition, TOROID_TICKS_PER_REV);
+            double errorAbs = Math.abs(errorTicks);
+            if (errorAbs <= PADDLE_HUMAN_PLAYER_HOLD_TOLERANCE_TICKS) {
+                targetRpm = 0.0;
+            } else {
+                targetRpm = Range.clip(
+                        errorTicks * PADDLE_HUMAN_PLAYER_KP_RPM_PER_TICK,
+                        -PADDLE_HUMAN_PLAYER_MAX_RPM,
+                        PADDLE_HUMAN_PLAYER_MAX_RPM
+                );
+            }
+        } else if (Math.abs(command) <= 1e-3 && isAutonomous && !autonomousToroidHomingEnabled) {
             // Keep paddle parked where autonomous initialized it until the first shoot action begins.
             targetRpm = 0.0;
         } else if (Math.abs(command) <= 1e-3 && paddleLimitAvailable && !paddleLimitSwitchSeen) {
@@ -1970,7 +2372,7 @@ public class DecodeRobotControl {
         toroidLastErrorAbsTicks = 0.0;
     }
 
-    private void startToroidAutoShootRevolutions(double revolutions, double timeoutMillis, int expectedShots) {
+    private void startToroidAutoShootRevolutions(double revolutions, double timeoutMillis) {
         if (toroidMotor == null) {
             toroidAutoActive = false;
             return;
@@ -1986,20 +2388,54 @@ public class DecodeRobotControl {
         toroidAutoDirectionSign = shootSign;
         toroidAutoTimeoutMillis = Math.max(0.0, timeoutMillis);
         toroidAutoJamAccumulatedMillis = 0.0;
-        toroidAutoExpectedShots = Math.max(0, expectedShots);
         toroidAutoDetectedShots = 0;
         toroidAutoWheelCurrentBaselineA = Double.NaN;
+        toroidShotDetectReadySeen = false;
         toroidAutoShotCandidatePrev = false;
+        toroidShotDetectVelocityDroopPrev = false;
+        toroidShotDetectAccelDropPrev = false;
         toroidShotDetectCommandedSinceNs = Long.MIN_VALUE;
+        toroidShotDetectPrevActualTps = Double.NaN;
+        toroidShotDetectPrevTimeNs = Long.MIN_VALUE;
         toroidAutoTimer.reset();
         toroidAutoLoopTimer.reset();
         toroidAutoActive = true;
     }
 
+    private void clearToroidShotDetectionTelemetry() {
+        toroidAutoDetectedShots = 0;
+        toroidShotDetectActualTps = Double.NaN;
+        toroidShotDetectDesiredTps = Double.NaN;
+        toroidShotDetectVelocityDroopRatio = 0.0;
+        toroidShotDetectCurrentDeltaA = Double.NaN;
+        toroidShotDetectAccelTpsPerSec = Double.NaN;
+        toroidShotDetectVelocityDroop = false;
+        toroidShotDetectCurrentSpike = false;
+        toroidShotDetectAccelDrop = false;
+        toroidShotDetectReadySeen = false;
+        toroidShotDetectEvent = false;
+        toroidShotDetectCandidate = false;
+    }
+
     private void updateToroidShotDetection() {
+        toroidShotDetectActualTps = Double.NaN;
+        toroidShotDetectDesiredTps = Double.NaN;
+        toroidShotDetectVelocityDroopRatio = 0.0;
+        toroidShotDetectCurrentDeltaA = Double.NaN;
+        toroidShotDetectAccelTpsPerSec = Double.NaN;
+        toroidShotDetectVelocityDroop = false;
+        toroidShotDetectCurrentSpike = false;
+        toroidShotDetectAccelDrop = false;
+        toroidShotDetectEvent = false;
+        toroidShotDetectCandidate = false;
         if (wheel == null) {
+            toroidShotDetectReadySeen = false;
             toroidAutoShotCandidatePrev = false;
+            toroidShotDetectVelocityDroopPrev = false;
+            toroidShotDetectAccelDropPrev = false;
             toroidShotDetectCommandedSinceNs = Long.MIN_VALUE;
+            toroidShotDetectPrevActualTps = Double.NaN;
+            toroidShotDetectPrevTimeNs = Long.MIN_VALUE;
             return;
         }
         if (toroidJamPhase != ToroidJamPhase.NONE) {
@@ -2011,8 +2447,13 @@ public class DecodeRobotControl {
         double desiredTps = Math.abs(desiredTpsSigned);
         boolean shooterCommanded = shooterEnabled && desiredTpsSigned > 1e-3;
         if (!shooterCommanded) {
+            toroidShotDetectReadySeen = false;
             toroidShotDetectCommandedSinceNs = Long.MIN_VALUE;
             toroidAutoShotCandidatePrev = false;
+            toroidShotDetectVelocityDroopPrev = false;
+            toroidShotDetectAccelDropPrev = false;
+            toroidShotDetectPrevActualTps = Double.NaN;
+            toroidShotDetectPrevTimeNs = Long.MIN_VALUE;
             return;
         }
         if (toroidShotDetectCommandedSinceNs == Long.MIN_VALUE) {
@@ -2025,6 +2466,8 @@ public class DecodeRobotControl {
 
         double currentA = wheel.getCurrent(CurrentUnit.AMPS);
         double actualTps = Math.abs(wheel.getVelocity());
+        toroidShotDetectActualTps = actualTps;
+        toroidShotDetectDesiredTps = desiredTps;
         if (desiredTps <= 1e-3 || Double.isNaN(currentA) || Double.isNaN(actualTps)) {
             toroidAutoShotCandidatePrev = false;
             return;
@@ -2033,19 +2476,49 @@ public class DecodeRobotControl {
             toroidAutoWheelCurrentBaselineA = currentA;
         }
 
-        boolean velocityDroop = actualTps <= desiredTps * (1.0 - TOROID_SHOT_DETECT_VELOCITY_DROP_RATIO);
+        if (actualTps >= desiredTps * TOROID_SHOT_DETECT_READY_RATIO) {
+            toroidShotDetectReadySeen = true;
+        }
+
+        double accelTpsPerSec = Double.NaN;
+        if (!Double.isNaN(toroidShotDetectPrevActualTps) && toroidShotDetectPrevTimeNs != Long.MIN_VALUE) {
+            double dtSec = (nowNs - toroidShotDetectPrevTimeNs) / 1_000_000_000.0;
+            if (dtSec > 1e-6) {
+                accelTpsPerSec = (actualTps - toroidShotDetectPrevActualTps) / dtSec;
+            }
+        }
+        toroidShotDetectPrevActualTps = actualTps;
+        toroidShotDetectPrevTimeNs = nowNs;
+
+        double velocityDroopRatio = 1.0 - (actualTps / desiredTps);
         double currentDeltaA = currentA - toroidAutoWheelCurrentBaselineA;
+        boolean velocityDroop = velocityDroopRatio >= TOROID_SHOT_DETECT_VELOCITY_DROP_RATIO;
         boolean currentSpike = currentDeltaA >= TOROID_SHOT_DETECT_CURRENT_SPIKE_AMPS;
-        boolean candidate = velocityDroop && currentSpike;
-        boolean risingEdge = candidate && !toroidAutoShotCandidatePrev;
+        boolean accelDrop = !Double.isNaN(accelTpsPerSec)
+                && accelTpsPerSec <= -TOROID_SHOT_DETECT_ACCEL_DROP_TPS_PER_SEC;
+        boolean candidate = toroidShotDetectReadySeen && (velocityDroop || accelDrop);
+        toroidShotDetectVelocityDroopRatio = velocityDroopRatio;
+        toroidShotDetectCurrentDeltaA = currentDeltaA;
+        toroidShotDetectAccelTpsPerSec = accelTpsPerSec;
+        toroidShotDetectVelocityDroop = velocityDroop;
+        toroidShotDetectCurrentSpike = currentSpike;
+        toroidShotDetectAccelDrop = accelDrop;
+        toroidShotDetectCandidate = candidate;
+        boolean candidateRisingEdge = candidate && !toroidAutoShotCandidatePrev;
+        boolean velocityDroopRisingEdge = velocityDroop && !toroidShotDetectVelocityDroopPrev;
+        boolean accelDropRisingEdge = accelDrop && !toroidShotDetectAccelDropPrev;
+        boolean event = toroidShotDetectReadySeen && (accelDropRisingEdge || velocityDroopRisingEdge || candidateRisingEdge);
+        toroidShotDetectEvent = event;
         toroidAutoShotCandidatePrev = candidate;
+        toroidShotDetectVelocityDroopPrev = velocityDroop;
+        toroidShotDetectAccelDropPrev = accelDrop;
 
         if (!candidate) {
             toroidAutoWheelCurrentBaselineA +=
                     (currentA - toroidAutoWheelCurrentBaselineA) * TOROID_SHOT_DETECT_BASELINE_ALPHA;
         }
 
-        if (!risingEdge) {
+        if (!event) {
             return;
         }
         boolean refractoryElapsed = toroidLastShotDetectTimeNs == Long.MIN_VALUE
@@ -2078,8 +2551,7 @@ public class DecodeRobotControl {
         double effectiveElapsedMillis = Math.max(0.0, toroidAutoTimer.milliseconds() - toroidAutoJamAccumulatedMillis);
         boolean timedOut = toroidAutoTimeoutMillis > 0.0
                 && effectiveElapsedMillis >= toroidAutoTimeoutMillis;
-        boolean reachedExpectedShots = toroidAutoExpectedShots > 0 && toroidAutoDetectedShots >= toroidAutoExpectedShots;
-        if (errorAbs <= TOROID_POSITION_TOLERANCE_TICKS || timedOut || reachedExpectedShots) {
+        if (errorAbs <= TOROID_POSITION_TOLERANCE_TICKS || timedOut) {
             toroidAutoActive = false;
             toroidTargetRpm = 0.0;
             toroidTargetTps = 0.0;
@@ -2223,6 +2695,32 @@ public class DecodeRobotControl {
         return Angle.normDelta(desiredHeading - basePose.getHeading());
     }
 
+    private boolean isShotQualityGood() {
+        Pose2d basePose = latestPoseEstimate != null ? latestPoseEstimate : lastAprilTagFieldPosition;
+        boolean conditionShooterEnabled = shooterEnabled;
+        boolean conditionShotGeometryValid = lastShotSolution != null && !lastShotBlockedByRim;
+        boolean conditionShootZoneValid = isRobotInAnyShootZone(basePose);
+        boolean conditionWheelAtSpeed = false;
+        if (conditionShooterEnabled && wheel != null) {
+            double desiredAbs = Math.abs(shooterDesiredWheelTicksPerSecond);
+            if (desiredAbs > 1e-3) {
+                double actualAbs = Math.abs(wheel.getVelocity());
+                double tolerance = Math.max(
+                        SHOOT_READY_SPEED_TOLERANCE_MIN_TPS,
+                        desiredAbs * SHOOT_READY_SPEED_TOLERANCE_RATIO);
+                conditionWheelAtSpeed = Math.abs(desiredAbs - actualAbs) <= tolerance;
+            }
+        }
+        boolean conditionAimed = conditionShooterEnabled
+                && basePose != null
+                && Math.abs(getShooterHeadingError()) <= SHOOT_READY_AIM_TOLERANCE_RADIANS;
+        return conditionShooterEnabled
+                && conditionShotGeometryValid
+                && conditionShootZoneValid
+                && conditionWheelAtSpeed
+                && conditionAimed;
+    }
+
     private enum ToroidMode {
         TRANSIT,
         SHOOT,
@@ -2266,7 +2764,6 @@ public class DecodeRobotControl {
         updateToroidControl();
         long nowMs = System.currentTimeMillis();
         if (autonomousIntakeHoldUntilMs > 0L && nowMs >= autonomousIntakeHoldUntilMs) {
-            autonomousIntakePower = 0.0;
             autonomousIntakeHoldUntilMs = 0L;
         }
 
@@ -2307,10 +2804,9 @@ public class DecodeRobotControl {
 
         if (command.ToroidShootRevolutions != null) {
             double timeoutMillis = command.ToroidTimeoutMillis != null ? command.ToroidTimeoutMillis : 0.0;
-            int expectedShots = command.ToroidExpectedShots != null ? command.ToroidExpectedShots : 0;
             // After first autonomous shoot command, allow normal home-seek/hold behavior between actions.
             autonomousToroidHomingEnabled = true;
-            startToroidAutoShootRevolutions(command.ToroidShootRevolutions, timeoutMillis, expectedShots);
+            startToroidAutoShootRevolutions(command.ToroidShootRevolutions, timeoutMillis);
         }
 
         return actionsStarted;
@@ -2373,6 +2869,9 @@ public class DecodeRobotControl {
         }
         if (currentCommand.RequireShooterEnabled && currentCommand.ShooterEnabled != null) {
             settledRightNow = settledRightNow && (shooterEnabled == currentCommand.ShooterEnabled);
+        }
+        if (currentCommand.RequireShotQuality) {
+            settledRightNow = settledRightNow && isShotQualityGood();
         }
         if (currentCommand.ToroidShootRevolutions != null) {
             settledRightNow = settledRightNow && !toroidAutoActive;
@@ -3010,6 +3509,7 @@ public class DecodeRobotControl {
             case SHOOT_COLLECT_SHOOT_FROM_AUDIENCE:
                 return getAudienceStartPose(allianceColor);
             case SHOOT_COLLECT_SHOOT_FROM_GOAL:
+            case SHOOT_COLLECT_SHOOT_TWO_TRIADS_FROM_GOAL:
                 return getGoalStartPose(allianceColor);
             case DRIVE_SQUARE_TEST:
                 return getAudienceStartPose(allianceColor);
@@ -3062,6 +3562,7 @@ public class DecodeRobotControl {
         Pose2d approachPose = poseFromHeadingAndOffset(center, headingRadians, approachOffsetInches);
         Pose2d exitPose = poseFromHeadingAndOffset(center, headingRadians, -exitOffsetInches);
         commands.add(OpModeCommand.intakePowerCommand(intakePower));
+        commands.add(OpModeCommand.waitCommand(TRIAD_INTAKE_SPINUP_WAIT_MILLIS));
         commands.add(OpModeCommand.driveDirectToPoseCommand(approachPose));
         commands.add(OpModeCommand.driveDirectToPoseCommand(exitPose));
         commands.add(OpModeCommand.intakePowerHoldCommand(intakePower, TRIAD_INTAKE_FLUSH_MILLIS));
@@ -3098,6 +3599,7 @@ public class DecodeRobotControl {
         approachPose = applyForwardOffset(approachPose, heading, TRIAD_COLLECT_FORWARD_OFFSET_INCHES);
         exitPose = applyForwardOffset(exitPose, heading, TRIAD_COLLECT_FORWARD_OFFSET_INCHES);
         commands.add(OpModeCommand.intakePowerCommand(INTAKE_MOTOR_POWER));
+        commands.add(OpModeCommand.waitCommand(TRIAD_INTAKE_SPINUP_WAIT_MILLIS));
         commands.add(OpModeCommand.driveDirectToPoseCommand(approachPose));
         commands.add(OpModeCommand.driveDirectToPoseScaledCommand(exitPose, TRIAD_COLLECT_DRIVE_POWER_SCALE));
         commands.add(OpModeCommand.intakePowerHoldCommand(INTAKE_MOTOR_POWER, TRIAD_INTAKE_FLUSH_MILLIS));
@@ -3139,10 +3641,19 @@ public class DecodeRobotControl {
             approachPose = applyForwardOffset(approachPose, heading, TRIAD_COLLECT_FORWARD_OFFSET_INCHES);
             exitPose = applyForwardOffset(exitPose, heading, TRIAD_COLLECT_FORWARD_OFFSET_INCHES);
             commands.add(OpModeCommand.intakePowerCommand(INTAKE_MOTOR_POWER));
+            commands.add(OpModeCommand.waitCommand(TRIAD_INTAKE_SPINUP_WAIT_MILLIS));
             commands.add(OpModeCommand.driveDirectToPoseCommand(approachPose));
             commands.add(OpModeCommand.driveDirectToPoseScaledCommand(exitPose, TRIAD_COLLECT_DRIVE_POWER_SCALE));
             commands.add(OpModeCommand.intakePowerHoldCommand(INTAKE_MOTOR_POWER, TRIAD_INTAKE_FLUSH_MILLIS));
         }
+    }
+
+    private static Vector2d getTriadCenterByIndex(AllianceColor allianceColor, int index) {
+        List<Vector2d> triadCenters = getTriadCentersForAlliance(allianceColor);
+        if (index < 0 || index >= triadCenters.size()) {
+            return null;
+        }
+        return triadCenters.get(index);
     }
 
     private void appendTriadCollectPasses(
@@ -3166,17 +3677,17 @@ public class DecodeRobotControl {
 
     private List<OpModeCommand> buildAutonomousCommands(AutonomousPlan plan) {
         List<OpModeCommand> commands = new ArrayList<>();
+        commands.add(OpModeCommand.waitCommand(AUTON_STARTUP_POSE_SETTLE_WAIT_MILLIS));
         switch (plan) {
             case SHOOT_THREE_FROM_AUDIENCE: {
                 Pose2d start = autonomousStartPose != null ? autonomousStartPose : getStartPoseForPlan(allianceColor, plan);
                 Pose2d shootingPose = getShootingPoseFromStart(start);
                 commands.add(OpModeCommand.shooterEnableCommand(true));
-                commands.add(OpModeCommand.waitCommand(750.0));
                 commands.add(OpModeCommand.driveDirectToPosePreciseCommand(shootingPose));
-                commands.add(OpModeCommand.waitCommand(300.0));
-                commands.add(OpModeCommand.toroidShootRevolutionsWithExpectedShotsCommand(
-                        TOROID_SHOOT_REVOLUTIONS, TOROID_SHOOT_TIMEOUT_MILLIS, TOROID_KNOWN_OPENING_SHOT_COUNT));
-                commands.add(OpModeCommand.waitCommand(300.0));
+                commands.add(OpModeCommand.shotQualityReadyCommand());
+                commands.add(OpModeCommand.toroidShootRevolutionsCommand(
+                        TOROID_AUTON_SHOOT_REVOLUTIONS, TOROID_SHOOT_TIMEOUT_MILLIS));
+                commands.add(OpModeCommand.waitCommand(AUTON_SHOOT_SETTLE_WAIT_MILLIS));
                 commands.add(OpModeCommand.shooterEnableCommand(false));
                 commands.add(OpModeCommand.driveDirectToPoseCommand(getLeaveTargetPose(allianceColor)));
                 break;
@@ -3184,12 +3695,11 @@ public class DecodeRobotControl {
             case SHOOT_THREE_FROM_GOAL: {
                 Pose2d shootingPose = getBackShootPose(allianceColor);
                 commands.add(OpModeCommand.shooterEnableCommand(true));
-                commands.add(OpModeCommand.waitCommand(750.0));
                 commands.add(OpModeCommand.driveDirectToPosePreciseCommand(shootingPose));
-                commands.add(OpModeCommand.waitCommand(300.0));
-                commands.add(OpModeCommand.toroidShootRevolutionsWithExpectedShotsCommand(
-                        TOROID_SHOOT_REVOLUTIONS, TOROID_SHOOT_TIMEOUT_MILLIS, TOROID_KNOWN_OPENING_SHOT_COUNT));
-                commands.add(OpModeCommand.waitCommand(300.0));
+                commands.add(OpModeCommand.shotQualityReadyCommand());
+                commands.add(OpModeCommand.toroidShootRevolutionsCommand(
+                        TOROID_AUTON_SHOOT_REVOLUTIONS, TOROID_SHOOT_TIMEOUT_MILLIS));
+                commands.add(OpModeCommand.waitCommand(AUTON_SHOOT_SETTLE_WAIT_MILLIS));
                 commands.add(OpModeCommand.shooterEnableCommand(false));
                 commands.add(OpModeCommand.driveDirectToPoseCommand(getGoalStartLeavePose(allianceColor)));
                 break;
@@ -3198,12 +3708,11 @@ public class DecodeRobotControl {
                 Pose2d start = autonomousStartPose != null ? autonomousStartPose : getStartPoseForPlan(allianceColor, plan);
                 Pose2d shootingPose = getShootingPoseFromStart(start);
                 commands.add(OpModeCommand.shooterEnableCommand(true));
-                commands.add(OpModeCommand.waitCommand(750.0));
                 commands.add(OpModeCommand.driveDirectToPosePreciseCommand(shootingPose));
-                commands.add(OpModeCommand.waitCommand(300.0));
-                commands.add(OpModeCommand.toroidShootRevolutionsWithExpectedShotsCommand(
-                        TOROID_SHOOT_REVOLUTIONS, TOROID_SHOOT_TIMEOUT_MILLIS, TOROID_KNOWN_OPENING_SHOT_COUNT));
-                commands.add(OpModeCommand.waitCommand(300.0));
+                commands.add(OpModeCommand.shotQualityReadyCommand());
+                commands.add(OpModeCommand.toroidShootRevolutionsCommand(
+                        TOROID_AUTON_SHOOT_REVOLUTIONS, TOROID_SHOOT_TIMEOUT_MILLIS));
+                commands.add(OpModeCommand.waitCommand(AUTON_SHOOT_SETTLE_WAIT_MILLIS));
                 appendTriadLineCollectPassForCenter(
                         commands,
                         allianceColor,
@@ -3211,9 +3720,10 @@ public class DecodeRobotControl {
                         TRIAD_EXIT_Y_OFFSET,
                         getMostPositiveXTriadCenter(allianceColor));
                 commands.add(OpModeCommand.driveDirectToPosePreciseCommand(shootingPose));
-                commands.add(OpModeCommand.waitCommand(300.0));
-                commands.add(OpModeCommand.toroidShootRevolutionsCommand(TOROID_SHOOT_REVOLUTIONS, TOROID_SHOOT_TIMEOUT_MILLIS));
-                commands.add(OpModeCommand.waitCommand(300.0));
+                commands.add(OpModeCommand.intakePowerCommand(0.0));
+                commands.add(OpModeCommand.shotQualityReadyCommand());
+                commands.add(OpModeCommand.toroidShootRevolutionsCommand(TOROID_AUTON_SHOOT_REVOLUTIONS, TOROID_SHOOT_TIMEOUT_MILLIS));
+                commands.add(OpModeCommand.waitCommand(AUTON_SHOOT_SETTLE_WAIT_MILLIS));
                 commands.add(OpModeCommand.shooterEnableCommand(false));
                 commands.add(OpModeCommand.driveDirectToPoseCommand(getLeaveTargetPose(allianceColor)));
                 break;
@@ -3221,19 +3731,48 @@ public class DecodeRobotControl {
             case SHOOT_COLLECT_SHOOT_FROM_GOAL: {
                 Pose2d shootingPose = getBackShootPose(allianceColor);
                 commands.add(OpModeCommand.shooterEnableCommand(true));
-                commands.add(OpModeCommand.waitCommand(750.0));
                 commands.add(OpModeCommand.driveDirectToPosePreciseCommand(shootingPose));
-                commands.add(OpModeCommand.waitCommand(300.0));
-                commands.add(OpModeCommand.toroidShootRevolutionsWithExpectedShotsCommand(
-                        TOROID_SHOOT_REVOLUTIONS, TOROID_SHOOT_TIMEOUT_MILLIS, TOROID_KNOWN_OPENING_SHOT_COUNT));
-                commands.add(OpModeCommand.waitCommand(300.0));
+                commands.add(OpModeCommand.shotQualityReadyCommand());
+                commands.add(OpModeCommand.toroidShootRevolutionsCommand(
+                        TOROID_AUTON_SHOOT_REVOLUTIONS, TOROID_SHOOT_TIMEOUT_MILLIS));
+                commands.add(OpModeCommand.waitCommand(AUTON_SHOOT_SETTLE_WAIT_MILLIS));
                 appendTriadLineCollectPasses(commands, allianceColor, TRIAD_APPROACH_Y_OFFSET, TRIAD_EXIT_Y_OFFSET, 1);
                 commands.add(OpModeCommand.driveDirectToPosePreciseCommand(shootingPose));
-                commands.add(OpModeCommand.waitCommand(300.0));
-                commands.add(OpModeCommand.toroidShootRevolutionsCommand(TOROID_SHOOT_REVOLUTIONS, TOROID_SHOOT_TIMEOUT_MILLIS));
-                commands.add(OpModeCommand.waitCommand(300.0));
+                commands.add(OpModeCommand.intakePowerCommand(0.0));
+                commands.add(OpModeCommand.shotQualityReadyCommand());
+                commands.add(OpModeCommand.toroidShootRevolutionsCommand(TOROID_AUTON_SHOOT_REVOLUTIONS, TOROID_SHOOT_TIMEOUT_MILLIS));
+                commands.add(OpModeCommand.waitCommand(AUTON_SHOOT_SETTLE_WAIT_MILLIS));
                 commands.add(OpModeCommand.shooterEnableCommand(false));
                 commands.add(OpModeCommand.driveDirectToPoseCommand(getGoalStartLeavePose(allianceColor)));
+                break;
+            }
+            case SHOOT_COLLECT_SHOOT_TWO_TRIADS_FROM_GOAL: {
+                Pose2d shootingPose = getBackShootPose(allianceColor);
+                commands.add(OpModeCommand.shooterEnableCommand(true));
+                commands.add(OpModeCommand.driveDirectToPosePreciseCommand(shootingPose));
+                commands.add(OpModeCommand.shotQualityReadyCommand());
+                commands.add(OpModeCommand.toroidShootRevolutionsCommand(
+                        TOROID_AUTON_SHOOT_REVOLUTIONS, TOROID_SHOOT_TIMEOUT_MILLIS));
+                commands.add(OpModeCommand.waitCommand(AUTON_SHOOT_SETTLE_WAIT_MILLIS));
+                appendTriadLineCollectPassForCenter(
+                        commands,
+                        allianceColor,
+                        TRIAD_APPROACH_Y_OFFSET,
+                        TRIAD_EXIT_Y_OFFSET,
+                        getTriadCenterByIndex(allianceColor, 0));
+                commands.add(OpModeCommand.driveDirectToPosePreciseCommand(shootingPose));
+                commands.add(OpModeCommand.intakePowerCommand(0.0));
+                commands.add(OpModeCommand.shotQualityReadyCommand());
+                commands.add(OpModeCommand.toroidShootRevolutionsCommand(TOROID_AUTON_SHOOT_REVOLUTIONS, TOROID_SHOOT_TIMEOUT_MILLIS));
+                commands.add(OpModeCommand.waitCommand(AUTON_SHOOT_SETTLE_WAIT_MILLIS));
+                appendTriadLineCollectPassForCenter(
+                        commands,
+                        allianceColor,
+                        TRIAD_APPROACH_Y_OFFSET,
+                        TRIAD_EXIT_Y_OFFSET,
+                        getTriadCenterByIndex(allianceColor, 1));
+                commands.add(OpModeCommand.intakePowerCommand(0.0));
+                commands.add(OpModeCommand.shooterEnableCommand(false));
                 break;
             }
             case DRIVE_SQUARE_TEST: {
@@ -3275,6 +3814,8 @@ public class DecodeRobotControl {
     public void shutDown() {
         //drive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         setDrivePower(new Pose2d());
+        setIndicatorSignal(indicatorTop, indicatorTopEx, IndicatorSignal.OFF, true);
+        setIndicatorSignal(indicatorBottom, indicatorBottomEx, IndicatorSignal.OFF, false);
         limelight.stop();
         if (visionPortal != null) {
             visionPortal.close();
