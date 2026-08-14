@@ -56,9 +56,9 @@ public class StarterMecanumTeleOp extends OpMode {
         // This matches the current official FTC mecanum samples. Verify it with the wheels
         // raised before driving; gearing or motor placement may require flipping all four.
         frontLeft.setDirection(DcMotor.Direction.REVERSE);
-        backLeft.setDirection(DcMotor.Direction.REVERSE);
+        backLeft.setDirection(DcMotor.Direction.FORWARD);
         frontRight.setDirection(DcMotor.Direction.FORWARD);
-        backRight.setDirection(DcMotor.Direction.FORWARD);
+        backRight.setDirection(DcMotor.Direction.REVERSE);
 
         configureMotor(frontLeft);
         configureMotor(frontRight);
@@ -68,8 +68,8 @@ public class StarterMecanumTeleOp extends OpMode {
         // The side intake wheels are mirrored, so their servos must spin opposite physical
         // directions to produce the same logical intake/eject action.
         centerCollector.setDirection(DcMotor.Direction.FORWARD);
-        leftIntake.setDirection(DcMotorSimple.Direction.FORWARD);
-        rightIntake.setDirection(DcMotorSimple.Direction.REVERSE);
+        leftIntake.setDirection(DcMotorSimple.Direction.REVERSE);
+        rightIntake.setDirection(DcMotorSimple.Direction.FORWARD);
         configureMotor(centerCollector);
         leftIntake.setPower(0.0);
         rightIntake.setPower(0.0);
