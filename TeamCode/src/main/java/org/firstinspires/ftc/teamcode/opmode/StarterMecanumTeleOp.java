@@ -5,7 +5,7 @@
  * dependable starting point for checking wheel placement, motor direction, wiring, and
  * driver preference before adding mechanisms or field-relative control.
  */
-package org.firstinspires.ftc.teamcode;
+package org.firstinspires.ftc.teamcode.opmode;
 
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
