@@ -1,10 +1,3 @@
-/*
- * Starter drivetrain TeleOp for the Terabytes 2026-2027 robot.
- *
- * This is intentionally robot-centric and drivetrain-only. It gives the team a small,
- * dependable starting point for checking wheel placement, motor direction, wiring, and
- * driver preference before adding mechanisms or field-relative control.
- */
 package org.firstinspires.ftc.teamcode.opmode;
 
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
@@ -15,9 +8,9 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.util.Range;
 
+@Deprecated // will rewrite this later
 @TeleOp(name = "Starter: Mecanum Drive", group = "Starter Bot")
 public class StarterMecanumTeleOp extends OpMode {
-    // These names must exactly match the active Robot Configuration on the Driver Station.
     private static final String FRONT_LEFT_NAME = "front_left_drive";
     private static final String FRONT_RIGHT_NAME = "front_right_drive";
     private static final String BACK_LEFT_NAME = "back_left_drive";
@@ -53,8 +46,6 @@ public class StarterMecanumTeleOp extends OpMode {
         leftIntake = hardwareMap.get(CRServo.class, LEFT_INTAKE_NAME);
         rightIntake = hardwareMap.get(CRServo.class, RIGHT_INTAKE_NAME);
 
-        // This matches the current official FTC mecanum samples. Verify it with the wheels
-        // raised before driving; gearing or motor placement may require flipping all four.
         frontLeft.setDirection(DcMotor.Direction.REVERSE);
         backLeft.setDirection(DcMotor.Direction.FORWARD);
         frontRight.setDirection(DcMotor.Direction.FORWARD);
@@ -65,8 +56,6 @@ public class StarterMecanumTeleOp extends OpMode {
         configureMotor(backLeft);
         configureMotor(backRight);
 
-        // The side intake wheels are mirrored, so their servos must spin opposite physical
-        // directions to produce the same logical intake/eject action.
         centerCollector.setDirection(DcMotor.Direction.FORWARD);
         leftIntake.setDirection(DcMotorSimple.Direction.REVERSE);
         rightIntake.setDirection(DcMotorSimple.Direction.FORWARD);
@@ -108,8 +97,6 @@ public class StarterMecanumTeleOp extends OpMode {
         backLeft.setPower(backLeftPower);
         backRight.setPower(backRightPower);
 
-        // Analog triggers allow gentle collector testing. If both are pressed equally, the
-        // commands cancel. Positive power means intake; negative power means eject.
         double collectorPower = applyDeadband(gamepad1.right_trigger - gamepad1.left_trigger);
         centerCollector.setPower(collectorPower);
         leftIntake.setPower(collectorPower);
