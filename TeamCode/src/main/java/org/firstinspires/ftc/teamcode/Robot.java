@@ -31,7 +31,7 @@ public class Robot {
         pinpoint.resetPosAndIMU();
 
         // set the starting location
-        pinpoint.setPosition(new Pose2D(DistanceUnit.INCH, 0, 0, AngleUnit.DEGREES, 0));
+        pinpoint.setPosition(new Pose2D(DistanceUnit.MM, 0, 0, AngleUnit.DEGREES, 0));
 
         this.hardwareMap = hardwareMap;
         this.telemetry = telemetry;
@@ -85,11 +85,21 @@ public class Robot {
             return true;
         }
 
-        double strafe = -dX / dist;
-        double forward = dY / dist;
+        double strafe = -dY / dist;
+        double forward = dX / dist;
+
+        // temporary decel
+        if (Math.abs(dX) < 150) {
+            forward = 1 / dX;
+        }
+        if (Math.abs(dY) < 150) {
+            strafe = 1 / dY;
+        }
 
         telemetry.addData("delta x", dX);
         telemetry.addData("delta y", dY);
+        telemetry.addData("strafe", strafe);
+        telemetry.addData("forward", forward);
 
         double fl = forward + strafe;
         double fr = forward - strafe;
@@ -103,7 +113,13 @@ public class Robot {
             return true;
         }
 
+        telemetry.addData("fl", fl);
+        telemetry.addData("fr", fr);
+        telemetry.addData("bl", bl);
+        telemetry.addData("br", br);
+
         drive.setDrivePowers(fl / d,fr / d, bl / d, br / d);
+//        drive.setDrivePowers(fl / 5,fr / 5, bl / 5, br / 5);
 
         return false;
     }

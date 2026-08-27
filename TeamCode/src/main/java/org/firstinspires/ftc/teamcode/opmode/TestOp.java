@@ -23,7 +23,7 @@ public class TestOp extends OpMode {
     public void loop() {
         robot.update();
 
-        robot.moveTo(300, 500);
+        robot.moveTo(300, 300);
 
         telemetry.addData("X coordinate (IN)", robot.getX());
         telemetry.addData("Y coordinate (IN)", robot.getY());
