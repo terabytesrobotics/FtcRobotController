@@ -18,7 +18,12 @@ public class Robot {
     public HardwareMap hardwareMap;
     public Telemetry telemetry;
     private final int moveToThreshold = 30;
-    public final PIDController driveTrainController = new PIDController(0.01, 0.0001, 0.001);
+    private final double MAX_DRIVE_OUTPUT_POWER = 0.95;
+    public final double kP_POWER_PER_MM = 1.0 / 1000; // 100% power (~torque) / 1000mm
+    public final double kI_POWER_PER_MM_SEC = 0.00; // 0% power / mm * sec
+    public final double kD_POWER_PER_MM_PER_SEC = 0.00; // 0% power / (mm/sec)
+    public final PIDController xDriveController = new PIDController(kP_POWER_PER_MM, kI_POWER_PER_MM_SEC, kD_POWER_PER_MM_PER_SEC);
+    public final PIDController yDriveController = new PIDController(kP_POWER_PER_MM, kI_POWER_PER_MM_SEC, kD_POWER_PER_MM_PER_SEC);
 
     public Robot(HardwareMap hardwareMap, Telemetry telemetry) {
         drive = new Drive(hardwareMap);
@@ -66,19 +71,14 @@ public class Robot {
     /**
     * @return state of completion (with accuracy of moveToThreshold in millimeters
     * */
-    public boolean moveTo(double x, double y) {
+    public boolean moveTo(double destX, double destY) {
         Pose2D pos = pinpoint.getPosition();
 
         double currentX = pos.getX(DistanceUnit.MM);
         double currentY = pos.getY(DistanceUnit.MM);
 
-//        double frontLeftPower = forward + strafe + rotate;
-//        double frontRightPower = forward - strafe - rotate;
-//        double backLeftPower = forward - strafe + rotate;
-//        double backRightPower = forward + strafe - rotate;
-
-        double dX = x - currentX;
-        double dY = y - currentY;
+        double dX = destX - currentX;
+        double dY = destY - currentY;
 
         double dist = Math.hypot(dX, dY);
 
@@ -87,8 +87,8 @@ public class Robot {
             return true;
         }
 
-        double strafe = -dY / dist;
-        double forward = dX / dist;
+        double strafe = xDriveController.calculate(destX, currentX);
+        double forward = yDriveController.calculate(destY, currentY);
 
         telemetry.addData("delta x", dX);
         telemetry.addData("delta y", dY);
@@ -102,7 +102,7 @@ public class Robot {
 
         // denominator
         double d = Math.max(1.0, Math.max(Math.max(Math.abs(fl), Math.abs(fr)), Math.max(Math.abs(bl), Math.abs(br))));
-        d *= driveTrainController.calculate(0.0, dist);
+        d *=
         d = Math.min(0.0, d);
         d = Math.max(1.0, d);
 
@@ -116,8 +116,6 @@ public class Robot {
         telemetry.addData("br", br);
 
         drive.setDrivePowers(fl / d,fr / d, bl / d, br / d);
-//        drive.setDrivePowers(fl / 5,fr / 5, bl / 5, br / 5);
-
         return false;
     }
 }
