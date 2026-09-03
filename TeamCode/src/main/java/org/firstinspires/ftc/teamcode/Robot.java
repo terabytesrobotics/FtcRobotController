@@ -9,6 +9,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.teamcode.subsystem.Collector;
 import org.firstinspires.ftc.teamcode.subsystem.Drive;
+import org.firstinspires.ftc.teamcode.util.PIDController;
 
 public class Robot {
     GoBildaPinpointDriver pinpoint;
@@ -17,6 +18,7 @@ public class Robot {
     public HardwareMap hardwareMap;
     public Telemetry telemetry;
     private final int moveToThreshold = 30;
+    public final PIDController driveTrainController = new PIDController(0.01, 0.0001, 0.001);
 
     public Robot(HardwareMap hardwareMap, Telemetry telemetry) {
         drive = new Drive(hardwareMap);
@@ -88,14 +90,6 @@ public class Robot {
         double strafe = -dY / dist;
         double forward = dX / dist;
 
-        // temporary decel
-        if (Math.abs(dX) < 150) {
-            forward = 1 / dX;
-        }
-        if (Math.abs(dY) < 150) {
-            strafe = 1 / dY;
-        }
-
         telemetry.addData("delta x", dX);
         telemetry.addData("delta y", dY);
         telemetry.addData("strafe", strafe);
@@ -108,6 +102,9 @@ public class Robot {
 
         // denominator
         double d = Math.max(1.0, Math.max(Math.max(Math.abs(fl), Math.abs(fr)), Math.max(Math.abs(bl), Math.abs(br))));
+        d *= driveTrainController.calculate(0.0, dist);
+        d = Math.min(0.0, d);
+        d = Math.max(1.0, d);
 
         if (Math.abs(dX) < moveToThreshold && Math.abs(dY) < moveToThreshold) {
             return true;
