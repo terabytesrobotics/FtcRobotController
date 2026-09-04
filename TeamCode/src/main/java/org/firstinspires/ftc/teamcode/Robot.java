@@ -17,11 +17,11 @@ public class Robot {
     public Collector collector;
     public HardwareMap hardwareMap;
     public Telemetry telemetry;
-    private final int moveToThreshold = 30;
+    private final int moveToThreshold = 5;
     private final double MAX_DRIVE_OUTPUT_POWER = 0.95;
-    public final double kP_POWER_PER_MM = 1.0 / 1000; // 100% power (~torque) / 1000mm
-    public final double kI_POWER_PER_MM_SEC = 0.00; // 0% power / mm * sec
-    public final double kD_POWER_PER_MM_PER_SEC = 0.00; // 0% power / (mm/sec)
+    public final double kP_POWER_PER_MM = 1.0 / 200; // 100% power (~torque) / 1000mm
+    public final double kI_POWER_PER_MM_SEC = 0.0001; // 0% power / mm * sec
+    public final double kD_POWER_PER_MM_PER_SEC = 0.0; // 0% power / (mm/sec)
     public final PIDController xDriveController = new PIDController(kP_POWER_PER_MM, kI_POWER_PER_MM_SEC, kD_POWER_PER_MM_PER_SEC);
     public final PIDController yDriveController = new PIDController(kP_POWER_PER_MM, kI_POWER_PER_MM_SEC, kD_POWER_PER_MM_PER_SEC);
 
@@ -45,6 +45,7 @@ public class Robot {
     }
 
     public void update() {
+        drive.setDrivePowers(0, 0, 0, 0);
         pinpoint.update();
     }
 
@@ -87,13 +88,14 @@ public class Robot {
             return true;
         }
 
-        double strafe = xDriveController.calculate(destX, currentX);
-        double forward = yDriveController.calculate(destY, currentY);
+        double strafe = yDriveController.calculate(destY, currentY);
+        strafe *= -1.0;
+        double forward = xDriveController.calculate(destX, currentX);
 
-        telemetry.addData("delta x", dX);
-        telemetry.addData("delta y", dY);
-        telemetry.addData("strafe", strafe);
-        telemetry.addData("forward", forward);
+//        telemetry.addData("delta x", dX);
+//        telemetry.addData("delta y", dY);
+//        telemetry.addData("strafe", strafe);
+//        telemetry.addData("forward", forward);
 
         double fl = forward + strafe;
         double fr = forward - strafe;
@@ -102,7 +104,7 @@ public class Robot {
 
         // denominator
         double d = Math.max(1.0, Math.max(Math.max(Math.abs(fl), Math.abs(fr)), Math.max(Math.abs(bl), Math.abs(br))));
-        d *=
+        //d *= 3;
         d = Math.min(0.0, d);
         d = Math.max(1.0, d);
 
@@ -110,10 +112,10 @@ public class Robot {
             return true;
         }
 
-        telemetry.addData("fl", fl);
-        telemetry.addData("fr", fr);
-        telemetry.addData("bl", bl);
-        telemetry.addData("br", br);
+//        telemetry.addData("fl", fl);
+//        telemetry.addData("fr", fr);
+//        telemetry.addData("bl", bl);
+//        telemetry.addData("br", br);
 
         drive.setDrivePowers(fl / d,fr / d, bl / d, br / d);
         return false;

@@ -9,8 +9,7 @@ import org.firstinspires.ftc.teamcode.Robot;
 @TeleOp(name = "PinpointTest", group = "Starter Bot")
 public class TestOp extends OpMode {
     Robot robot;
-    private double kP = 0, kI = 0, kD = 0;
-    private double kPDelta, kIDelta, kDDelta;
+    private double kPX, kIX, kDX;
     private double targetX = 0, targetY = 0;
     private boolean moving = false;
 
@@ -21,6 +20,10 @@ public class TestOp extends OpMode {
 
     @Override
     public void loop() {
+        kPX = robot.xDriveController.kP;
+        kIX = robot.xDriveController.kI;
+        kDX = robot.xDriveController.kD;
+        
         robot.update();
 
         if (gamepad1.yWasPressed()) {
@@ -33,48 +36,49 @@ public class TestOp extends OpMode {
 
         if (gamepad1.dpadUpWasPressed()) {
             if (gamepad1.a) {
-                kP += kPDelta;
+                kPX *= 1.05;
             }
             if (gamepad1.b) {
-                kI += kIDelta;
+                kIX *= 1.05;
             }
 
             if (gamepad1.x) {
-                kD += kDDelta;
+                kDX *= 1.05;
             }
         }
 
         if (gamepad1.dpadDownWasPressed()) {
             if (gamepad1.a) {
-                kP -= kPDelta;
+                kPX /= 1.05;
             }
+
             if (gamepad1.b) {
-                kI -= kIDelta;
+                kIX /= 1.05;
             }
 
             if (gamepad1.x) {
-                kD -= kDDelta;
+                kDX /= 1.05;
             }
         }
 
-        targetX += applyDeadband(-gamepad1.left_stick_y);
-        targetY += applyDeadband(gamepad1.left_stick_x);
+        targetX += applyDeadband(-gamepad1.left_stick_x) * 3;
+//        targetY += applyDeadband(gamepad1.left_stick_y);
 
-        targetX = Math.min(-300.0, targetX);
-        targetX = Math.max(300.0, targetX);
+//        targetX = Math.min(-300.0, targetX);
+//        targetX = Math.max(300.0, targetX);
 
-        targetY = Math.min(-300.0, targetY);
-        targetY = Math.max(300.0, targetY);
+//        targetY = Math.min(-300.0, targetY);
+//        targetY = Math.max(300.0, targetY);
 
-        robot.driveTrainController.kP = kP;
-        robot.driveTrainController.kI = kI;
-        robot.driveTrainController.kD = kD;
+        robot.xDriveController.kP = kPX;
+        robot.xDriveController.kI = kIX;
+        robot.xDriveController.kD = kDX;
 
         telemetry.addData("X coordinate", robot.getX());
         telemetry.addData("Y coordinate", robot.getY());
-        telemetry.addData("KP", kP);
-        telemetry.addData("KI", kI);
-        telemetry.addData("KD", kD);
+        telemetry.addData("KP", kPX);
+        telemetry.addData("KI", kIX);
+        telemetry.addData("KD", kDX);
         telemetry.addData("Target X", targetX);
         telemetry.addData("Target Y", targetY);
 //        telemetry.addData("Heading angle (deg)", robot.getHeading());
