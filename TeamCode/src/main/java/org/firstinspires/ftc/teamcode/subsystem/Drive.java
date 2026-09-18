@@ -44,18 +44,4 @@ public class Drive {
         backLeft.setPower(bl);
         backRight.setPower(br);
     }
-
-    public void applyDriveX(double millimeters) {
-        frontLeft.setPower(-millimeters);
-        backRight.setPower(-millimeters);
-        frontRight.setPower(millimeters);
-        backLeft.setPower(millimeters);
-    }
-
-    public void applyDriveY(double millimeters) {
-        frontLeft.setPower(millimeters);
-        backRight.setPower(millimeters);
-        frontRight.setPower(millimeters);
-        backLeft.setPower(millimeters);
-    }
 }

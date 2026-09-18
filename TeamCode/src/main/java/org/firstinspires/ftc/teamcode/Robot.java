@@ -9,6 +9,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.teamcode.subsystem.Collector;
 import org.firstinspires.ftc.teamcode.subsystem.Drive;
+import org.firstinspires.ftc.teamcode.util.MathHelper;
 import org.firstinspires.ftc.teamcode.util.PIDController;
 
 public class Robot {
@@ -18,12 +19,14 @@ public class Robot {
     public HardwareMap hardwareMap;
     public Telemetry telemetry;
     private final int moveToThreshold = 5;
+    private final double rotateToThreshold = Math.PI / 16.0; // radians
     private final double MAX_DRIVE_OUTPUT_POWER = 0.95;
-    public final double kP_POWER_PER_MM = 1.0 / 200; // 100% power (~torque) / 1000mm
-    public final double kI_POWER_PER_MM_SEC = 0.0001; // 0% power / mm * sec
-    public final double kD_POWER_PER_MM_PER_SEC = 0.0; // 0% power / (mm/sec)
+    public final double kP_POWER_PER_MM = .006; // 100% power (~torque) / 1000mm
+    public final double kI_POWER_PER_MM_SEC = 0.0006; // 0% power / mm * sec
+    public final double kD_POWER_PER_MM_PER_SEC = 0.02; // 0% power / (mm/sec)
     public final PIDController xDriveController = new PIDController(kP_POWER_PER_MM, kI_POWER_PER_MM_SEC, kD_POWER_PER_MM_PER_SEC);
     public final PIDController yDriveController = new PIDController(kP_POWER_PER_MM, kI_POWER_PER_MM_SEC, kD_POWER_PER_MM_PER_SEC);
+    public final PIDController rDriveController = new PIDController(2 * Math.PI / 3, kI_POWER_PER_MM_SEC, kD_POWER_PER_MM_PER_SEC);
 
     public Robot(HardwareMap hardwareMap, Telemetry telemetry) {
         drive = new Drive(hardwareMap);
@@ -61,7 +64,7 @@ public class Robot {
         return pinpoint.getPosY(DistanceUnit.MM);
     }
 
-    public double getHeading() {
+    public double getHeadingDeg() {
         return pinpoint.getHeading(AngleUnit.DEGREES);
     }
 
@@ -69,17 +72,61 @@ public class Robot {
         return pinpoint.getHeading(AngleUnit.RADIANS);
     }
 
+    public boolean moveTo(double targetX, double targetY) {
+        return moveTo(targetX, targetY, false);
+    }
+
+    public boolean rotateTo(double targetRad) {
+        return rotateTo(targetRad, false);
+    }
+
+    public boolean rotateTo(double targetRad, boolean debug) {
+        double current = getHeadingRad();
+
+        double dRot = targetRad - current;
+
+        if (Math.abs(dRot) < rotateToThreshold) {
+            drive.setDrivePowers(0, 0, 0, 0);
+            return true;
+        }
+
+//        double rotate = rDriveController.calculate(AngleUnit.normalizeRadians(targetRad + Math.PI), current);
+        double rotate = rDriveController.calculate(AngleUnit.normalizeRadians(dRot), 0);
+
+        double fl = -rotate;
+        double fr = rotate;
+        double bl = -rotate;
+        double br = rotate;
+
+        // denominator
+        double d = Math.max(1.0, Math.max(Math.max(Math.abs(fl), Math.abs(fr)), Math.max(Math.abs(bl), Math.abs(br))));
+        d = MathHelper.clamp(d, 0, 1);
+
+        if (debug) {
+            telemetry.addData("delta rotation", AngleUnit.normalizeRadians(dRot));
+            telemetry.addData("rotate", rotate);
+
+            telemetry.addData("fl", fl);
+            telemetry.addData("fr", fr);
+            telemetry.addData("bl", bl);
+            telemetry.addData("br", br);
+        }
+
+        drive.setDrivePowers(fl / d,fr / d, bl / d, br / d);
+        return false;
+    }
+
     /**
     * @return state of completion (with accuracy of moveToThreshold in millimeters
     * */
-    public boolean moveTo(double destX, double destY) {
+    public boolean moveTo(double targetX, double targetY, boolean debug) {
         Pose2D pos = pinpoint.getPosition();
 
         double currentX = pos.getX(DistanceUnit.MM);
         double currentY = pos.getY(DistanceUnit.MM);
 
-        double dX = destX - currentX;
-        double dY = destY - currentY;
+        double dX = targetX - currentX;
+        double dY = targetY - currentY;
 
         double dist = Math.hypot(dX, dY);
 
@@ -88,34 +135,33 @@ public class Robot {
             return true;
         }
 
-        double strafe = yDriveController.calculate(destY, currentY);
-        strafe *= -1.0;
-        double forward = xDriveController.calculate(destX, currentX);
+        double strafe = yDriveController.calculate(targetY, currentY);
+        double forward = xDriveController.calculate(targetX, currentX);
 
-//        telemetry.addData("delta x", dX);
-//        telemetry.addData("delta y", dY);
-//        telemetry.addData("strafe", strafe);
-//        telemetry.addData("forward", forward);
-
-        double fl = forward + strafe;
-        double fr = forward - strafe;
-        double bl = forward - strafe;
-        double br = forward + strafe;
+        double fl = forward - strafe;
+        double fr = forward + strafe;
+        double bl = forward + strafe;
+        double br = forward - strafe;
 
         // denominator
         double d = Math.max(1.0, Math.max(Math.max(Math.abs(fl), Math.abs(fr)), Math.max(Math.abs(bl), Math.abs(br))));
-        //d *= 3;
-        d = Math.min(0.0, d);
-        d = Math.max(1.0, d);
+        d = MathHelper.clamp(d, 0, 1);
 
         if (Math.abs(dX) < moveToThreshold && Math.abs(dY) < moveToThreshold) {
             return true;
         }
 
-//        telemetry.addData("fl", fl);
-//        telemetry.addData("fr", fr);
-//        telemetry.addData("bl", bl);
-//        telemetry.addData("br", br);
+        if (debug) {
+            telemetry.addData("delta x", dX);
+            telemetry.addData("delta y", dY);
+            telemetry.addData("strafe", strafe);
+            telemetry.addData("forward", forward);
+
+            telemetry.addData("fl", fl);
+            telemetry.addData("fr", fr);
+            telemetry.addData("bl", bl);
+            telemetry.addData("br", br);
+        }
 
         drive.setDrivePowers(fl / d,fr / d, bl / d, br / d);
         return false;

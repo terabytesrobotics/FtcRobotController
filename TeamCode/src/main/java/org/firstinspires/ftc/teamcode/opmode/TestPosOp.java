@@ -6,8 +6,8 @@ import com.qualcomm.robotcore.util.Range;
 
 import org.firstinspires.ftc.teamcode.Robot;
 
-@TeleOp(name = "PinpointTest", group = "Starter Bot")
-public class TestOp extends OpMode {
+@TeleOp(name = "TestPos", group = "Debug")
+public class TestPosOp extends OpMode {
     Robot robot;
     private double kPX, kIX, kDX;
     private double targetX = 0, targetY = 0;
@@ -32,37 +32,38 @@ public class TestOp extends OpMode {
 
         if (moving) {
             robot.moveTo(targetX, targetY);
+//            robot.rotateTo(Math.PI, true);
         }
 
         if (gamepad1.dpadUpWasPressed()) {
             if (gamepad1.a) {
-                kPX *= 1.05;
+                kPX *= 1.1;
             }
             if (gamepad1.b) {
-                kIX *= 1.05;
+                kIX *= 1.1;
             }
 
             if (gamepad1.x) {
-                kDX *= 1.05;
+                kDX *= 1.1;
             }
         }
 
         if (gamepad1.dpadDownWasPressed()) {
             if (gamepad1.a) {
-                kPX /= 1.05;
+                kPX /= 1.1;
             }
 
             if (gamepad1.b) {
-                kIX /= 1.05;
+                kIX /= 1.1;
             }
 
             if (gamepad1.x) {
-                kDX /= 1.05;
+                kDX /= 1.1;
             }
         }
 
-        targetX += applyDeadband(-gamepad1.left_stick_x) * 3;
-//        targetY += applyDeadband(gamepad1.left_stick_y);
+        targetX += applyDeadband(-gamepad1.left_stick_x) * 5;
+        targetY += applyDeadband(gamepad1.left_stick_y) * 5;
 
 //        targetX = Math.min(-300.0, targetX);
 //        targetX = Math.max(300.0, targetX);
@@ -73,6 +74,9 @@ public class TestOp extends OpMode {
         robot.xDriveController.kP = kPX;
         robot.xDriveController.kI = kIX;
         robot.xDriveController.kD = kDX;
+        robot.yDriveController.kP = kPX;
+        robot.yDriveController.kI = kIX;
+        robot.yDriveController.kD = kDX;
 
         telemetry.addData("X coordinate", robot.getX());
         telemetry.addData("Y coordinate", robot.getY());
