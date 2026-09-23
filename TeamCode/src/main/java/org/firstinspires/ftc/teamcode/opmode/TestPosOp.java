@@ -30,8 +30,12 @@ public class TestPosOp extends OpMode {
             moving = !moving;
         }
 
+        targetX += applyDeadband(-gamepad1.left_stick_x) * 5;
+        targetY += applyDeadband(gamepad1.left_stick_y) * 5;
+
         if (moving) {
-            robot.moveTo(targetX, targetY);
+            robot.moveTo(targetX, targetY, true);
+//            robot.moveToRot(targetX, targetY, 0);
 //            robot.rotateTo(Math.PI, true);
         }
 
@@ -61,9 +65,6 @@ public class TestPosOp extends OpMode {
                 kDX /= 1.1;
             }
         }
-
-        targetX += applyDeadband(-gamepad1.left_stick_x) * 5;
-        targetY += applyDeadband(gamepad1.left_stick_y) * 5;
 
 //        targetX = Math.min(-300.0, targetX);
 //        targetX = Math.max(300.0, targetX);

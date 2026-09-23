@@ -72,10 +72,6 @@ public class Robot {
         return pinpoint.getHeading(AngleUnit.RADIANS);
     }
 
-    public boolean moveTo(double targetX, double targetY) {
-        return moveTo(targetX, targetY, false);
-    }
-
     public boolean rotateTo(double targetRad) {
         return rotateTo(targetRad, false);
     }
@@ -100,7 +96,6 @@ public class Robot {
 
         // denominator
         double d = Math.max(1.0, Math.max(Math.max(Math.abs(fl), Math.abs(fr)), Math.max(Math.abs(bl), Math.abs(br))));
-        d = MathHelper.clamp(d, 0, 1);
 
         if (debug) {
             telemetry.addData("delta rotation", AngleUnit.normalizeRadians(dRot));
@@ -116,6 +111,10 @@ public class Robot {
         return false;
     }
 
+    public boolean moveTo(double targetX, double targetY) {
+        return moveTo(targetX, targetY, false);
+    }
+
     /**
     * @return state of completion (with accuracy of moveToThreshold in millimeters
     * */
@@ -125,18 +124,45 @@ public class Robot {
         double currentX = pos.getX(DistanceUnit.MM);
         double currentY = pos.getY(DistanceUnit.MM);
 
-        double dX = targetX - currentX;
-        double dY = targetY - currentY;
+        double fieldDX = targetX - currentX;
+        double fieldDY = targetY - currentY;
+        double heading = getHeadingRad();
 
-        double dist = Math.hypot(dX, dY);
+
+        // may have to flip these if driving is inverted
+//        double normalizedX = fieldDX * Math.cos(heading) + fieldDY * Math.sin(heading);
+//        double normalizedX = fieldDX * Math.cos(heading) + fieldDY * Math.sin(heading);
+//        double normalizedY = -fieldDX * Math.sin(heading) + fieldDY * Math.cos(heading);
+//        double normalizedY = -fieldDX * Math.sin(heading) + fieldDY * Math.cos(heading);
+
+//        double normalizedX = fieldDX * Math.cos(heading)
+//                + fieldDY * Math.sin(heading);
+//
+//        double normalizedY = -fieldDX * Math.sin(heading)
+//                + fieldDY * Math.cos(heading);
+
+        // correct math?
+//        double normalizedX = fieldDX * Math.cos(heading) + fieldDY * Math.sin(heading);
+//        double normalizedY = -fieldDX * Math.sin(heading) + fieldDY * Math.cos(heading);
+
+        double normalizedX = targetX * Math.cos(heading) + targetY * Math.sin(heading);
+        double normalizedY = -targetX * Math.sin(heading) + targetY * Math.cos(heading);
+
+
+        double dist = Math.hypot(fieldDX, fieldDY);
 
         if (dist < moveToThreshold) {
             drive.setDrivePowers(0, 0, 0, 0);
             return true;
         }
 
-        double strafe = yDriveController.calculate(targetY, currentY);
-        double forward = xDriveController.calculate(targetX, currentX);
+//        double strafe = yDriveController.calculate(normalizedX, currentX);
+        double strafe = yDriveController.calculate(normalizedY, currentY);
+        double forward = xDriveController.calculate(normalizedX, targetX);
+
+//        double strafe = 0;
+//        double forward = xDriveController.calculate(normalizedY, currentY);
+//        double forward = 0;
 
         double fl = forward - strafe;
         double fr = forward + strafe;
@@ -147,13 +173,13 @@ public class Robot {
         double d = Math.max(1.0, Math.max(Math.max(Math.abs(fl), Math.abs(fr)), Math.max(Math.abs(bl), Math.abs(br))));
         d = MathHelper.clamp(d, 0, 1);
 
-        if (Math.abs(dX) < moveToThreshold && Math.abs(dY) < moveToThreshold) {
+        if (Math.abs(fieldDX) < moveToThreshold && Math.abs(fieldDY) < moveToThreshold) {
             return true;
         }
 
         if (debug) {
-            telemetry.addData("delta x", dX);
-            telemetry.addData("delta y", dY);
+            telemetry.addData("delta x", fieldDX);
+            telemetry.addData("delta y", fieldDY);
             telemetry.addData("strafe", strafe);
             telemetry.addData("forward", forward);
 
@@ -164,6 +190,80 @@ public class Robot {
         }
 
         drive.setDrivePowers(fl / d,fr / d, bl / d, br / d);
+        return false;
+    }
+
+    public boolean moveToRot(double targetX, double targetY, double targetRad) {
+        return moveToRot(targetX, targetY, targetRad, false);
+    }
+
+    public boolean moveToRot(
+            double targetX,
+            double targetY,
+            double targetRad,
+            boolean debug
+    ) {
+        Pose2D pos = pinpoint.getPosition();
+
+        double currentX = pos.getX(DistanceUnit.MM);
+        double currentY = pos.getY(DistanceUnit.MM);
+        double currentRad = getHeadingRad();
+
+        double fieldDX = targetX - currentX;
+        double fieldDY = targetY - currentY;
+
+        double dist = Math.hypot(fieldDX, fieldDY);
+
+        double normalizedX = fieldDX * Math.cos(currentRad) + fieldDY * Math.sin(currentRad);
+        double normalizedY = -fieldDX * Math.sin(currentRad) + fieldDY * Math.cos(currentRad);
+
+        double dRot = AngleUnit.normalizeRadians(targetRad - currentRad);
+
+        if (dist < moveToThreshold && Math.abs(dRot) < rotateToThreshold) {
+            drive.setDrivePowers(0, 0, 0, 0);
+            return true;
+        }
+
+        double strafe = yDriveController.calculate(normalizedX, 0);
+        double forward = xDriveController.calculate(normalizedY, 0);
+
+        double rotate = rDriveController.calculate(dRot, 0);
+
+        double fl = forward - strafe - rotate;
+        double fr = forward + strafe + rotate;
+        double bl = forward + strafe - rotate;
+        double br = forward - strafe + rotate;
+
+        double d = Math.max(1.0, Math.max(Math.max(Math.abs(fl), Math.abs(fr)), Math.max(Math.abs(bl), Math.abs(br))));
+
+        if (debug) {
+            telemetry.addData("current X", currentX);
+            telemetry.addData("current Y", currentY);
+
+            telemetry.addData("field dX", fieldDX);
+            telemetry.addData("field dY", fieldDY);
+
+            telemetry.addData("robot dX", normalizedX);
+            telemetry.addData("robot dY", normalizedY);
+
+            telemetry.addData("distance", dist);
+
+            telemetry.addData("current heading", currentRad);
+            telemetry.addData("target heading", targetRad);
+            telemetry.addData("delta rotation", dRot);
+
+            telemetry.addData("forward", forward);
+            telemetry.addData("strafe", strafe);
+            telemetry.addData("rotate", rotate);
+
+            telemetry.addData("fl", fl);
+            telemetry.addData("fr", fr);
+            telemetry.addData("bl", bl);
+            telemetry.addData("br", br);
+        }
+
+        drive.setDrivePowers(fl / d, fr / d, bl / d, br / d);
+
         return false;
     }
 }
