@@ -33,7 +33,7 @@ public class TestPosOp extends OpMode {
     public static double targetX = 0;
     public static double targetY = 0;
     public static double targetHeadingDeg = 0;
-    private boolean moving = false;
+    private boolean moving = true;
 
     @Override
     public void init() {
