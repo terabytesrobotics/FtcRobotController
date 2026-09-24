@@ -16,6 +16,7 @@ import org.firstinspires.ftc.teamcode.control.DriveProfile;
 import org.firstinspires.ftc.teamcode.control.DriveSignal;
 import org.firstinspires.ftc.teamcode.control.MoveToResult;
 import org.firstinspires.ftc.teamcode.control.WheelPowers;
+import org.firstinspires.ftc.teamcode.dashboard.DashboardField;
 import org.firstinspires.ftc.teamcode.util.LoopTimer;
 
 @Config
@@ -199,11 +200,12 @@ public class TestPosOp extends OpMode {
         packet.put("targetHeadingDeg", targetHeadingDeg);
 
         Canvas field = packet.fieldOverlay();
+        DashboardField.drawBackground(field);
         field.setStroke("#4CAF50");
         field.strokeLine(currentXInches, currentYInches, targetXInches, targetYInches);
-        drawPose(field, currentXInches, currentYInches, currentHeadingRadians,
+        DashboardField.drawPose(field, currentXInches, currentYInches, currentHeadingRadians,
                 ROBOT_RADIUS_INCHES, "#2196F3");
-        drawPose(field, targetXInches, targetYInches, targetHeadingRadians,
+        DashboardField.drawPose(field, targetXInches, targetYInches, targetHeadingRadians,
                 TARGET_RADIUS_INCHES, "#FF9800");
 
         dashboard.sendTelemetryPacket(packet);
@@ -214,14 +216,4 @@ public class TestPosOp extends OpMode {
         robot.stop();
     }
 
-    private void drawPose(Canvas field, double x, double y, double heading,
-                          double radius, String color) {
-        field.setStroke(color);
-        field.strokeCircle(x, y, radius);
-        field.strokeLine(
-                x,
-                y,
-                x + Math.cos(heading) * radius,
-                y + Math.sin(heading) * radius);
-    }
 }
