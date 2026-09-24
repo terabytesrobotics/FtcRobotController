@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.opmode;
 
+import com.acmerobotics.dashboard.FtcDashboard;
+import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.CRServo;
@@ -38,6 +40,9 @@ public class StarterMecanumTeleOp extends OpMode {
 
     @Override
     public void init() {
+        telemetry = new MultipleTelemetry(
+                telemetry, FtcDashboard.getInstance().getTelemetry());
+
         frontLeft = hardwareMap.get(DcMotorEx.class, FRONT_LEFT_NAME);
         frontRight = hardwareMap.get(DcMotorEx.class, FRONT_RIGHT_NAME);
         backLeft = hardwareMap.get(DcMotorEx.class, BACK_LEFT_NAME);
