@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.opmode;
 
 import com.acmerobotics.dashboard.FtcDashboard;
+import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -11,11 +12,15 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.teamcode.Robot;
 
+@Config
 @TeleOp(name = "TestPos", group = "Debug")
 public class TestPosOp extends OpMode {
     Robot robot;
-    private double kPX, kIX, kDX;
-    private double targetX = 0, targetY = 0;
+    public static double kPX = 0.006;
+    public static double kIX = 0.0006;
+    public static double kDX = 0.02;
+    public static double targetX = 0;
+    public static double targetY = 0;
     private boolean moving = false;
 
     @Override
@@ -27,10 +32,6 @@ public class TestPosOp extends OpMode {
 
     @Override
     public void loop() {
-        kPX = robot.xDriveController.kP;
-        kIX = robot.xDriveController.kI;
-        kDX = robot.xDriveController.kD;
-        
         robot.update();
 
         if (gamepad1.yWasPressed()) {
@@ -39,6 +40,13 @@ public class TestPosOp extends OpMode {
 
         targetX += applyDeadband(-gamepad1.left_stick_x) * 5;
         targetY += applyDeadband(gamepad1.left_stick_y) * 5;
+
+        robot.xDriveController.kP = kPX;
+        robot.xDriveController.kI = kIX;
+        robot.xDriveController.kD = kDX;
+        robot.yDriveController.kP = kPX;
+        robot.yDriveController.kI = kIX;
+        robot.yDriveController.kD = kDX;
 
         if (moving) {
             Pose2D targetPose = new Pose2D(
@@ -79,13 +87,6 @@ public class TestPosOp extends OpMode {
 
 //        targetY = Math.min(-300.0, targetY);
 //        targetY = Math.max(300.0, targetY);
-
-        robot.xDriveController.kP = kPX;
-        robot.xDriveController.kI = kIX;
-        robot.xDriveController.kD = kDX;
-        robot.yDriveController.kP = kPX;
-        robot.yDriveController.kI = kIX;
-        robot.yDriveController.kD = kDX;
 
         telemetry.addData("X coordinate", robot.getX());
         telemetry.addData("Y coordinate", robot.getY());

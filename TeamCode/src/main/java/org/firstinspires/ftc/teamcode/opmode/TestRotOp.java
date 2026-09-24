@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.opmode;
 
 import com.acmerobotics.dashboard.FtcDashboard;
+import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -11,11 +12,14 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.teamcode.Robot;
 
+@Config
 @TeleOp(name = "TestRot", group = "Debug")
 public class TestRotOp extends OpMode {
     Robot robot;
-    private double kPX, kIX, kDX;
-    private double targetRot = 0;
+    public static double kPX = 2 * Math.PI / 3;
+    public static double kIX = 0.0006;
+    public static double kDX = 0.02;
+    public static double targetRot = 0;
     private boolean moving = false;
 
     @Override
@@ -27,15 +31,15 @@ public class TestRotOp extends OpMode {
 
     @Override
     public void loop() {
-        kPX = robot.rDriveController.kP;
-        kIX = robot.rDriveController.kI;
-        kDX = robot.rDriveController.kD;
-        
         robot.update();
 
         if (gamepad1.yWasPressed()) {
             moving = !moving;
         }
+
+        robot.rDriveController.kP = kPX;
+        robot.rDriveController.kI = kIX;
+        robot.rDriveController.kD = kDX;
 
         if (moving) {
             Pose2D targetPose = new Pose2D(
@@ -79,10 +83,6 @@ public class TestRotOp extends OpMode {
 
 //        targetY = Math.min(-300.0, targetY);
 //        targetY = Math.max(300.0, targetY);
-
-        robot.rDriveController.kP = kPX;
-        robot.rDriveController.kI = kIX;
-        robot.rDriveController.kD = kDX;
 
         telemetry.addData("Rotation", robot.getHeadingDeg());
         telemetry.addData("KP", kPX);
