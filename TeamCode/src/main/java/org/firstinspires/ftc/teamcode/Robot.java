@@ -148,7 +148,6 @@ public class Robot {
         double normalizedX = targetX * Math.cos(heading) + targetY * Math.sin(heading);
         double normalizedY = -targetX * Math.sin(heading) + targetY * Math.cos(heading);
 
-
         double dist = Math.hypot(fieldDX, fieldDY);
 
         if (dist < moveToThreshold) {
@@ -224,8 +223,8 @@ public class Robot {
             return true;
         }
 
-        double strafe = yDriveController.calculate(normalizedX, 0);
-        double forward = xDriveController.calculate(normalizedY, 0);
+        double strafe = yDriveController.calculate(normalizedY, 0);
+        double forward = xDriveController.calculate(normalizedX, 0);
 
         double rotate = rDriveController.calculate(dRot, 0);
 
