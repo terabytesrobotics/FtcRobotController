@@ -9,7 +9,6 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.teamcode.subsystem.Collector;
 import org.firstinspires.ftc.teamcode.subsystem.Drive;
-import org.firstinspires.ftc.teamcode.util.MathHelper;
 import org.firstinspires.ftc.teamcode.util.PIDController;
 
 public class Robot {
@@ -72,197 +71,79 @@ public class Robot {
         return pinpoint.getHeading(AngleUnit.RADIANS);
     }
 
-    public boolean rotateTo(double targetRad) {
-        return rotateTo(targetRad, false);
-    }
-
-    public boolean rotateTo(double targetRad, boolean debug) {
-        double current = getHeadingRad();
-
-        double dRot = targetRad - current;
-
-        if (Math.abs(dRot) < rotateToThreshold) {
-            drive.setDrivePowers(0, 0, 0, 0);
-            return true;
-        }
-
-//        double rotate = rDriveController.calculate(AngleUnit.normalizeRadians(targetRad + Math.PI), current);
-        double rotate = rDriveController.calculate(AngleUnit.normalizeRadians(dRot), 0);
-
-        double fl = -rotate;
-        double fr = rotate;
-        double bl = -rotate;
-        double br = rotate;
-
-        // denominator
-        double d = Math.max(1.0, Math.max(Math.max(Math.abs(fl), Math.abs(fr)), Math.max(Math.abs(bl), Math.abs(br))));
-
-        if (debug) {
-            telemetry.addData("delta rotation", AngleUnit.normalizeRadians(dRot));
-            telemetry.addData("rotate", rotate);
-
-            telemetry.addData("fl", fl);
-            telemetry.addData("fr", fr);
-            telemetry.addData("bl", bl);
-            telemetry.addData("br", br);
-        }
-
-        drive.setDrivePowers(fl / d,fr / d, bl / d, br / d);
-        return false;
-    }
-
-    public boolean moveTo(double targetX, double targetY) {
-        return moveTo(targetX, targetY, false);
-    }
-
     /**
-    * @return state of completion (with accuracy of moveToThreshold in millimeters
-    * */
-    public boolean moveTo(double targetX, double targetY, boolean debug) {
-        Pose2D pos = pinpoint.getPosition();
+     * Drives toward one absolute field pose.
+     *
+     * Pinpoint coordinates use +X forward, +Y left, and positive heading counterclockwise
+     * when the field pose is initialized at heading zero.
+     *
+     * @return true when both translation and heading are within their thresholds
+     */
+    public boolean moveTo(Pose2D targetPose, boolean debug) {
+        Pose2D currentPose = pinpoint.getPosition();
 
-        double currentX = pos.getX(DistanceUnit.MM);
-        double currentY = pos.getY(DistanceUnit.MM);
+        double targetFieldX = targetPose.getX(DistanceUnit.MM);
+        double targetFieldY = targetPose.getY(DistanceUnit.MM);
+        double targetHeading = targetPose.getHeading(AngleUnit.RADIANS);
 
-        double fieldDX = targetX - currentX;
-        double fieldDY = targetY - currentY;
-        double heading = getHeadingRad();
+        double currentFieldX = currentPose.getX(DistanceUnit.MM);
+        double currentFieldY = currentPose.getY(DistanceUnit.MM);
+        double currentHeading = currentPose.getHeading(AngleUnit.RADIANS);
 
+        double fieldXError = targetFieldX - currentFieldX;
+        double fieldYError = targetFieldY - currentFieldY;
+        double distanceError = Math.hypot(fieldXError, fieldYError);
+        double headingError = AngleUnit.normalizeRadians(targetHeading - currentHeading);
 
-        // may have to flip these if driving is inverted
-//        double normalizedX = fieldDX * Math.cos(heading) + fieldDY * Math.sin(heading);
-//        double normalizedX = fieldDX * Math.cos(heading) + fieldDY * Math.sin(heading);
-//        double normalizedY = -fieldDX * Math.sin(heading) + fieldDY * Math.cos(heading);
-//        double normalizedY = -fieldDX * Math.sin(heading) + fieldDY * Math.cos(heading);
-
-//        double normalizedX = fieldDX * Math.cos(heading)
-//                + fieldDY * Math.sin(heading);
-//
-//        double normalizedY = -fieldDX * Math.sin(heading)
-//                + fieldDY * Math.cos(heading);
-
-        // correct math?
-//        double normalizedX = fieldDX * Math.cos(heading) + fieldDY * Math.sin(heading);
-//        double normalizedY = -fieldDX * Math.sin(heading) + fieldDY * Math.cos(heading);
-
-        double normalizedX = targetX * Math.cos(heading) + targetY * Math.sin(heading);
-        double normalizedY = -targetX * Math.sin(heading) + targetY * Math.cos(heading);
-
-
-        double dist = Math.hypot(fieldDX, fieldDY);
-
-        if (dist < moveToThreshold) {
+        if (distanceError < moveToThreshold && Math.abs(headingError) < rotateToThreshold) {
             drive.setDrivePowers(0, 0, 0, 0);
             return true;
         }
 
-//        double strafe = yDriveController.calculate(normalizedX, currentX);
-        double strafe = yDriveController.calculate(normalizedY, currentY);
-        double forward = xDriveController.calculate(normalizedX, targetX);
+        // Rotate the field-relative translation error into the robot's coordinate frame.
+        double robotForwardError = fieldXError * Math.cos(currentHeading)
+                + fieldYError * Math.sin(currentHeading);
+        double robotLeftError = -fieldXError * Math.sin(currentHeading)
+                + fieldYError * Math.cos(currentHeading);
 
-//        double strafe = 0;
-//        double forward = xDriveController.calculate(normalizedY, currentY);
-//        double forward = 0;
+        // The errors are already calculated and, for heading, wrapped to the shortest turn.
+        double forwardPower = xDriveController.calculate(robotForwardError, 0);
+        double leftPower = yDriveController.calculate(robotLeftError, 0);
+        double counterclockwisePower = rDriveController.calculate(headingError, 0);
 
-        double fl = forward - strafe;
-        double fr = forward + strafe;
-        double bl = forward + strafe;
-        double br = forward - strafe;
+        // Mix robot-relative forward, left, and counterclockwise commands into wheel powers.
+        double frontLeftPower = forwardPower - leftPower - counterclockwisePower;
+        double frontRightPower = forwardPower + leftPower + counterclockwisePower;
+        double backLeftPower = forwardPower + leftPower - counterclockwisePower;
+        double backRightPower = forwardPower - leftPower + counterclockwisePower;
 
-        // denominator
-        double d = Math.max(1.0, Math.max(Math.max(Math.abs(fl), Math.abs(fr)), Math.max(Math.abs(bl), Math.abs(br))));
-        d = MathHelper.clamp(d, 0, 1);
-
-        if (Math.abs(fieldDX) < moveToThreshold && Math.abs(fieldDY) < moveToThreshold) {
-            return true;
-        }
-
-        if (debug) {
-            telemetry.addData("delta x", fieldDX);
-            telemetry.addData("delta y", fieldDY);
-            telemetry.addData("strafe", strafe);
-            telemetry.addData("forward", forward);
-
-            telemetry.addData("fl", fl);
-            telemetry.addData("fr", fr);
-            telemetry.addData("bl", bl);
-            telemetry.addData("br", br);
-        }
-
-        drive.setDrivePowers(fl / d,fr / d, bl / d, br / d);
-        return false;
-    }
-
-    public boolean moveToRot(double targetX, double targetY, double targetRad) {
-        return moveToRot(targetX, targetY, targetRad, false);
-    }
-
-    public boolean moveToRot(
-            double targetX,
-            double targetY,
-            double targetRad,
-            boolean debug
-    ) {
-        Pose2D pos = pinpoint.getPosition();
-
-        double currentX = pos.getX(DistanceUnit.MM);
-        double currentY = pos.getY(DistanceUnit.MM);
-        double currentRad = getHeadingRad();
-
-        double fieldDX = targetX - currentX;
-        double fieldDY = targetY - currentY;
-
-        double dist = Math.hypot(fieldDX, fieldDY);
-
-        double normalizedX = fieldDX * Math.cos(currentRad) + fieldDY * Math.sin(currentRad);
-        double normalizedY = -fieldDX * Math.sin(currentRad) + fieldDY * Math.cos(currentRad);
-
-        double dRot = AngleUnit.normalizeRadians(targetRad - currentRad);
-
-        if (dist < moveToThreshold && Math.abs(dRot) < rotateToThreshold) {
-            drive.setDrivePowers(0, 0, 0, 0);
-            return true;
-        }
-
-        double strafe = yDriveController.calculate(normalizedX, 0);
-        double forward = xDriveController.calculate(normalizedY, 0);
-
-        double rotate = rDriveController.calculate(dRot, 0);
-
-        double fl = forward - strafe - rotate;
-        double fr = forward + strafe + rotate;
-        double bl = forward + strafe - rotate;
-        double br = forward - strafe + rotate;
-
-        double d = Math.max(1.0, Math.max(Math.max(Math.abs(fl), Math.abs(fr)), Math.max(Math.abs(bl), Math.abs(br))));
+        double maximumRequestedPower = Math.max(
+                Math.max(Math.abs(frontLeftPower), Math.abs(frontRightPower)),
+                Math.max(Math.abs(backLeftPower), Math.abs(backRightPower)));
+        double powerScale = maximumRequestedPower > MAX_DRIVE_OUTPUT_POWER
+                ? MAX_DRIVE_OUTPUT_POWER / maximumRequestedPower
+                : 1.0;
 
         if (debug) {
-            telemetry.addData("current X", currentX);
-            telemetry.addData("current Y", currentY);
-
-            telemetry.addData("field dX", fieldDX);
-            telemetry.addData("field dY", fieldDY);
-
-            telemetry.addData("robot dX", normalizedX);
-            telemetry.addData("robot dY", normalizedY);
-
-            telemetry.addData("distance", dist);
-
-            telemetry.addData("current heading", currentRad);
-            telemetry.addData("target heading", targetRad);
-            telemetry.addData("delta rotation", dRot);
-
-            telemetry.addData("forward", forward);
-            telemetry.addData("strafe", strafe);
-            telemetry.addData("rotate", rotate);
-
-            telemetry.addData("fl", fl);
-            telemetry.addData("fr", fr);
-            telemetry.addData("bl", bl);
-            telemetry.addData("br", br);
+            telemetry.addData("Current field X/Y", "%.1f / %.1f", currentFieldX, currentFieldY);
+            telemetry.addData("Target field X/Y", "%.1f / %.1f", targetFieldX, targetFieldY);
+            telemetry.addData("Field error X/Y", "%.1f / %.1f", fieldXError, fieldYError);
+            telemetry.addData("Robot error forward/left", "%.1f / %.1f", robotForwardError, robotLeftError);
+            telemetry.addData("Distance error", "%.1f mm", distanceError);
+            telemetry.addData("Heading current/target/error", "%.3f / %.3f / %.3f",
+                    currentHeading, targetHeading, headingError);
+            telemetry.addData("Command forward/left/CCW", "%.3f / %.3f / %.3f",
+                    forwardPower, leftPower, counterclockwisePower);
+            telemetry.addData("Raw wheels FL/FR/BL/BR", "%.3f / %.3f / %.3f / %.3f",
+                    frontLeftPower, frontRightPower, backLeftPower, backRightPower);
+            telemetry.addData("Power scale", "%.3f", powerScale);
         }
 
-        drive.setDrivePowers(fl / d, fr / d, bl / d, br / d);
+        drive.setDrivePowers(
+                frontLeftPower * powerScale,
+                frontRightPower * powerScale,
+                backLeftPower * powerScale,
+                backRightPower * powerScale);
 
         return false;
     }

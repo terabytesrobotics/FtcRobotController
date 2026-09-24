@@ -4,6 +4,9 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.util.Range;
 
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.teamcode.Robot;
 
 @TeleOp(name = "TestPos", group = "Debug")
@@ -34,9 +37,10 @@ public class TestPosOp extends OpMode {
         targetY += applyDeadband(gamepad1.left_stick_y) * 5;
 
         if (moving) {
-            robot.moveTo(targetX, targetY, true);
-//            robot.moveToRot(targetX, targetY, 0);
-//            robot.rotateTo(Math.PI, true);
+            Pose2D targetPose = new Pose2D(
+                    DistanceUnit.MM, targetX, targetY,
+                    AngleUnit.RADIANS, 0);
+            robot.moveTo(targetPose, true);
         }
 
         if (gamepad1.dpadUpWasPressed()) {

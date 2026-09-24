@@ -5,6 +5,8 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.util.Range;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.teamcode.Robot;
 
 @TeleOp(name = "TestRot", group = "Debug")
@@ -32,7 +34,10 @@ public class TestRotOp extends OpMode {
         }
 
         if (moving) {
-            robot.rotateTo(Math.toRadians(targetRot), true);
+            Pose2D targetPose = new Pose2D(
+                    DistanceUnit.MM, 0, 0,
+                    AngleUnit.DEGREES, targetRot);
+            robot.moveTo(targetPose, true);
         }
 
         if (gamepad1.dpadUpWasPressed()) {
