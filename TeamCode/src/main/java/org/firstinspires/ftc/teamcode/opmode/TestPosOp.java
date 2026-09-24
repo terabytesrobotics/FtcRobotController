@@ -26,6 +26,7 @@ public class TestPosOp extends OpMode {
     private static final double MM_PER_INCH = 25.4;
     private static final double ROBOT_RADIUS_INCHES = 9.0;
     private static final double TARGET_RADIUS_INCHES = 3.0;
+    public static double maxCarrotLeadMm = 300.0;
 
     private final LoopTimer loopTimer = new LoopTimer(MAX_LOOP_DT_SECONDS);
     private Robot robot;
@@ -87,6 +88,7 @@ public class TestPosOp extends OpMode {
                 targetHeadingDeg
                         - applyDeadband(gamepad1.right_stick_x)
                         * rotationRateDegPerSecond * dtSeconds);
+        limitCarrotLead();
 
         robot.setTranslationPid(kPX, kIX, kDX);
 
@@ -150,6 +152,9 @@ public class TestPosOp extends OpMode {
         telemetry.addData("Following carrot", moving);
         telemetry.addData("Loop dt", "%.3f s", dtSeconds);
         telemetry.addData("Target X/Y", "%.1f / %.1f mm", targetX, targetY);
+        telemetry.addData("Carrot lead", "%.1f / %.1f mm",
+                Math.hypot(targetX - robot.getX(), targetY - robot.getY()),
+                safeNonNegative(maxCarrotLeadMm));
         telemetry.addData("Target heading", "%.1f deg", targetHeadingDeg);
         if (moveToResult != null) {
             DriveSignal signal = moveToResult.getRequestedSignal();
@@ -182,6 +187,21 @@ public class TestPosOp extends OpMode {
         return Double.isFinite(value) ? Math.max(0.0, value) : 0.0;
     }
 
+    private void limitCarrotLead() {
+        double currentX = robot.getX();
+        double currentY = robot.getY();
+        double deltaX = targetX - currentX;
+        double deltaY = targetY - currentY;
+        double leadDistance = Math.hypot(deltaX, deltaY);
+        double maxLead = safeNonNegative(maxCarrotLeadMm);
+
+        if (leadDistance > maxLead && leadDistance > 0.0) {
+            double scale = maxLead / leadDistance;
+            targetX = currentX + deltaX * scale;
+            targetY = currentY + deltaY * scale;
+        }
+    }
+
     private void sendDashboardFieldOverlay() {
         double currentXInches = robot.getX() / MM_PER_INCH;
         double currentYInches = robot.getY() / MM_PER_INCH;
@@ -198,6 +218,9 @@ public class TestPosOp extends OpMode {
         packet.put("targetXmm", targetX);
         packet.put("targetYmm", targetY);
         packet.put("targetHeadingDeg", targetHeadingDeg);
+        packet.put("carrotLeadMm",
+                Math.hypot(targetX - robot.getX(), targetY - robot.getY()));
+        packet.put("maxCarrotLeadMm", safeNonNegative(maxCarrotLeadMm));
 
         Canvas field = packet.fieldOverlay();
         DashboardField.drawBackground(field);
