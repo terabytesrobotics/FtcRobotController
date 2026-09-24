@@ -12,6 +12,11 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.teamcode.Robot;
+import org.firstinspires.ftc.teamcode.control.DriveProfile;
+import org.firstinspires.ftc.teamcode.control.DriveSignal;
+import org.firstinspires.ftc.teamcode.control.MoveToResult;
+import org.firstinspires.ftc.teamcode.control.WheelPowers;
+import org.firstinspires.ftc.teamcode.util.LoopTimer;
 
 @Config
 @TeleOp(name = "TestPose (Carrot)", group = "Debug")
@@ -21,13 +26,18 @@ public class TestPosOp extends OpMode {
     private static final double ROBOT_RADIUS_INCHES = 9.0;
     private static final double TARGET_RADIUS_INCHES = 3.0;
 
+    private final LoopTimer loopTimer = new LoopTimer(MAX_LOOP_DT_SECONDS);
     private Robot robot;
     private FtcDashboard dashboard;
-    private long lastLoopTimeNanos;
+    private MoveToResult moveToResult;
 
-    public static double kPX = 0.006;
-    public static double kIX = 0.0006;
-    public static double kDX = 0.02;
+    public static double kPX = Robot.DEFAULT_TRANSLATION_KP_POWER_PER_MM;
+    public static double kIX = Robot.DEFAULT_TRANSLATION_KI_POWER_PER_MM_SECOND;
+    public static double kDX = Robot.DEFAULT_TRANSLATION_KD_POWER_SECOND_PER_MM;
+    public static double maxTranslationPower = 0.75;
+    public static double maxRotationPower = 0.60;
+    public static double positionToleranceMm = 8.0;
+    public static double headingToleranceDeg = 2.0;
     public static double translationRateMmPerSecond = 300;
     public static double rotationRateDegPerSecond = 90;
     public static double targetX = 0;
@@ -38,7 +48,7 @@ public class TestPosOp extends OpMode {
     @Override
     public void init() {
         dashboard = FtcDashboard.getInstance();
-        robot = new Robot(hardwareMap, telemetry);
+        robot = new Robot(hardwareMap);
 
         telemetry.addLine("Left stick: move target on field");
         telemetry.addLine("Right stick X: rotate target");
@@ -47,19 +57,14 @@ public class TestPosOp extends OpMode {
 
     @Override
     public void start() {
-        lastLoopTimeNanos = System.nanoTime();
+        loopTimer.reset();
+        robot.resetMoveToControllers();
     }
 
     @Override
     public void loop() {
-        long nowNanos = System.nanoTime();
-        double dtSeconds = Range.clip(
-                (nowNanos - lastLoopTimeNanos) / 1_000_000_000.0,
-                0.0,
-                MAX_LOOP_DT_SECONDS);
-        lastLoopTimeNanos = nowNanos;
-
-        robot.update();
+        double dtSeconds = loopTimer.nextSeconds();
+        robot.updateSensors();
 
         if (gamepad1.yWasPressed()) {
             moving = !moving;
@@ -69,6 +74,7 @@ public class TestPosOp extends OpMode {
             targetX = robot.getX();
             targetY = robot.getY();
             targetHeadingDeg = robot.getHeadingDeg();
+            robot.resetMoveToControllers();
         }
 
         // Move the carrot in field coordinates at rates that do not depend on loop speed.
@@ -81,18 +87,25 @@ public class TestPosOp extends OpMode {
                         - applyDeadband(gamepad1.right_stick_x)
                         * rotationRateDegPerSecond * dtSeconds);
 
-        robot.xDriveController.kP = kPX;
-        robot.xDriveController.kI = kIX;
-        robot.xDriveController.kD = kDX;
-        robot.yDriveController.kP = kPX;
-        robot.yDriveController.kI = kIX;
-        robot.yDriveController.kD = kDX;
+        robot.setTranslationPid(kPX, kIX, kDX);
 
         if (moving) {
             Pose2D targetPose = new Pose2D(
                     DistanceUnit.MM, targetX, targetY,
                     AngleUnit.DEGREES, targetHeadingDeg);
-            robot.moveTo(targetPose, true);
+            DriveProfile carrotProfile = DriveProfile.named("carrot")
+                    .maxTranslationPower(safePower(maxTranslationPower))
+                    .maxRotationPower(safePower(maxRotationPower))
+                    .positionToleranceMm(safeNonNegative(positionToleranceMm))
+                    .headingToleranceDeg(safeNonNegative(headingToleranceDeg))
+                    .settleTimeMs(0.0)
+                    .timeoutMs(0.0)
+                    .build();
+            moveToResult = robot.moveTo(targetPose, carrotProfile, dtSeconds);
+        } else {
+            moveToResult = null;
+            robot.stopDrive();
+            robot.resetMoveToControllers();
         }
 
         if (gamepad1.dpadUpWasPressed()) {
@@ -137,12 +150,35 @@ public class TestPosOp extends OpMode {
         telemetry.addData("Loop dt", "%.3f s", dtSeconds);
         telemetry.addData("Target X/Y", "%.1f / %.1f mm", targetX, targetY);
         telemetry.addData("Target heading", "%.1f deg", targetHeadingDeg);
+        if (moveToResult != null) {
+            DriveSignal signal = moveToResult.getRequestedSignal();
+            WheelPowers wheels = moveToResult.getWheelPowers();
+            telemetry.addData("Field error X/Y", "%.1f / %.1f mm",
+                    moveToResult.getFieldXErrorMm(), moveToResult.getFieldYErrorMm());
+            telemetry.addData("Robot error forward/left", "%.1f / %.1f mm",
+                    moveToResult.getRobotForwardErrorMm(), moveToResult.getRobotLeftErrorMm());
+            telemetry.addData("Heading error", "%.2f deg",
+                    Math.toDegrees(moveToResult.getHeadingErrorRadians()));
+            telemetry.addData("Drive forward/left/CCW", "%.3f / %.3f / %.3f",
+                    signal.getForward(), signal.getLeft(), signal.getCounterclockwise());
+            telemetry.addData("Wheels FL/FR/BL/BR", "%.3f / %.3f / %.3f / %.3f",
+                    wheels.getFrontLeft(), wheels.getFrontRight(),
+                    wheels.getBackLeft(), wheels.getBackRight());
+        }
 
         sendDashboardFieldOverlay();
     }
 
     private double applyDeadband(double value) {
         return Math.abs(value) < 0.05 ? 0.0 : Range.clip(value, -1.0, 1.0);
+    }
+
+    private double safePower(double value) {
+        return Double.isFinite(value) ? Range.clip(value, 0.0, 1.0) : 0.0;
+    }
+
+    private double safeNonNegative(double value) {
+        return Double.isFinite(value) ? Math.max(0.0, value) : 0.0;
     }
 
     private void sendDashboardFieldOverlay() {
@@ -171,6 +207,11 @@ public class TestPosOp extends OpMode {
                 TARGET_RADIUS_INCHES, "#FF9800");
 
         dashboard.sendTelemetryPacket(packet);
+    }
+
+    @Override
+    public void stop() {
+        robot.stop();
     }
 
     private void drawPose(Canvas field, double x, double y, double heading,

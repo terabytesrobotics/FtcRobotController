@@ -2,57 +2,81 @@ package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.util.Range;
 
-import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+import org.firstinspires.ftc.teamcode.control.DriveProfile;
+import org.firstinspires.ftc.teamcode.control.DriveSignal;
+import org.firstinspires.ftc.teamcode.control.MecanumMixer;
+import org.firstinspires.ftc.teamcode.control.MoveToResult;
+import org.firstinspires.ftc.teamcode.control.RobotActions;
+import org.firstinspires.ftc.teamcode.control.WheelPowers;
 import org.firstinspires.ftc.teamcode.subsystem.Collector;
+import org.firstinspires.ftc.teamcode.subsystem.CollectorMode;
 import org.firstinspires.ftc.teamcode.subsystem.Drive;
 import org.firstinspires.ftc.teamcode.util.PIDController;
 
-public class Robot {
-    GoBildaPinpointDriver pinpoint;
-    public Drive drive;
-    public Collector collector;
-    public HardwareMap hardwareMap;
-    public Telemetry telemetry;
-    private final int moveToThreshold = 5;
-    private final double rotateToThreshold = Math.PI / 16.0; // radians
-    private final double MAX_DRIVE_OUTPUT_POWER = 0.95;
-    public final double kP_POWER_PER_MM = .006; // 100% power (~torque) / 1000mm
-    public final double kI_POWER_PER_MM_SEC = 0.0006; // 0% power / mm * sec
-    public final double kD_POWER_PER_MM_PER_SEC = 0.02; // 0% power / (mm/sec)
-    public final PIDController xDriveController = new PIDController(kP_POWER_PER_MM, kI_POWER_PER_MM_SEC, kD_POWER_PER_MM_PER_SEC);
-    public final PIDController yDriveController = new PIDController(kP_POWER_PER_MM, kI_POWER_PER_MM_SEC, kD_POWER_PER_MM_PER_SEC);
-    public final PIDController rDriveController = new PIDController(2 * Math.PI / 3, kI_POWER_PER_MM_SEC, kD_POWER_PER_MM_PER_SEC);
+/**
+ * Mode-independent owner of robot hardware and core behaviors.
+ *
+ * Gamepads, autonomous plans, FTC OpModes, Dashboard, and telemetry deliberately live outside this
+ * class. Teleop and autonomous therefore request the same drive and collector behaviors.
+ */
+public class Robot implements RobotActions {
+    private static final double MAX_CONTROLLER_DT_SECONDS = 0.1;
 
-    public Robot(HardwareMap hardwareMap, Telemetry telemetry) {
+    // These time-based defaults approximate the prior per-loop gains at a nominal 50 Hz loop.
+    public static final double DEFAULT_TRANSLATION_KP_POWER_PER_MM = 0.006;
+    public static final double DEFAULT_TRANSLATION_KI_POWER_PER_MM_SECOND = 0.03;
+    public static final double DEFAULT_TRANSLATION_KD_POWER_SECOND_PER_MM = 0.0004;
+    public static final double DEFAULT_ROTATION_KP_POWER_PER_RADIAN = 2 * Math.PI / 3;
+    public static final double DEFAULT_ROTATION_KI_POWER_PER_RADIAN_SECOND = 0.03;
+    public static final double DEFAULT_ROTATION_KD_POWER_SECOND_PER_RADIAN = 0.0004;
+
+    private final GoBildaPinpointDriver pinpoint;
+    private final Drive drive;
+    private final Collector collector;
+    private final PIDController forwardController = new PIDController(
+            DEFAULT_TRANSLATION_KP_POWER_PER_MM,
+            DEFAULT_TRANSLATION_KI_POWER_PER_MM_SECOND,
+            DEFAULT_TRANSLATION_KD_POWER_SECOND_PER_MM);
+    private final PIDController leftController = new PIDController(
+            DEFAULT_TRANSLATION_KP_POWER_PER_MM,
+            DEFAULT_TRANSLATION_KI_POWER_PER_MM_SECOND,
+            DEFAULT_TRANSLATION_KD_POWER_SECOND_PER_MM);
+    private final PIDController headingController = new PIDController(
+            DEFAULT_ROTATION_KP_POWER_PER_RADIAN,
+            DEFAULT_ROTATION_KI_POWER_PER_RADIAN_SECOND,
+            DEFAULT_ROTATION_KD_POWER_SECOND_PER_RADIAN);
+
+    public Robot(HardwareMap hardwareMap) {
         drive = new Drive(hardwareMap);
         collector = new Collector(hardwareMap);
         pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
 
-        // configure pinpoint
         pinpoint.setOffsets(-100.0, -30.0, DistanceUnit.MM);
         pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
-        pinpoint.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.FORWARD,
+        pinpoint.setEncoderDirections(
+                GoBildaPinpointDriver.EncoderDirection.FORWARD,
                 GoBildaPinpointDriver.EncoderDirection.FORWARD);
         pinpoint.resetPosAndIMU();
-
-        // set the starting location
-        pinpoint.setPosition(new Pose2D(DistanceUnit.MM, 0, 0, AngleUnit.DEGREES, 0));
-
-        this.hardwareMap = hardwareMap;
-        this.telemetry = telemetry;
+        setPose(new Pose2D(DistanceUnit.MM, 0, 0, AngleUnit.DEGREES, 0));
     }
 
-    public void update() {
-        drive.setDrivePowers(0, 0, 0, 0);
+    /** Refreshes sensors only. It does not change actuator demands. */
+    public void updateSensors() {
         pinpoint.update();
     }
 
-    public Pose2D getPos() {
+    public Pose2D getPose() {
         return pinpoint.getPosition();
+    }
+
+    public void setPose(Pose2D pose) {
+        pinpoint.setPosition(pose);
+        resetMoveToControllers();
     }
 
     public double getX() {
@@ -71,21 +95,24 @@ public class Robot {
         return pinpoint.getHeading(AngleUnit.RADIANS);
     }
 
-    /**
-     * Drives toward one absolute field pose.
-     *
-     * Pinpoint coordinates use +X forward, +Y left, and positive heading counterclockwise
-     * when the field pose is initialized at heading zero.
-     *
-     * @return true when both translation and heading are within their thresholds
-     */
-    public boolean moveTo(Pose2D targetPose, boolean debug) {
+    /** Applies a robot-relative drive signal through the one shared mecanum mixer. */
+    public WheelPowers driveRobotRelative(DriveSignal requestedSignal) {
+        WheelPowers wheelPowers = MecanumMixer.mix(requestedSignal);
+        drive.setDrivePowers(
+                wheelPowers.getFrontLeft(),
+                wheelPowers.getFrontRight(),
+                wheelPowers.getBackLeft(),
+                wheelPowers.getBackRight());
+        return wheelPowers;
+    }
+
+    /** Performs one nonblocking update toward an absolute field pose. */
+    public MoveToResult moveTo(Pose2D targetPose, DriveProfile profile, double dtSeconds) {
         Pose2D currentPose = pinpoint.getPosition();
 
         double targetFieldX = targetPose.getX(DistanceUnit.MM);
         double targetFieldY = targetPose.getY(DistanceUnit.MM);
         double targetHeading = targetPose.getHeading(AngleUnit.RADIANS);
-
         double currentFieldX = currentPose.getX(DistanceUnit.MM);
         double currentFieldY = currentPose.getY(DistanceUnit.MM);
         double currentHeading = currentPose.getHeading(AngleUnit.RADIANS);
@@ -95,56 +122,87 @@ public class Robot {
         double distanceError = Math.hypot(fieldXError, fieldYError);
         double headingError = AngleUnit.normalizeRadians(targetHeading - currentHeading);
 
-        if (distanceError < moveToThreshold && Math.abs(headingError) < rotateToThreshold) {
-            drive.setDrivePowers(0, 0, 0, 0);
-            return true;
-        }
-
-        // Rotate the field-relative translation error into the robot's coordinate frame.
         double robotForwardError = fieldXError * Math.cos(currentHeading)
                 + fieldYError * Math.sin(currentHeading);
         double robotLeftError = -fieldXError * Math.sin(currentHeading)
                 + fieldYError * Math.cos(currentHeading);
 
-        // The errors are already calculated and, for heading, wrapped to the shortest turn.
-        double forwardPower = xDriveController.calculate(robotForwardError, 0);
-        double leftPower = yDriveController.calculate(robotLeftError, 0);
-        double counterclockwisePower = rDriveController.calculate(headingError, 0);
-
-        // Mix robot-relative forward, left, and counterclockwise commands into wheel powers.
-        double frontLeftPower = forwardPower - leftPower - counterclockwisePower;
-        double frontRightPower = forwardPower + leftPower + counterclockwisePower;
-        double backLeftPower = forwardPower + leftPower - counterclockwisePower;
-        double backRightPower = forwardPower - leftPower + counterclockwisePower;
-
-        double maximumRequestedPower = Math.max(
-                Math.max(Math.abs(frontLeftPower), Math.abs(frontRightPower)),
-                Math.max(Math.abs(backLeftPower), Math.abs(backRightPower)));
-        double powerScale = maximumRequestedPower > MAX_DRIVE_OUTPUT_POWER
-                ? MAX_DRIVE_OUTPUT_POWER / maximumRequestedPower
-                : 1.0;
-
-        if (debug) {
-            telemetry.addData("Current field X/Y", "%.1f / %.1f", currentFieldX, currentFieldY);
-            telemetry.addData("Target field X/Y", "%.1f / %.1f", targetFieldX, targetFieldY);
-            telemetry.addData("Field error X/Y", "%.1f / %.1f", fieldXError, fieldYError);
-            telemetry.addData("Robot error forward/left", "%.1f / %.1f", robotForwardError, robotLeftError);
-            telemetry.addData("Distance error", "%.1f mm", distanceError);
-            telemetry.addData("Heading current/target/error", "%.3f / %.3f / %.3f",
-                    currentHeading, targetHeading, headingError);
-            telemetry.addData("Command forward/left/CCW", "%.3f / %.3f / %.3f",
-                    forwardPower, leftPower, counterclockwisePower);
-            telemetry.addData("Raw wheels FL/FR/BL/BR", "%.3f / %.3f / %.3f / %.3f",
-                    frontLeftPower, frontRightPower, backLeftPower, backRightPower);
-            telemetry.addData("Power scale", "%.3f", powerScale);
+        boolean atTarget = distanceError <= profile.getPositionToleranceMm()
+                && Math.abs(headingError) <= profile.getHeadingToleranceRadians();
+        if (atTarget) {
+            stopDrive();
+            resetMoveToControllers();
+            return new MoveToResult(
+                    currentPose, targetPose,
+                    fieldXError, fieldYError,
+                    robotForwardError, robotLeftError,
+                    headingError,
+                    DriveSignal.ZERO, WheelPowers.ZERO, true);
         }
 
-        drive.setDrivePowers(
-                frontLeftPower * powerScale,
-                frontRightPower * powerScale,
-                backLeftPower * powerScale,
-                backRightPower * powerScale);
+        double controllerDt = Range.clip(dtSeconds, 1e-4, MAX_CONTROLLER_DT_SECONDS);
+        double forwardPower = forwardController.calculate(robotForwardError, 0.0, controllerDt);
+        double leftPower = leftController.calculate(robotLeftError, 0.0, controllerDt);
+        double counterclockwisePower = headingController.calculate(headingError, 0.0, controllerDt);
 
-        return false;
+        double translationPower = Math.hypot(forwardPower, leftPower);
+        if (translationPower > profile.getMaxTranslationPower() && translationPower > 0.0) {
+            double translationScale = profile.getMaxTranslationPower() / translationPower;
+            forwardPower *= translationScale;
+            leftPower *= translationScale;
+        }
+        counterclockwisePower = Range.clip(
+                counterclockwisePower,
+                -profile.getMaxRotationPower(),
+                profile.getMaxRotationPower());
+
+        DriveSignal driveSignal = new DriveSignal(
+                forwardPower, leftPower, counterclockwisePower);
+        WheelPowers wheelPowers = driveRobotRelative(driveSignal);
+        return new MoveToResult(
+                currentPose, targetPose,
+                fieldXError, fieldYError,
+                robotForwardError, robotLeftError,
+                headingError,
+                driveSignal, wheelPowers, false);
+    }
+
+    public void setTranslationPid(double kP, double kI, double kD) {
+        forwardController.kP = kP;
+        forwardController.kI = kI;
+        forwardController.kD = kD;
+        leftController.kP = kP;
+        leftController.kI = kI;
+        leftController.kD = kD;
+    }
+
+    public void setRotationPid(double kP, double kI, double kD) {
+        headingController.kP = kP;
+        headingController.kI = kI;
+        headingController.kD = kD;
+    }
+
+    public void resetMoveToControllers() {
+        forwardController.reset();
+        leftController.reset();
+        headingController.reset();
+    }
+
+    public void setCollectorPower(double power) {
+        collector.setPower(Range.clip(power, -1.0, 1.0));
+    }
+
+    public void setCollectorMode(CollectorMode mode) {
+        setCollectorPower(mode.getPower());
+    }
+
+    public void stopDrive() {
+        drive.setDrivePowers(0.0, 0.0, 0.0, 0.0);
+    }
+
+    public void stop() {
+        stopDrive();
+        setCollectorMode(CollectorMode.OFF);
+        resetMoveToControllers();
     }
 }

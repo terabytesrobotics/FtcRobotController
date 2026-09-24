@@ -3,53 +3,59 @@ package org.firstinspires.ftc.teamcode.opmode;
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
-import com.qualcomm.robotcore.util.Range;
 
 import org.firstinspires.ftc.teamcode.Robot;
+import org.firstinspires.ftc.teamcode.control.DriveSignal;
+import org.firstinspires.ftc.teamcode.control.TeleopController;
+import org.firstinspires.ftc.teamcode.control.WheelPowers;
+import org.firstinspires.ftc.teamcode.util.LoopTimer;
 
 @com.qualcomm.robotcore.eventloop.opmode.TeleOp(name = "TeleOp", group = "Starter Bot")
 public class TeleOp extends OpMode {
-    Robot robot;
-    final double DEADBAND = 0.05;
+    private static final double DEADBAND = 0.05;
+    private static final double MAX_LOOP_DT_SECONDS = 0.1;
+
+    private final LoopTimer loopTimer = new LoopTimer(MAX_LOOP_DT_SECONDS);
+    private Robot robot;
+    private TeleopController controller;
 
     @Override
     public void init() {
         telemetry = new MultipleTelemetry(
                 telemetry, FtcDashboard.getInstance().getTelemetry());
-        robot = new Robot(hardwareMap, telemetry);
+        robot = new Robot(hardwareMap);
+        controller = new TeleopController(gamepad1, DEADBAND);
+        telemetry.addLine("Shared Robot teleop initialized");
+        telemetry.addLine("Left bumper: precision | Right bumper: full speed");
+    }
+
+    @Override
+    public void start() {
+        loopTimer.reset();
+        controller.start(robot);
     }
 
     @Override
     public void loop() {
-        robot.update();
+        double dtSeconds = loopTimer.nextSeconds();
+        robot.updateSensors();
+        controller.update(robot, dtSeconds);
 
-        double forward = applyDeadband(-gamepad1.left_stick_y);
-        double strafe = applyDeadband(gamepad1.left_stick_x);
-        double rotate = applyDeadband(gamepad1.right_stick_x);
-
-        double fl = forward + strafe + rotate;
-        double fr = forward - strafe - rotate;
-        double bl = forward - strafe + rotate;
-        double br = forward + strafe - rotate;
-
-        double d = Math.max(
-                Math.abs(forward) + Math.abs(strafe) + Math.abs(rotate), 1.0);
-        double speed = 1;
-
-        fl = speed * fl / d;
-        fr = speed * fr / d;
-        bl = speed * bl / d;
-        br = speed * br / d;
-
-        robot.drive.setDrivePowers(fl, fr, bl, br);
-
-        double collectorPower = applyDeadband(gamepad1.right_trigger - gamepad1.left_trigger);
-
-        robot.collector.setCenterPower(collectorPower);
-        robot.collector.setSidePower(collectorPower);
+        DriveSignal signal = controller.getLastDriveSignal();
+        WheelPowers wheels = controller.getLastWheelPowers();
+        telemetry.addData("Pose X/Y/heading", "%.1f / %.1f mm / %.1f deg",
+                robot.getX(), robot.getY(), robot.getHeadingDeg());
+        telemetry.addData("Drive forward/left/CCW", "%.2f / %.2f / %.2f",
+                signal.getForward(), signal.getLeft(), signal.getCounterclockwise());
+        telemetry.addData("Wheels FL/FR/BL/BR", "%.2f / %.2f / %.2f / %.2f",
+                wheels.getFrontLeft(), wheels.getFrontRight(),
+                wheels.getBackLeft(), wheels.getBackRight());
+        telemetry.addData("Collector", "%.2f", controller.getLastCollectorPower());
+        telemetry.addData("Speed limit", "%.0f%%", controller.getLastSpeed() * 100.0);
     }
 
-    private double applyDeadband(double value) {
-        return Math.abs(value) < DEADBAND ? 0.0 : Range.clip(value, -1.0, 1.0);
+    @Override
+    public void stop() {
+        robot.stop();
     }
 }
