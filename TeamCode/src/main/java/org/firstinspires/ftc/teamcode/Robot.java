@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
+import com.acmerobotics.dashboard.FtcDashboard;
+import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
@@ -44,7 +46,10 @@ public class Robot {
         pinpoint.setPosition(new Pose2D(DistanceUnit.MM, 0, 0, AngleUnit.DEGREES, 0));
 
         this.hardwareMap = hardwareMap;
-        this.telemetry = telemetry;
+//        this.telemetry = telemetry;
+        this.telemetry = new MultipleTelemetry(
+                telemetry, FtcDashboard.getInstance().getTelemetry());
+        this.telemetry.setMsTransmissionInterval(50);
     }
 
     public void update() {
