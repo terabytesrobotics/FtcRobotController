@@ -35,7 +35,7 @@ public class TestPosOp extends OpMode {
 
         if (moving) {
 //            robot.moveTo(targetX, targetY, true);
-            robot.moveToRot(targetX, targetY, 0, 0, true);
+            robot.moveToRot(targetX, targetY, Math.PI / 2, 0, true);
 //            robot.rotateTo(Math.PI, true);
         }
 
