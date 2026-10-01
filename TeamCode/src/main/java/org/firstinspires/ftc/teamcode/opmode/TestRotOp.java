@@ -75,11 +75,11 @@ public class TestRotOp extends OpMode {
         robot.rDriveController.kI = kIX;
         robot.rDriveController.kD = kDX;
 
-        telemetry.addData("Rotation", robot.getHeadingDeg());
-        telemetry.addData("KP", kPX);
-        telemetry.addData("KI", kIX);
-        telemetry.addData("KD", kDX);
-        telemetry.addData("Target Rot", AngleUnit.normalizeDegrees(targetRot));
+        robot.telemetry.addData("Rotation", robot.getHeadingDeg());
+        robot.telemetry.addData("KP", kPX);
+        robot.telemetry.addData("KI", kIX);
+        robot.telemetry.addData("KD", kDX);
+        robot.telemetry.addData("Target Rot", AngleUnit.normalizeDegrees(targetRot));
     }
 
     private double applyDeadband(double value) {

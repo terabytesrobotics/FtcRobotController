@@ -99,37 +99,37 @@ public class Robot {
     }
 
     public boolean rotateTo(double targetRad, boolean debug) {
-//        double current = getHeadingRad();
-//
-//        double dRot = targetRad - current;
-//
-//        if (Math.abs(dRot) < rotateToThreshold) {
-//            drive.setDrivePowers(0, 0, 0, 0);
-//            return true;
-//        }
-//
-////        double rotate = rDriveController.calculate(AngleUnit.normalizeRadians(targetRad + Math.PI), current);
-//        double rotate = rDriveController.calculate(AngleUnit.normalizeRadians(dRot), 0);
-//
-//        double fl = -rotate;
-//        double fr = rotate;
-//        double bl = -rotate;
-//        double br = rotate;
-//
-//        // denominator
-//        double d = Math.max(1.0, Math.max(Math.max(Math.abs(fl), Math.abs(fr)), Math.max(Math.abs(bl), Math.abs(br))));
-//
-//        if (debug) {
-//            telemetry.addData("delta rotation", AngleUnit.normalizeRadians(dRot));
-//            telemetry.addData("rotate", rotate);
-//
-//            telemetry.addData("fl", fl);
-//            telemetry.addData("fr", fr);
-//            telemetry.addData("bl", bl);
-//            telemetry.addData("br", br);
-//        }
-//
-//        drive.setDrivePowers(fl / d,fr / d, bl / d, br / d);
+        double current = getHeadingRad();
+
+        double dRot = targetRad - current;
+
+        if (Math.abs(dRot) < rotateToThreshold) {
+            drive.setDrivePowers(0, 0, 0, 0);
+            return true;
+        }
+
+//        double rotate = rDriveController.calculate(AngleUnit.normalizeRadians(targetRad + Math.PI), current);
+        double rotate = rDriveController.calculate(AngleUnit.normalizeRadians(dRot), 0, 0);
+
+        double fl = -rotate;
+        double fr = rotate;
+        double bl = -rotate;
+        double br = rotate;
+
+        // denominator
+        double d = Math.max(1.0, Math.max(Math.max(Math.abs(fl), Math.abs(fr)), Math.max(Math.abs(bl), Math.abs(br))));
+
+        if (debug) {
+            telemetry.addData("delta rotation", AngleUnit.normalizeRadians(dRot));
+            telemetry.addData("rotate", rotate);
+
+            telemetry.addData("fl", fl);
+            telemetry.addData("fr", fr);
+            telemetry.addData("bl", bl);
+            telemetry.addData("br", br);
+        }
+
+        drive.setDrivePowers(fl / d,fr / d, bl / d, br / d);
         return false;
     }
 
@@ -319,6 +319,10 @@ public class Robot {
 //                    DriveSignal.ZERO, WheelPowers.ZERO, true);
             return true;
         }
+
+        telemetry.addData("current x", getX());
+        telemetry.addData("current y", getY());
+        telemetry.addData("current heading", getHeadingDeg());
 
         double controllerDt = Range.clip(dtSeconds, 1e-4, .1);
         double forwardPower = yDriveController.calculate(robotForwardError, 0.0, controllerDt);
