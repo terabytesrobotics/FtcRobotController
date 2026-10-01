@@ -34,8 +34,8 @@ public class TestPosOp extends OpMode {
         targetY += applyDeadband(gamepad1.left_stick_y) * 5;
 
         if (moving) {
-            robot.moveTo(targetX, targetY, true);
-//            robot.moveToRot(targetX, targetY, 0);
+//            robot.moveTo(targetX, targetY, true);
+            robot.moveToRot(targetX, targetY, 0, 0, true);
 //            robot.rotateTo(Math.PI, true);
         }
 

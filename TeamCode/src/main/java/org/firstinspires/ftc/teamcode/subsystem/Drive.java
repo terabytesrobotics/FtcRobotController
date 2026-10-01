@@ -44,4 +44,8 @@ public class Drive {
         backLeft.setPower(bl);
         backRight.setPower(br);
     }
+
+    public void stop() {
+        setDrivePowers(0, 0, 0, 0);
+    }
 }
