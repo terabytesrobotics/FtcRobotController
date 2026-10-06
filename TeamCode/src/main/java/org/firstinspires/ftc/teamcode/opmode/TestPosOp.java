@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.opmode;
 
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
 
 import org.firstinspires.ftc.teamcode.Robot;
@@ -10,8 +11,9 @@ import org.firstinspires.ftc.teamcode.Robot;
 public class TestPosOp extends OpMode {
     Robot robot;
     private double kPX, kIX, kDX;
-    private double targetX = 0, targetY = 0;
+    private double targetX = 0, targetY = 0, targetRot = 0;
     private boolean moving = false;
+    private final ElapsedTime loopTimer = new ElapsedTime();
 
     @Override
     public void init() {
@@ -20,9 +22,15 @@ public class TestPosOp extends OpMode {
 
     @Override
     public void loop() {
+        double dtSeconds = loopTimer.seconds();
+        loopTimer.reset();
+
         kPX = robot.xDriveController.kP;
         kIX = robot.xDriveController.kI;
         kDX = robot.xDriveController.kD;
+//        kPX = robot.rDriveController.kP;
+//        kIX = robot.rDriveController.kI;
+//        kDX = robot.rDriveController.kD;
         
         robot.update();
 
@@ -30,12 +38,15 @@ public class TestPosOp extends OpMode {
             moving = !moving;
         }
 
-        targetX += applyDeadband(-gamepad1.left_stick_x) * 5;
-        targetY += applyDeadband(gamepad1.left_stick_y) * 5;
+//        targetX += applyDeadband(-gamepad1.left_stick_x) * 5;
+//        targetY += applyDeadband(gamepad1.left_stick_y) * 5;
+        targetX += applyDeadband(-gamepad1.left_stick_y) * 5;
+        targetY += applyDeadband(-gamepad1.left_stick_x) * 5;
+        targetRot += applyDeadband(gamepad1.right_stick_x) / 15;
 
         if (moving) {
 //            robot.moveTo(targetX, targetY, true);
-            robot.moveToRot(targetX, targetY, Math.PI / 2, 0, true);
+            robot.moveToRot(targetX, targetY, targetRot, dtSeconds, true);
 //            robot.rotateTo(Math.PI, true);
         }
 
@@ -78,14 +89,19 @@ public class TestPosOp extends OpMode {
         robot.yDriveController.kP = kPX;
         robot.yDriveController.kI = kIX;
         robot.yDriveController.kD = kDX;
+//        robot.rDriveController.kP = kPX;
+//        robot.rDriveController.kI = kIX;
+//        robot.rDriveController.kD = kDX;
 
         telemetry.addData("X coordinate", robot.getX());
         telemetry.addData("Y coordinate", robot.getY());
+        telemetry.addData("Rot", robot.getHeadingRad());
         telemetry.addData("KP", kPX);
         telemetry.addData("KI", kIX);
         telemetry.addData("KD", kDX);
         telemetry.addData("Target X", targetX);
         telemetry.addData("Target Y", targetY);
+        telemetry.addData("Target Rot", targetRot);
 //        telemetry.addData("Heading angle (deg)", robot.getHeading());
     }
 
