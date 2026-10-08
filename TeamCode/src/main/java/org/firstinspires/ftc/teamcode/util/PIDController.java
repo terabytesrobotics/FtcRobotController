@@ -22,6 +22,10 @@ public class PIDController {
         integral += error * safeDtSeconds;
 
         // fix integral windup
+        if (error * integral < 0) {
+            integral = 0;
+        }
+
         double integralLimit = Double.POSITIVE_INFINITY;
         integral = Math.max(-integralLimit,
                 Math.min(integral, integralLimit));

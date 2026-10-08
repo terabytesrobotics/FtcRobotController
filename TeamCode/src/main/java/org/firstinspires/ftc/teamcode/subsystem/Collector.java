@@ -6,7 +6,8 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 
 public class Collector {
     private static final String CENTER_COLLECTOR_NAME = "center_collector";
-    private static final String SIDE_INTAKE_NAME = "testIntake";
+//    private static final String SIDE_INTAKE_NAME = "testIntake";
+    private static final String SIDE_INTAKE_NAME = "servoTest";
 //    private static final String RIGHT_INTAKE_NAME = "right_intake";
 
     private DcMotorEx centerCollector;

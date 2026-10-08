@@ -43,6 +43,7 @@ public class TeleOp extends OpMode {
 
         robot.collector.setCenterPower(collectorPower);
         robot.collector.setSidePower(collectorPower);
+//        robot.collector.setSidePower(1);
     }
 
     private double applyDeadband(double value) {
