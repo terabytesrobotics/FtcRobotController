@@ -26,7 +26,7 @@ public class TestPosOp extends OpMode {
         loopTimer.reset();
 
         kPX = robot.xDriveController.kP;
-        kIX = robot.xDriveController.kI;
+        kIX = robot.xDriveController.kI / 1E-5;
         kDX = robot.xDriveController.kD;
 //        kPX = robot.rDriveController.kP;
 //        kIX = robot.rDriveController.kI;
@@ -53,27 +53,51 @@ public class TestPosOp extends OpMode {
         if (gamepad1.dpadUpWasPressed()) {
             if (gamepad1.a) {
                 kPX *= 1.1;
+
+                if (kPX == 0) {
+                    kPX = 0.001;
+                }
             }
             if (gamepad1.b) {
                 kIX *= 1.1;
+
+                if (kIX == 0) {
+                    kIX = .5;
+                }
             }
 
             if (gamepad1.x) {
                 kDX *= 1.1;
+
+                if (kDX == 0) {
+                    kDX = 0.0001;
+                }
             }
         }
 
         if (gamepad1.dpadDownWasPressed()) {
             if (gamepad1.a) {
                 kPX /= 1.1;
+
+                if (kPX < 0.001) {
+                    kPX = 0;
+                }
             }
 
             if (gamepad1.b) {
                 kIX /= 1.1;
+
+                if (kIX < .5) {
+                    kIX = 0;
+                }
             }
 
             if (gamepad1.x) {
                 kDX /= 1.1;
+
+                if (kDX < 0.0001) {
+                    kDX = 0;
+                }
             }
         }
 
@@ -84,10 +108,10 @@ public class TestPosOp extends OpMode {
 //        targetY = Math.max(300.0, targetY);
 
         robot.xDriveController.kP = kPX;
-        robot.xDriveController.kI = kIX;
+        robot.xDriveController.kI = kIX * 1E-5;
         robot.xDriveController.kD = kDX;
         robot.yDriveController.kP = kPX;
-        robot.yDriveController.kI = kIX;
+        robot.yDriveController.kI = kIX * 1E-5;
         robot.yDriveController.kD = kDX;
 //        robot.rDriveController.kP = kPX;
 //        robot.rDriveController.kI = kIX;

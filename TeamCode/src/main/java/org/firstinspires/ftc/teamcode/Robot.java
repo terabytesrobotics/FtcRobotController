@@ -31,17 +31,18 @@ public class Robot {
     public AprilTagLibrary aprilTagLib;
     public HardwareMap hardwareMap;
     public Telemetry telemetry;
-    private final int moveToThreshold = 5;
+    private final int moveToThreshold = 0;
     private final double rotateToThreshold = Math.PI / 32.0;
     private final double minPunchApplication = 0.05;
-    private final double maxPunchApplication = 0.3;
-    private final double punch = 0.5;
+    private final double maxPunchApplication = 0.2;
+    private final double punch = 0.2;
     public final double kP_POWER_PER_MM = 0.006;
-    public final double kI_POWER_PER_MM_SEC = 0.015;
-    public final double kD_POWER_PER_MM_PER_SEC = 0.001;
-    public final PIDController xDriveController = new PIDController(kP_POWER_PER_MM, kI_POWER_PER_MM_SEC, kD_POWER_PER_MM_PER_SEC);
-    public final PIDController yDriveController = new PIDController(kP_POWER_PER_MM, kI_POWER_PER_MM_SEC, kD_POWER_PER_MM_PER_SEC);
-    public final PIDController rDriveController = new PIDController(2 * Math.PI / 3, kI_POWER_PER_MM_SEC, kD_POWER_PER_MM_PER_SEC);
+//    public final double kI_POWER_PER_MM_SEC = 20.0;
+    public final double kI_POWER_PER_MM_SEC = 0.0;
+    public final double kD_POWER_PER_MM_PER_SEC = 0.0007;
+    public final PIDController xDriveController = new PIDController(kP_POWER_PER_MM, 1E-5 * kI_POWER_PER_MM_SEC, kD_POWER_PER_MM_PER_SEC);
+    public final PIDController yDriveController = new PIDController(kP_POWER_PER_MM, 1E-5 * kI_POWER_PER_MM_SEC, kD_POWER_PER_MM_PER_SEC);
+    public final PIDController rDriveController = new PIDController(2 * Math.PI / 3, 1E-5 * kI_POWER_PER_MM_SEC, kD_POWER_PER_MM_PER_SEC);
     Limelight3A limelight;
     private double maxTranslationPower = 0.9;
     private double maxRotationPower = 0.60;
@@ -75,7 +76,7 @@ public class Robot {
     }
 
     public void update() {
-        drive.setDrivePowers(0, 0, 0, 0);
+//        drive.setDrivePowers(0, 0, 0, 0);
         pinpoint.update();
         telemetry.update();
     }
@@ -147,12 +148,12 @@ public class Robot {
             forwardPower *= translationScale;
             leftPower *= translationScale;
         }
-        // apply punch
-        if (hyp > minPunchApplication && hyp < maxPunchApplication) {
-            double scale = punch / hyp;
-            forwardPower *= scale;
-            leftPower *= scale;
-        }
+//        // apply punch
+//        if (hyp > minPunchApplication && hyp < maxPunchApplication) {
+//            double scale = punch / hyp;
+//            forwardPower *= scale;
+//            leftPower *= scale;
+//        }
 
         counterclockwisePower = Range.clip(
                 counterclockwisePower,
