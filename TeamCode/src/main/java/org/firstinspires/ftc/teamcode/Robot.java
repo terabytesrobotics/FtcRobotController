@@ -18,12 +18,17 @@ import org.firstinspires.ftc.teamcode.subsystem.Collector;
 import org.firstinspires.ftc.teamcode.subsystem.Drive;
 import org.firstinspires.ftc.teamcode.util.MathHelper;
 import org.firstinspires.ftc.teamcode.util.PIDController;
+import org.firstinspires.ftc.vision.apriltag.AprilTagGameDatabase;
+import org.firstinspires.ftc.vision.apriltag.AprilTagLibrary;
+import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 
 // https://github.com/FIRST-Tech-Challenge/FtcRobotController/blob/master/FtcRobotController/src/main/java/org/firstinspires/ftc/robotcontroller/external/samples/SensorLimelight3A.java
 public class Robot {
     GoBildaPinpointDriver pinpoint;
     public Drive drive;
     public Collector collector;
+    public AprilTagProcessor aprilTagProcessor;
+    public AprilTagLibrary aprilTagLib;
     public HardwareMap hardwareMap;
     public Telemetry telemetry;
     private final int moveToThreshold = 5;
@@ -45,6 +50,8 @@ public class Robot {
         drive = new Drive(hardwareMap);
         collector = new Collector(hardwareMap);
         pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+        aprilTagProcessor = AprilTagProcessor.easyCreateWithDefaults();
+        aprilTagLib = AprilTagGameDatabase.getBioBuzzTagLibrary();
 
         // configure pinpoint
         pinpoint.setOffsets(-100.0, -30.0, DistanceUnit.MM);
@@ -155,6 +162,9 @@ public class Robot {
         DriveSignal driveSignal = new DriveSignal(
                 forwardPower, leftPower, counterclockwisePower);
         driveRobotRelative(driveSignal);
+
+        telemetry.addData("forward", driveSignal.getForward());
+        telemetry.addData("left", driveSignal.getLeft());
         return false;
     }
 

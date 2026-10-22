@@ -75,7 +75,6 @@ public class TestCameraOp extends LinearOpMode {
             }
         }
 
-
         waitForStart();
 
         while (opModeIsActive()) {

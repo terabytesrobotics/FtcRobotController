@@ -93,15 +93,15 @@ public class TestPosOp extends OpMode {
 //        robot.rDriveController.kI = kIX;
 //        robot.rDriveController.kD = kDX;
 
-        telemetry.addData("X coordinate", robot.getX());
-        telemetry.addData("Y coordinate", robot.getY());
-        telemetry.addData("Rot", robot.getHeadingRad());
-        telemetry.addData("KP", kPX);
-        telemetry.addData("KI", kIX);
-        telemetry.addData("KD", kDX);
-        telemetry.addData("Target X", targetX);
-        telemetry.addData("Target Y", targetY);
-        telemetry.addData("Target Rot", targetRot);
+        robot.telemetry.addData("X coordinate", robot.getX());
+        robot.telemetry.addData("Y coordinate", robot.getY());
+        robot.telemetry.addData("Rot", robot.getHeadingRad());
+        robot.telemetry.addData("KP", kPX);
+        robot.telemetry.addData("KI", kIX);
+        robot.telemetry.addData("KD", kDX);
+        robot.telemetry.addData("Target X", targetX);
+        robot.telemetry.addData("Target Y", targetY);
+        robot.telemetry.addData("Target Rot", targetRot);
 //        telemetry.addData("Heading angle (deg)", robot.getHeading());
     }
 
