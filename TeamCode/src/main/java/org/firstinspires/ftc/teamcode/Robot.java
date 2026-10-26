@@ -3,11 +3,14 @@ package org.firstinspires.ftc.teamcode;
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+import com.qualcomm.hardware.limelightvision.LLResult;
+import com.qualcomm.hardware.limelightvision.LLResultTypes;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.Range;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
@@ -18,9 +21,13 @@ import org.firstinspires.ftc.teamcode.subsystem.Collector;
 import org.firstinspires.ftc.teamcode.subsystem.Drive;
 import org.firstinspires.ftc.teamcode.util.MathHelper;
 import org.firstinspires.ftc.teamcode.util.PIDController;
+import org.firstinspires.ftc.vision.VisionPortal;
+import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagGameDatabase;
 import org.firstinspires.ftc.vision.apriltag.AprilTagLibrary;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
+
+import java.util.List;
 
 // https://github.com/FIRST-Tech-Challenge/FtcRobotController/blob/master/FtcRobotController/src/main/java/org/firstinspires/ftc/robotcontroller/external/samples/SensorLimelight3A.java
 public class Robot {
@@ -29,6 +36,7 @@ public class Robot {
     public Collector collector;
     public AprilTagProcessor aprilTagProcessor;
     public AprilTagLibrary aprilTagLib;
+    private VisionPortal visionPortal;
     public HardwareMap hardwareMap;
     public Telemetry telemetry;
     private final int moveToThreshold = 0;
@@ -51,8 +59,6 @@ public class Robot {
         drive = new Drive(hardwareMap);
         collector = new Collector(hardwareMap);
         pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
-        aprilTagProcessor = AprilTagProcessor.easyCreateWithDefaults();
-        aprilTagLib = AprilTagGameDatabase.getBioBuzzTagLibrary();
 
         // configure pinpoint
         pinpoint.setOffsets(-100.0, -30.0, DistanceUnit.MM);
@@ -100,6 +106,44 @@ public class Robot {
     public double getHeadingRad() {
         return pinpoint.getHeading(AngleUnit.RADIANS);
     }
+
+
+    public void updateAprilTags() {
+        LLResult result = limelight.getLatestResult();
+
+        if (result == null || !result.isValid()) {
+            telemetry.addData("Limelight", "No valid results");
+            return;
+        }
+
+        List<LLResultTypes.FiducialResult> detections =
+                result.getFiducialResults();
+
+        telemetry.addData("Tags detected", detections.size());
+
+        for (LLResultTypes.FiducialResult detection : detections) {
+            telemetry.addData(
+                    "Tag ID",
+                    detection.getFiducialId()
+            );
+
+            telemetry.addData(
+                    "Horizontal angle (deg)",
+                    detection.getTargetXDegrees()
+            );
+
+            telemetry.addData(
+                    "Vertical angle (deg)",
+                    detection.getTargetYDegrees()
+            );
+
+            telemetry.addData(
+                    "Tag area (%)",
+                    detection.getTargetArea()
+            );
+        }
+    }
+
 
     public boolean moveToRot(double targetX, double targetY, double targetRad, double dtSeconds) {
         return moveToRot(targetX, targetY, targetRad, dtSeconds, false);
