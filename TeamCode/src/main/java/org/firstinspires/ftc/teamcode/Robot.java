@@ -50,7 +50,7 @@ public class Robot {
     public final double kD_POWER_PER_MM_PER_SEC = 0.0007;
     public final PIDController xDriveController = new PIDController(kP_POWER_PER_MM, 1E-5 * kI_POWER_PER_MM_SEC, kD_POWER_PER_MM_PER_SEC);
     public final PIDController yDriveController = new PIDController(kP_POWER_PER_MM, 1E-5 * kI_POWER_PER_MM_SEC, kD_POWER_PER_MM_PER_SEC);
-    public final PIDController rDriveController = new PIDController(2 * Math.PI / 3, 1E-5 * kI_POWER_PER_MM_SEC, kD_POWER_PER_MM_PER_SEC);
+    public final PIDController rDriveController = new PIDController(5.4, 0, .21);
     Limelight3A limelight;
     private double maxTranslationPower = 0.9;
     private double maxRotationPower = 0.60;

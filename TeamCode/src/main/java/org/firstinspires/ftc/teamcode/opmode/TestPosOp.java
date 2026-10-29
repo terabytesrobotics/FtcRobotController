@@ -25,12 +25,12 @@ public class TestPosOp extends OpMode {
         double dtSeconds = loopTimer.seconds();
         loopTimer.reset();
 
-        kPX = robot.xDriveController.kP;
-        kIX = robot.xDriveController.kI / 1E-5;
-        kDX = robot.xDriveController.kD;
-//        kPX = robot.rDriveController.kP;
-//        kIX = robot.rDriveController.kI;
-//        kDX = robot.rDriveController.kD;
+//        kPX = robot.xDriveController.kP;
+//        kIX = robot.xDriveController.kI / 1E-5;
+//        kDX = robot.xDriveController.kD;
+        kPX = robot.rDriveController.kP;
+        kIX = robot.rDriveController.kI / 1E-5;
+        kDX = robot.rDriveController.kD;
         
         robot.update();
 
@@ -40,14 +40,16 @@ public class TestPosOp extends OpMode {
 
 //        targetX += applyDeadband(-gamepad1.left_stick_x) * 5;
 //        targetY += applyDeadband(gamepad1.left_stick_y) * 5;
-        targetX += applyDeadband(-gamepad1.left_stick_y) * 5;
-        targetY += applyDeadband(-gamepad1.left_stick_x) * 5;
+        targetX += applyDeadband(-gamepad1.left_stick_y) * 8;
+        targetY += applyDeadband(-gamepad1.left_stick_x) * 8;
         targetRot += applyDeadband(gamepad1.right_stick_x) / 15;
 
         if (moving) {
 //            robot.moveTo(targetX, targetY, true);
             robot.moveToRot(targetX, targetY, targetRot, dtSeconds, true);
 //            robot.rotateTo(Math.PI, true);
+        } else {
+            robot.drive.stop();
         }
 
         if (gamepad1.dpadUpWasPressed()) {
@@ -107,15 +109,15 @@ public class TestPosOp extends OpMode {
 //        targetY = Math.min(-300.0, targetY);
 //        targetY = Math.max(300.0, targetY);
 
-        robot.xDriveController.kP = kPX;
-        robot.xDriveController.kI = kIX * 1E-5;
-        robot.xDriveController.kD = kDX;
-        robot.yDriveController.kP = kPX;
-        robot.yDriveController.kI = kIX * 1E-5;
-        robot.yDriveController.kD = kDX;
-//        robot.rDriveController.kP = kPX;
-//        robot.rDriveController.kI = kIX;
-//        robot.rDriveController.kD = kDX;
+//        robot.xDriveController.kP = kPX;
+//        robot.xDriveController.kI = kIX * 1E-5;
+//        robot.xDriveController.kD = kDX;
+//        robot.yDriveController.kP = kPX;
+//        robot.yDriveController.kI = kIX * 1E-5;
+//        robot.yDriveController.kD = kDX;
+        robot.rDriveController.kP = kPX;
+        robot.rDriveController.kI = kIX * 1E-5;
+        robot.rDriveController.kD = kDX;
 
         robot.telemetry.addData("X coordinate", robot.getX());
         robot.telemetry.addData("Y coordinate", robot.getY());
