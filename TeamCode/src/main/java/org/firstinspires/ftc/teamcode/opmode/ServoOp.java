@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.opmode;
 
+import com.acmerobotics.dashboard.FtcDashboard;
+import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.util.ElapsedTime;
@@ -15,7 +17,10 @@ public class ServoOp extends OpMode {
 
     @Override
     public void init() {
-        robot = new Robot(hardwareMap, telemetry);
+        telemetry = new MultipleTelemetry(
+                telemetry, FtcDashboard.getInstance().getTelemetry());
+        telemetry.setMsTransmissionInterval(50);
+        robot = new Robot(hardwareMap);
         turret = new Turret(hardwareMap);
     }
 
@@ -24,7 +29,7 @@ public class ServoOp extends OpMode {
         robot.update();
 
 //        double r = applyDeadband(gamepad1.left_stick_x) * 350;
-//        turret.rotateTo(r, robot.telemetry);
+//        turret.rotateTo(r, telemetry);
 
         double tarX = 0.1;
         double tarY = 0.1;
@@ -33,11 +38,12 @@ public class ServoOp extends OpMode {
 //        double r = robot.getHeadingDeg() - Math.toDegrees(Math.asin(dX / (Math.sqrt(dX * dX + dY * dY))));
         double r = Math.toDegrees(Math.asin(dX / (Math.sqrt(dX * dX + dY * dY))));
 
-        robot.telemetry.addData("rot", r);
-        robot.telemetry.addData("dx", dX);
-        robot.telemetry.addData("dy", dY);
+        telemetry.addData("turret.targetDeg", r);
+        telemetry.addData("target.dxMm", dX);
+        telemetry.addData("target.dyMm", dY);
 
-        turret.rotateTo(r, robot.telemetry);
+        turret.rotateTo(r, telemetry);
+        telemetry.update();
     }
 
     private double applyDeadband(double value) {

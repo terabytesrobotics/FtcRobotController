@@ -1,15 +1,12 @@
 package org.firstinspires.ftc.teamcode;
 
-import com.acmerobotics.dashboard.FtcDashboard;
-import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
+import com.acmerobotics.dashboard.config.Config;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.hardware.limelightvision.LLResult;
-import com.qualcomm.hardware.limelightvision.LLResultTypes;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.Range;
 
-import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
@@ -27,9 +24,8 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagGameDatabase;
 import org.firstinspires.ftc.vision.apriltag.AprilTagLibrary;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 
-import java.util.List;
-
 // https://github.com/FIRST-Tech-Challenge/FtcRobotController/blob/master/FtcRobotController/src/main/java/org/firstinspires/ftc/robotcontroller/external/samples/SensorLimelight3A.java
+@Config("Robot Drive")
 public class Robot {
     GoBildaPinpointDriver pinpoint;
     public Drive drive;
@@ -38,9 +34,10 @@ public class Robot {
     public AprilTagLibrary aprilTagLib;
     private VisionPortal visionPortal;
     public HardwareMap hardwareMap;
-    public Telemetry telemetry;
-    private final int moveToThreshold = 0;
-    private final double rotateToThreshold = Math.PI / 32.0;
+    public static volatile double moveToThresholdMm = 0.0;
+    public static volatile double rotateToThresholdRad = Math.PI / 32.0;
+    public static volatile double maxTranslationPower = 0.9;
+    public static volatile double maxRotationPower = 0.60;
     private final double minPunchApplication = 0.05;
     private final double maxPunchApplication = 0.2;
     private final double punch = 0.2;
@@ -52,10 +49,8 @@ public class Robot {
     public final PIDController yDriveController = new PIDController(kP_POWER_PER_MM, 1E-5 * kI_POWER_PER_MM_SEC, kD_POWER_PER_MM_PER_SEC);
     public final PIDController rDriveController = new PIDController(5.4, 0, .21);
     Limelight3A limelight;
-    private double maxTranslationPower = 0.9;
-    private double maxRotationPower = 0.60;
 
-    public Robot(HardwareMap hardwareMap, Telemetry telemetry) {
+    public Robot(HardwareMap hardwareMap) {
         drive = new Drive(hardwareMap);
         collector = new Collector(hardwareMap);
         pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
@@ -75,16 +70,11 @@ public class Robot {
         limelight.start();
 
         this.hardwareMap = hardwareMap;
-//        this.telemetry = telemetry;
-        this.telemetry = new MultipleTelemetry(
-                telemetry, FtcDashboard.getInstance().getTelemetry());
-        this.telemetry.setMsTransmissionInterval(50);
     }
 
     public void update() {
 //        drive.setDrivePowers(0, 0, 0, 0);
         pinpoint.update();
-        telemetry.update();
     }
 
     public Pose2D getPos() {
@@ -108,42 +98,13 @@ public class Robot {
     }
 
 
-    public void updateAprilTags() {
-        LLResult result = limelight.getLatestResult();
-
-        if (result == null || !result.isValid()) {
-            telemetry.addData("Limelight", "No valid results");
-            return;
-        }
-
-        List<LLResultTypes.FiducialResult> detections =
-                result.getFiducialResults();
-
-        telemetry.addData("Tags detected", detections.size());
-
-        for (LLResultTypes.FiducialResult detection : detections) {
-            telemetry.addData(
-                    "Tag ID",
-                    detection.getFiducialId()
-            );
-
-            telemetry.addData(
-                    "Horizontal angle (deg)",
-                    detection.getTargetXDegrees()
-            );
-
-            telemetry.addData(
-                    "Vertical angle (deg)",
-                    detection.getTargetYDegrees()
-            );
-
-            telemetry.addData(
-                    "Tag area (%)",
-                    detection.getTargetArea()
-            );
-        }
+    public LLResult getLatestLimelightResult() {
+        return limelight.getLatestResult();
     }
 
+    public Limelight3A getLimelight() {
+        return limelight;
+    }
 
     public boolean moveToRot(double targetX, double targetY, double targetRad, double dtSeconds) {
         return moveToRot(targetX, targetY, targetRad, dtSeconds, false);
@@ -172,8 +133,8 @@ public class Robot {
         double robotLeftError = -fieldXError * Math.sin(currentHeading)
                 + fieldYError * Math.cos(currentHeading);
 
-        boolean atTarget = distanceError <= moveToThreshold
-                && Math.abs(headingError) <= rotateToThreshold;
+        boolean atTarget = distanceError <= moveToThresholdMm
+                && Math.abs(headingError) <= rotateToThresholdRad;
         if (atTarget) {
             drive.stop();
 
@@ -208,8 +169,6 @@ public class Robot {
                 forwardPower, leftPower, counterclockwisePower);
         driveRobotRelative(driveSignal);
 
-        telemetry.addData("forward", driveSignal.getForward());
-        telemetry.addData("left", driveSignal.getLeft());
         return false;
     }
 

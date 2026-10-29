@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.opmode;
 
+import com.acmerobotics.dashboard.FtcDashboard;
+import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.util.Range;
 
@@ -14,7 +16,10 @@ public class TeleOp extends OpMode {
 
     @Override
     public void init() {
-        robot = new Robot(hardwareMap, telemetry);
+        telemetry = new MultipleTelemetry(
+                telemetry, FtcDashboard.getInstance().getTelemetry());
+        telemetry.setMsTransmissionInterval(50);
+        robot = new Robot(hardwareMap);
         subsys = new TestSubsystem(hardwareMap);
     }
 
@@ -44,7 +49,7 @@ public class TeleOp extends OpMode {
         telemetry.addData("fl", fl);
         telemetry.addData("fr", fr);
         telemetry.addData("bl", bl);
-        telemetry.addData("fr", br);
+        telemetry.addData("br", br);
 
         double power = applyDeadband(gamepad1.right_trigger - gamepad1.left_trigger);
 
@@ -54,6 +59,8 @@ public class TeleOp extends OpMode {
 //        robot.collector.setSidePower(1);
 
         subsys.setPower(power);
+        telemetry.addData("collector.power", power);
+        telemetry.update();
     }
 
     private double applyDeadband(double value) {
