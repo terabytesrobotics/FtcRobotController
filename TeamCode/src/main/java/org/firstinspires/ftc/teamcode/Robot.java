@@ -107,6 +107,9 @@ public class Robot {
         return pinpoint.getHeading(AngleUnit.RADIANS);
     }
 
+    public void setPos(Pose2D pose) {
+        pinpoint.setPosition(pose);
+    }
 
     public void updateAprilTags() {
         LLResult result = limelight.getLatestResult();
