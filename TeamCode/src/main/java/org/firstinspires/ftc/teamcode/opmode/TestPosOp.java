@@ -14,6 +14,8 @@ import org.firstinspires.ftc.teamcode.Robot;
 @Config("Pose Test")
 @TeleOp(name = "TestPos", group = "Debug")
 public class TestPosOp extends OpMode {
+    private static final String FIELD_IMAGE = "/images/biobuzz-field.webp";
+    private static final double FIELD_SIZE_INCHES = 144.0;
     private static final double MM_PER_INCH = 25.4;
     private static final double ROBOT_RADIUS_INCHES = 9.0;
 
@@ -126,7 +128,8 @@ public class TestPosOp extends OpMode {
         double currentY = robot.getY();
         double currentHeading = robot.getHeadingRad();
 
-        TelemetryPacket packet = new TelemetryPacket();
+        // Suppress Dashboard's previous-season background; BIOBUZZ is drawn below.
+        TelemetryPacket packet = new TelemetryPacket(false);
         packet.put("loop.dtMs", dtSeconds * 1000.0);
         packet.put("pose.xMm", currentX);
         packet.put("pose.yMm", currentY);
@@ -144,6 +147,8 @@ public class TestPosOp extends OpMode {
         packet.put("pid.heading.kD", kDX);
 
         Canvas field = packet.fieldOverlay();
+        // Images use Dashboard's upper-left page frame; poses use its center-origin field frame.
+        field.drawImage(FIELD_IMAGE, 0.0, 0.0, FIELD_SIZE_INCHES, FIELD_SIZE_INCHES);
         drawPose(field, currentX / MM_PER_INCH, currentY / MM_PER_INCH,
                 currentHeading, ROBOT_RADIUS_INCHES, "#2196F3");
         drawPose(field, targetX / MM_PER_INCH, targetY / MM_PER_INCH,
