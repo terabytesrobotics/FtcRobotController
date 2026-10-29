@@ -22,7 +22,7 @@ public class TestPosOp extends OpMode {
     public void init() {
         robot = new Robot(hardwareMap, telemetry);
 
-        robot.setPos(new Pose2D(DistanceUnit.INCH, 9, 76 - 7, AngleUnit.DEGREES, 180));
+        robot.setPos(new Pose2D(DistanceUnit.INCH, -76 + 9, 76 - 7, AngleUnit.DEGREES, -90));
         robot.update();
         targetX = robot.getX();
         targetY = robot.getY();

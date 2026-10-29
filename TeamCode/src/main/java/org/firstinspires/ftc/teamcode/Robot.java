@@ -65,7 +65,12 @@ public class Robot {
         pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
         pinpoint.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.FORWARD,
                 GoBildaPinpointDriver.EncoderDirection.FORWARD);
-        pinpoint.resetPosAndIMU();
+        try {
+            pinpoint.resetPosAndIMU();
+            Thread.sleep(500);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
         // set the starting location
         pinpoint.setPosition(new Pose2D(DistanceUnit.MM, 0, 0, AngleUnit.DEGREES, 0));
