@@ -23,21 +23,21 @@ public class ServoOp extends OpMode {
     public void loop() {
         robot.update();
 
-        double r = applyDeadband(gamepad1.left_stick_x) * 350;
-        turret.rotateTo(r);
+//        double r = applyDeadband(gamepad1.left_stick_x) * 350;
+//        turret.rotateTo(r, robot.telemetry);
 
         double tarX = 0.1;
         double tarY = 0.1;
         double dX = tarX - robot.getX();
         double dY = tarY - robot.getY();
 //        double r = robot.getHeadingDeg() - Math.toDegrees(Math.asin(dX / (Math.sqrt(dX * dX + dY * dY))));
+        double r = Math.toDegrees(Math.asin(dX / (Math.sqrt(dX * dX + dY * dY))));
 
-        robot.telemetry.addData("r", r);
-        robot.telemetry.addData("rot", r / 350.0);
+        robot.telemetry.addData("rot", r);
         robot.telemetry.addData("dx", dX);
         robot.telemetry.addData("dy", dY);
 
-//        turret.rotateTo(r);
+        turret.rotateTo(r, robot.telemetry);
     }
 
     private double applyDeadband(double value) {
