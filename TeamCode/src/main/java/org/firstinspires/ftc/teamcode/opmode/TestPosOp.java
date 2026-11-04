@@ -16,7 +16,6 @@ public class TestPosOp extends OpMode {
     private double kPX, kIX, kDX;
     private double targetX = 0, targetY = 0, targetRot = 0;
     private boolean moving = false;
-    private final ElapsedTime loopTimer = new ElapsedTime();
 
     @Override
     public void init() {
@@ -31,8 +30,6 @@ public class TestPosOp extends OpMode {
 
     @Override
     public void loop() {
-        double dtSeconds = loopTimer.seconds();
-        loopTimer.reset();
 
 //        kPX = robot.xDriveController.kP;
 //        kIX = robot.xDriveController.kI / 1E-5;
@@ -55,7 +52,7 @@ public class TestPosOp extends OpMode {
 
         if (moving) {
 //            robot.moveTo(targetX, targetY, true);
-            robot.moveToRot(targetX, targetY, targetRot, dtSeconds, true);
+            robot.moveToRot(targetX, targetY, targetRot, true);
 //            robot.rotateTo(Math.PI, true);
         } else {
             robot.drive.stop();

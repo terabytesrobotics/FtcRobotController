@@ -7,6 +7,7 @@ import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.LLResultTypes;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
@@ -19,6 +20,7 @@ import org.firstinspires.ftc.teamcode.drive.MecanumMixer;
 import org.firstinspires.ftc.teamcode.drive.WheelPowers;
 import org.firstinspires.ftc.teamcode.subsystem.Collector;
 import org.firstinspires.ftc.teamcode.subsystem.Drive;
+import org.firstinspires.ftc.teamcode.util.DashboardTelemetryWrapper;
 import org.firstinspires.ftc.teamcode.util.MathHelper;
 import org.firstinspires.ftc.teamcode.util.PIDController;
 import org.firstinspires.ftc.vision.VisionPortal;
@@ -38,7 +40,8 @@ public class Robot {
     public AprilTagLibrary aprilTagLib;
     private VisionPortal visionPortal;
     public HardwareMap hardwareMap;
-    public Telemetry telemetry;
+//    public Telemetry telemetry;
+    public DashboardTelemetryWrapper telemetry;
     private final int moveToThreshold = 0;
     private final double rotateToThreshold = Math.PI / 32.0;
     private final double minPunchApplication = 0.05;
@@ -54,6 +57,8 @@ public class Robot {
     Limelight3A limelight;
     private double maxTranslationPower = 0.9;
     private double maxRotationPower = 0.60;
+    private final ElapsedTime updateTimer = new ElapsedTime();
+    private double updateDTSeconds = 0;
 
     public Robot(HardwareMap hardwareMap, Telemetry telemetry) {
         drive = new Drive(hardwareMap);
@@ -81,8 +86,7 @@ public class Robot {
 
         this.hardwareMap = hardwareMap;
 //        this.telemetry = telemetry;
-        this.telemetry = new MultipleTelemetry(
-                telemetry, FtcDashboard.getInstance().getTelemetry());
+        this.telemetry = new DashboardTelemetryWrapper(telemetry, FtcDashboard.getInstance().getTelemetry());
         this.telemetry.setMsTransmissionInterval(50);
     }
 
@@ -90,6 +94,13 @@ public class Robot {
 //        drive.setDrivePowers(0, 0, 0, 0);
         pinpoint.update();
         telemetry.update();
+        updateDTSeconds = updateTimer.seconds();
+        updateTimer.reset();
+    }
+
+    public void updateDashboard() {
+        telemetry.draw(getX(), getY(), getHeadingRad());
+        telemetry.updateDashboard();
     }
 
     public Pose2D getPos() {
@@ -153,15 +164,14 @@ public class Robot {
     }
 
 
-    public boolean moveToRot(double targetX, double targetY, double targetRad, double dtSeconds) {
-        return moveToRot(targetX, targetY, targetRad, dtSeconds, false);
+    public boolean moveToRot(double targetX, double targetY, double targetRad) {
+        return moveToRot(targetX, targetY, targetRad, false);
     }
 
     public boolean moveToRot(
             double targetX,
             double targetY,
             double targetRad,
-            double dtSeconds,
             boolean debug
     ) {
         Pose2D currentPose = pinpoint.getPosition();
@@ -189,7 +199,7 @@ public class Robot {
             return true;
         }
 
-        double controllerDt = Range.clip(dtSeconds, 1e-4, .1);
+        double controllerDt = Range.clip(updateDTSeconds, 1e-4, .1);
         double forwardPower = yDriveController.calculate(robotForwardError, 0.0, controllerDt);
         double leftPower = xDriveController.calculate(robotLeftError, 0.0, controllerDt);
         double hyp = Math.hypot(forwardPower, leftPower);
