@@ -23,6 +23,6 @@ public class BlueDownAutoOp extends OpMode {
     public void loop() {
         robot.update();
 
-
+        robot.pathfindTest(0, 0);
     }
 }

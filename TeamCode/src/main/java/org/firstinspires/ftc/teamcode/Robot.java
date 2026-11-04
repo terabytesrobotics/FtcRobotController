@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.dashboard.FtcDashboard;
-import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.LLResultTypes;
@@ -11,21 +10,21 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.teamcode.drive.DriveSignal;
 import org.firstinspires.ftc.teamcode.drive.MecanumMixer;
 import org.firstinspires.ftc.teamcode.drive.WheelPowers;
+import org.firstinspires.ftc.teamcode.element.StaticGameElementMappings;
 import org.firstinspires.ftc.teamcode.subsystem.Collector;
 import org.firstinspires.ftc.teamcode.subsystem.Drive;
+import org.firstinspires.ftc.teamcode.util.AStarPathfinder;
 import org.firstinspires.ftc.teamcode.util.DashboardTelemetryWrapper;
 import org.firstinspires.ftc.teamcode.util.MathHelper;
 import org.firstinspires.ftc.teamcode.util.PIDController;
+import org.firstinspires.ftc.teamcode.util.data.Node;
 import org.firstinspires.ftc.vision.VisionPortal;
-import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
-import org.firstinspires.ftc.vision.apriltag.AprilTagGameDatabase;
 import org.firstinspires.ftc.vision.apriltag.AprilTagLibrary;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 
@@ -60,6 +59,12 @@ public class Robot {
     private final ElapsedTime updateTimer = new ElapsedTime();
     private double updateDTSeconds = 0;
 
+    private double cellSamplingMM = 20;
+    private AStarPathfinder drivePathfinder = new AStarPathfinder(1, 1, cellSamplingMM, StaticGameElementMappings.obstacleNodes(cellSamplingMM));
+    private Node lastPathfindGoal;
+    private List<Node> lastAStarPath;
+    private int pathIndex;
+
     public Robot(HardwareMap hardwareMap, Telemetry telemetry) {
         drive = new Drive(hardwareMap);
         collector = new Collector(hardwareMap);
@@ -85,7 +90,6 @@ public class Robot {
         limelight.start();
 
         this.hardwareMap = hardwareMap;
-//        this.telemetry = telemetry;
         this.telemetry = new DashboardTelemetryWrapper(telemetry, FtcDashboard.getInstance().getTelemetry());
         this.telemetry.setMsTransmissionInterval(50);
     }
@@ -228,6 +232,54 @@ public class Robot {
 
         telemetry.addData("forward", driveSignal.getForward());
         telemetry.addData("left", driveSignal.getLeft());
+        return false;
+    }
+
+    public boolean pathfindTest(double targetX, double targetY) {
+        Node goal = new Node(targetX, targetY);
+        if (lastAStarPath.isEmpty() || !lastPathfindGoal.equals(goal)) {
+            pathIndex = 0;
+            lastAStarPath = drivePathfinder.eval(new Node(getX(), getY()), goal);
+            lastPathfindGoal = goal;
+        }
+
+//        moveToRot(lastAStarPath.);
+        Node bestNode = null;
+        int bestIndex = pathIndex;
+        double targetDist = 15; // mm ahead of robot
+        double maxSearchNodes = 15; // max nodes to search ahead
+        double traveled = 0;
+
+        for (int i = 0; i < maxSearchNodes; i++) {
+            int index = pathIndex + i;
+
+            if (index >= lastAStarPath.size()) {
+                break;
+            }
+
+            Node node = lastAStarPath.get(index);
+
+            if (i == 0) {
+                traveled = MathHelper.approxDistanceTo(getX(), getY(), node.x, node.y);
+            } else {
+                Node previous = lastAStarPath.get(index - 1);
+
+                traveled += MathHelper.approxDistanceTo(previous.x, previous.y, node.x, node.y);
+            }
+
+            bestNode = node;
+            bestIndex = index;
+
+            if (traveled >= targetDist) {
+                break;
+            }
+        }
+
+        if (bestNode != null) {
+            pathIndex += bestIndex;
+            return moveToRot(bestNode.x, bestNode.y, 0);
+        }
+
         return false;
     }
 

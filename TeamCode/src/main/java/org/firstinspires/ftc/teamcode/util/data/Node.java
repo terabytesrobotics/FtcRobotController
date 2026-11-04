@@ -3,18 +3,18 @@ package org.firstinspires.ftc.teamcode.util.data;
 import androidx.annotation.Nullable;
 
 public class Node {
-    public int x;
-    public int y;
-    public int g;
-    public int h;
+    public double x;
+    public double y;
+    public double g;
+    public double h;
     public Node parent;
 
-    public Node(int x, int y) {
+    public Node(double x, double y) {
         this.x = x;
         this.y = y;
     }
 
-    public int getF() {
+    public double getF() {
         return g + h;
     }
 
