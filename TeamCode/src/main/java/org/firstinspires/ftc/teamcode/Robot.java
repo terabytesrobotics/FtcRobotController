@@ -243,7 +243,6 @@ public class Robot {
             lastPathfindGoal = goal;
         }
 
-//        moveToRot(lastAStarPath.);
         Node bestNode = null;
         int bestIndex = pathIndex;
         double targetDist = 15; // mm ahead of robot
