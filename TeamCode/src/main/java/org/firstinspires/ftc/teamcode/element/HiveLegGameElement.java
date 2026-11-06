@@ -13,8 +13,8 @@ public class HiveLegGameElement extends BaseStaticGameElement {
 
     public HiveLegGameElement(double centerXIn, double centerYIn, String id) {
         this.id = id;
-        boundingBox = new Rect(centerXIn * Constants.IN_TO_MM - edgeLength / 2,
-                centerYIn * Constants.IN_TO_MM - edgeLength / 2, edgeLength, edgeLength);
+        boundingBox = new Rect(centerXIn * Constants.IN_TO_MM - width / 2,
+                centerYIn * Constants.IN_TO_MM - longLength / 2, width, longLength);
     }
 
     @Override

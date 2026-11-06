@@ -2,6 +2,8 @@ package org.firstinspires.ftc.teamcode.util.data;
 
 import androidx.annotation.Nullable;
 
+import java.util.Objects;
+
 public class Node {
     public double x;
     public double y;
@@ -21,5 +23,10 @@ public class Node {
     @Override
     public boolean equals(@Nullable Object other) {
         return other instanceof Node && ((Node) other).x == x && ((Node) other).y == y;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(x, y);
     }
 }

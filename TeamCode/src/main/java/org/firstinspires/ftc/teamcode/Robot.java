@@ -16,10 +16,12 @@ import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.teamcode.drive.DriveSignal;
 import org.firstinspires.ftc.teamcode.drive.MecanumMixer;
 import org.firstinspires.ftc.teamcode.drive.WheelPowers;
+import org.firstinspires.ftc.teamcode.element.BaseStaticGameElement;
 import org.firstinspires.ftc.teamcode.element.StaticGameElementMappings;
 import org.firstinspires.ftc.teamcode.subsystem.Collector;
 import org.firstinspires.ftc.teamcode.subsystem.Drive;
 import org.firstinspires.ftc.teamcode.util.AStarPathfinder;
+import org.firstinspires.ftc.teamcode.util.Constants;
 import org.firstinspires.ftc.teamcode.util.DashboardTelemetryWrapper;
 import org.firstinspires.ftc.teamcode.util.MathHelper;
 import org.firstinspires.ftc.teamcode.util.PIDController;
@@ -40,8 +42,8 @@ public class Robot {
     private VisionPortal visionPortal;
     public HardwareMap hardwareMap;
 //    public Telemetry telemetry;
-    public DashboardTelemetryWrapper telemetry;
-    private final int moveToThreshold = 0;
+    public static DashboardTelemetryWrapper telemetry;
+    private final int moveToThreshold = 5;
     private final double rotateToThreshold = Math.PI / 32.0;
     private final double minPunchApplication = 0.05;
     private final double maxPunchApplication = 0.2;
@@ -59,7 +61,9 @@ public class Robot {
     private final ElapsedTime updateTimer = new ElapsedTime();
     private double updateDTSeconds = 0;
 
-    private double cellSamplingMM = 20;
+//    private double cellSamplingMM = 30;
+//    private AStarPathfinder drivePathfinder = new AStarPathfinder(20 * Constants.IN_TO_MM, 22 * Constants.IN_TO_MM, cellSamplingMM, StaticGameElementMappings.obstacleNodes(cellSamplingMM));
+    private double cellSamplingMM = 60;
     private AStarPathfinder drivePathfinder = new AStarPathfinder(1, 1, cellSamplingMM, StaticGameElementMappings.obstacleNodes(cellSamplingMM));
     private Node lastPathfindGoal;
     private List<Node> lastAStarPath;
@@ -96,14 +100,20 @@ public class Robot {
 
     public void update() {
 //        drive.setDrivePowers(0, 0, 0, 0);
+
         pinpoint.update();
         telemetry.update();
         updateDTSeconds = updateTimer.seconds();
         updateTimer.reset();
+
+        for (BaseStaticGameElement element : StaticGameElementMappings.elements) {
+            telemetry.addData(element.getID(), (element.getBounds().topLeft.y - element.getBounds().bottomLeft.y));
+        }
     }
 
     public void updateDashboard() {
         telemetry.draw(getX(), getY(), getHeadingRad());
+        telemetry.drawPath(lastAStarPath);
         telemetry.updateDashboard();
     }
 
@@ -237,16 +247,26 @@ public class Robot {
 
     public boolean pathfindTest(double targetX, double targetY) {
         Node goal = new Node(targetX, targetY);
-        if (lastAStarPath.isEmpty() || !lastPathfindGoal.equals(goal)) {
+
+        boolean goalChanged = lastPathfindGoal == null ||
+                        Math.abs(lastPathfindGoal.x - targetX) > 1.0 ||
+                        Math.abs(lastPathfindGoal.y - targetY) > 1.0;
+
+        if (lastAStarPath == null || lastAStarPath.isEmpty() || goalChanged) {
             pathIndex = 0;
             lastAStarPath = drivePathfinder.eval(new Node(getX(), getY()), goal);
             lastPathfindGoal = goal;
         }
 
+        if (lastAStarPath == null || lastAStarPath.isEmpty()) {
+            return false;
+        }
+
         Node bestNode = null;
         int bestIndex = pathIndex;
-        double targetDist = 15; // mm ahead of robot
-        double maxSearchNodes = 15; // max nodes to search ahead
+
+        double targetDist = 50;
+        int maxSearchNodes = 15;
         double traveled = 0;
 
         for (int i = 0; i < maxSearchNodes; i++) {
@@ -262,7 +282,6 @@ public class Robot {
                 traveled = MathHelper.approxDistanceTo(getX(), getY(), node.x, node.y);
             } else {
                 Node previous = lastAStarPath.get(index - 1);
-
                 traveled += MathHelper.approxDistanceTo(previous.x, previous.y, node.x, node.y);
             }
 
@@ -275,8 +294,14 @@ public class Robot {
         }
 
         if (bestNode != null) {
-            pathIndex += bestIndex;
-            return moveToRot(bestNode.x, bestNode.y, 0);
+            pathIndex = bestIndex;
+
+            telemetry.addData("best x", bestNode.x);
+            telemetry.addData("best y", bestNode.y);
+            telemetry.addData("path index", pathIndex);
+            telemetry.addData("path size", lastAStarPath.size());
+
+            return moveToRot(bestNode.x, bestNode.y, 0, true);
         }
 
         return false;

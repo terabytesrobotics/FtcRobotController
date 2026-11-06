@@ -2,12 +2,8 @@ package org.firstinspires.ftc.teamcode.opmode;
 
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
 
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.teamcode.Robot;
 
 @TeleOp(name = "TestPos", group = "Debug")
@@ -21,8 +17,8 @@ public class TestPosOp extends OpMode {
     public void init() {
         robot = new Robot(hardwareMap, telemetry);
 
-        robot.setPos(new Pose2D(DistanceUnit.INCH, -76 + 9, 76 - 7, AngleUnit.DEGREES, -90));
-        robot.update();
+//        robot.setPos(new Pose2D(DistanceUnit.INCH, -76 + 9, 76 - 7, AngleUnit.DEGREES, -90));
+//        robot.update();
         targetX = robot.getX();
         targetY = robot.getY();
         targetRot = robot.getHeadingRad();
@@ -51,9 +47,8 @@ public class TestPosOp extends OpMode {
         targetRot += applyDeadband(gamepad1.right_stick_x) / 15;
 
         if (moving) {
-//            robot.moveTo(targetX, targetY, true);
-            robot.moveToRot(targetX, targetY, targetRot, true);
-//            robot.rotateTo(Math.PI, true);
+//            robot.moveToRot(targetX, targetY, targetRot, true);
+            robot.pathfindTest(targetX, targetY);
         } else {
             robot.drive.stop();
         }
@@ -135,6 +130,8 @@ public class TestPosOp extends OpMode {
         robot.telemetry.addData("Target Y", targetY);
         robot.telemetry.addData("Target Rot", targetRot);
 //        telemetry.addData("Heading angle (deg)", robot.getHeading());
+        
+        robot.updateDashboard();
     }
 
     private double applyDeadband(double value) {

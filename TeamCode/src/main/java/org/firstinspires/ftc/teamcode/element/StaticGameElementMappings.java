@@ -13,7 +13,9 @@ public class StaticGameElementMappings {
             new FlowerGameElement(-Constants.MAX_FIELD_IN + 48, Constants.MAX_FIELD_IN - 3, "flower_blue_up"),
             new FlowerGameElement(-Constants.MAX_FIELD_IN + 3, -Constants.MAX_FIELD_IN + 48, "flower_blue_down"),
             new FlowerGameElement(Constants.MAX_FIELD_IN - 48, -Constants.MAX_FIELD_IN + 3, "flower_red_up"),
-            new FlowerGameElement(Constants.MAX_FIELD_IN - 3, Constants.MAX_FIELD_IN - 48, "flower_red_down")
+            new FlowerGameElement(Constants.MAX_FIELD_IN - 3, Constants.MAX_FIELD_IN - 48, "flower_red_down"),
+            new HiveLegGameElement(-24, 0, "hive_leg_blue"),
+            new HiveLegGameElement(24, 0, "hive_leg_red")
     );
 
     // biobuzz static elements are all axis aligned
