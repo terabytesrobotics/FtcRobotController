@@ -8,8 +8,8 @@ public class HiveLegGameElement extends BaseStaticGameElement {
     private Rect boundingBox;
     private String id;
 
-    private double longLength = 48 * Constants.IN_TO_MM;
-    private double width = 4 * Constants.IN_TO_MM;
+    private double longLength = 48 * Constants.IN_TO_MM + Constants.ROBOT_Y_MM * Constants.IN_TO_MM;
+    private double width = 4 * Constants.IN_TO_MM + Constants.ROBOT_X_MM * Constants.IN_TO_MM;
 
     public HiveLegGameElement(double centerXIn, double centerYIn, String id) {
         this.id = id;

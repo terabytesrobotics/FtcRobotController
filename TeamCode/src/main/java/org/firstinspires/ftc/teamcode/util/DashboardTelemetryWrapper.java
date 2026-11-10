@@ -13,6 +13,7 @@ import java.util.List;
 public class DashboardTelemetryWrapper extends MultipleTelemetry {
     private TelemetryPacket packet = new TelemetryPacket();
     private static final double ROBOT_RADIUS_INCHES = 9.0;
+    private static final String FIELD_IMAGE = "/biobuzz-field.webp";
 
     public DashboardTelemetryWrapper(Telemetry telemetry, Telemetry dashboardTelemetry) {
         super(telemetry, dashboardTelemetry);
@@ -33,6 +34,8 @@ public class DashboardTelemetryWrapper extends MultipleTelemetry {
 
     private void drawPose(Canvas field, double x, double y,
                           double heading, double radius, String color) {
+        // field is 144 inches long/wide
+        field.drawImage(FIELD_IMAGE, 0.0, 0.0, 144.0, 144.0);
         field.setStroke(color);
         field.strokeCircle(x, y, radius);
 

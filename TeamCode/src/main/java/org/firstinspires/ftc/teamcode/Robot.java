@@ -265,7 +265,7 @@ public class Robot {
         Node bestNode = null;
         int bestIndex = pathIndex;
 
-        double targetDist = 50;
+        double targetDist = 80;
         int maxSearchNodes = 15;
         double traveled = 0;
 

@@ -9,7 +9,7 @@ public class FlowerGameElement extends BaseStaticGameElement {
     private String id;
 
     // 6 inches with a .5in buffer and converted to MM
-    private double edgeLength = 6.5 * Constants.IN_TO_MM;
+    private double edgeLength = 6.5 * Constants.IN_TO_MM + Constants.ROBOT_Y_MM * Constants.IN_TO_MM;
 
     public FlowerGameElement(double centerXIn, double centerYIn, String id) {
         this.id = id;
