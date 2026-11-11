@@ -8,13 +8,13 @@ public class HiveLegGameElement extends BaseStaticGameElement {
     private Rect boundingBox;
     private String id;
 
-    private double longLength = 48 * Constants.IN_TO_MM + Constants.ROBOT_Y_MM * Constants.IN_TO_MM;
-    private double width = 4 * Constants.IN_TO_MM + Constants.ROBOT_X_MM * Constants.IN_TO_MM;
+    private double longLength = 48 * Constants.IN_TO_MM + Constants.ROBOT_X_MM;
+    private double width = 4 * Constants.IN_TO_MM + Constants.ROBOT_Y_MM;
 
     public HiveLegGameElement(double centerXIn, double centerYIn, String id) {
         this.id = id;
-        boundingBox = new Rect(centerXIn * Constants.IN_TO_MM - width / 2,
-                centerYIn * Constants.IN_TO_MM - longLength / 2, width, longLength);
+        boundingBox = new Rect(centerYIn * Constants.IN_TO_MM - longLength / 2,
+                centerXIn * Constants.IN_TO_MM - width / 2, longLength, width);
     }
 
     @Override

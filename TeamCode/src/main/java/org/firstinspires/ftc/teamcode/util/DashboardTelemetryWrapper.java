@@ -6,6 +6,7 @@ import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.teamcode.element.StaticGameElementMappings;
 import org.firstinspires.ftc.teamcode.util.data.Node;
 
 import java.util.List;
@@ -13,7 +14,7 @@ import java.util.List;
 public class DashboardTelemetryWrapper extends MultipleTelemetry {
     private TelemetryPacket packet = new TelemetryPacket();
     private static final double ROBOT_RADIUS_INCHES = 9.0;
-    private static final String FIELD_IMAGE = "/biobuzz-field.webp";
+    private static final String FIELD_IMAGE = "biobuzz-field.png";
 
     public DashboardTelemetryWrapper(Telemetry telemetry, Telemetry dashboardTelemetry) {
         super(telemetry, dashboardTelemetry);
@@ -25,8 +26,12 @@ public class DashboardTelemetryWrapper extends MultipleTelemetry {
         return super.addData(s, o);
     }
 
-    public void draw(double currentX, double currentY, double currentHeading) {
+    public void draw(double currentX, double currentY, double currentHeading, double cellSize) {
         Canvas field = packet.fieldOverlay();
+
+        // field is 144 inches long/wide
+        field.drawImage(FIELD_IMAGE, 0.0, 0.0, 144.0, 144.0);
+        drawObstacles(cellSize);
 
         drawPose(field, currentX / Constants.IN_TO_MM, currentY / Constants.IN_TO_MM,
                 currentHeading, ROBOT_RADIUS_INCHES, "#2196F3");
@@ -34,8 +39,6 @@ public class DashboardTelemetryWrapper extends MultipleTelemetry {
 
     private void drawPose(Canvas field, double x, double y,
                           double heading, double radius, String color) {
-        // field is 144 inches long/wide
-        field.drawImage(FIELD_IMAGE, 0.0, 0.0, 144.0, 144.0);
         field.setStroke(color);
         field.strokeCircle(x, y, radius);
 
@@ -65,5 +68,21 @@ public class DashboardTelemetryWrapper extends MultipleTelemetry {
     public void updateDashboard() {
         FtcDashboard.getInstance().sendTelemetryPacket(packet);
         packet = new TelemetryPacket();
+    }
+
+    public void drawObstacles(double cellSamplingMM) {
+        Canvas field = packet.fieldOverlay();
+
+        field.setStroke("#F44336");
+        field.setFill("#F44336");
+
+        for (Node obstacle : StaticGameElementMappings.obstacleNodes(cellSamplingMM)) {
+            double x = obstacle.x / Constants.IN_TO_MM;
+            double y = obstacle.y / Constants.IN_TO_MM;
+
+            double radius = cellSamplingMM / Constants.IN_TO_MM / 2.0;
+
+            field.fillCircle(x, y, radius);
+        }
     }
 }

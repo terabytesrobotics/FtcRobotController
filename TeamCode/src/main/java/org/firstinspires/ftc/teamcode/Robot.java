@@ -56,14 +56,14 @@ public class Robot {
     public final PIDController yDriveController = new PIDController(kP_POWER_PER_MM, 1E-5 * kI_POWER_PER_MM_SEC, kD_POWER_PER_MM_PER_SEC);
     public final PIDController rDriveController = new PIDController(5.4, 0, .21);
     Limelight3A limelight;
-    private double maxTranslationPower = 0.9;
+    private double maxTranslationPower = 0.7;
     private double maxRotationPower = 0.60;
     private final ElapsedTime updateTimer = new ElapsedTime();
     private double updateDTSeconds = 0;
 
 //    private double cellSamplingMM = 30;
 //    private AStarPathfinder drivePathfinder = new AStarPathfinder(20 * Constants.IN_TO_MM, 22 * Constants.IN_TO_MM, cellSamplingMM, StaticGameElementMappings.obstacleNodes(cellSamplingMM));
-    private double cellSamplingMM = 60;
+    private double cellSamplingMM = 100;
     private AStarPathfinder drivePathfinder = new AStarPathfinder(1, 1, cellSamplingMM, StaticGameElementMappings.obstacleNodes(cellSamplingMM));
     private Node lastPathfindGoal;
     private List<Node> lastAStarPath;
@@ -107,12 +107,12 @@ public class Robot {
         updateTimer.reset();
 
         for (BaseStaticGameElement element : StaticGameElementMappings.elements) {
-            telemetry.addData(element.getID(), (element.getBounds().topLeft.y - element.getBounds().bottomLeft.y));
+            telemetry.addData(element.getID(), element.getBounds().asString());
         }
     }
 
     public void updateDashboard() {
-        telemetry.draw(getX(), getY(), getHeadingRad());
+        telemetry.draw(getX(), getY(), getHeadingRad(), cellSamplingMM);
         telemetry.drawPath(lastAStarPath);
         telemetry.updateDashboard();
     }
@@ -259,7 +259,9 @@ public class Robot {
         }
 
         if (lastAStarPath == null || lastAStarPath.isEmpty()) {
-            return false;
+//            telemetry.addLine("impossible target");
+            throw new RuntimeException("pathfind fail");
+//            return false;
         }
 
         Node bestNode = null;

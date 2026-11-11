@@ -1,3 +1,4 @@
+
 package org.firstinspires.ftc.teamcode.util;
 
 import org.firstinspires.ftc.teamcode.util.data.Node;
@@ -18,12 +19,13 @@ public class AStarPathfinder {
     private double sampleSizeMM;
 
     // 6 feet is 1828.8mm, so min, min is theoretically -1828.8, -1828.8, but 2000mm
-    // allows for an extra buffer in case odometry is offset(preventing locking us out of an edge
+    // allows for an extra buffer in case odometry is offset (preventing locking us out of an edge)
     private double maxMM = 2000;
 
     private Set<Node> obstacles;
 
-    public AStarPathfinder(double robotWidthMM, double robotHeightMM, double sampleSizeMM, Set<Node> obstacles) {
+    public AStarPathfinder(double robotWidthMM, double robotHeightMM,
+                           double sampleSizeMM, Set<Node> obstacles) {
         this.robotWidthMM = robotWidthMM;
         this.robotHeightMM = robotHeightMM;
         this.sampleSizeMM = sampleSizeMM;
@@ -44,21 +46,10 @@ public class AStarPathfinder {
             return false;
         }
 
-        double resolution = sampleSizeMM / 2;
-
-        for (double dx = 0; dx < robotWidthMM; dx += resolution) {
-            for (double dy = 0; dy < robotHeightMM; dy += resolution) {
-
-                double px = x + dx;
-                double py = y + dy;
-
-                for (Node obstacle : obstacles) {
-                    // resolution here is the radius of the obstacle to prevent
-                    // larger sampling sizes from ignoring obstacles
-                    if (Math.hypot(px - obstacle.x, py - obstacle.y) <= resolution) {
-                        return false;
-                    }
-                }
+        for (Node obstacle : obstacles) {
+            if (Math.abs(x - obstacle.x) <= sampleSizeMM / 2.0
+                    && Math.abs(y - obstacle.y) <= sampleSizeMM / 2.0) {
+                return false;
             }
         }
 
@@ -80,20 +71,32 @@ public class AStarPathfinder {
 
     public List<Node> eval(Node start, Node goal) {
         PriorityQueue<Node> openSet = new PriorityQueue<>(Comparator.comparingDouble(Node::getF));
+
         Set<Node> closedSet = new HashSet<>();
 
         Node startNode = new Node(start.x, start.y);
         startNode.h = remainingSteps(startNode, goal);
 
-        if (!canMoveTo(start.x, start.y, obstacles)) return Collections.emptyList();
-        if (!canMoveTo(goal.x, goal.y, obstacles)) return Collections.emptyList();
+        if (!canMoveTo(start.x, start.y, obstacles)) {
+            return Collections.emptyList();
+        }
+
+        Node closestNode = startNode;
+        double closestDistance = Math.hypot(startNode.x - goal.x, startNode.y - goal.y);
 
         openSet.add(startNode);
 
         while (!openSet.isEmpty()) {
             Node current = openSet.poll();
 
-            if (Math.hypot(current.x - goal.x, current.y - goal.y) <= sampleSizeMM) {
+            double distanceToGoal = Math.hypot(current.x - goal.x, current.y - goal.y);
+
+            if (distanceToGoal < closestDistance) {
+                closestDistance = distanceToGoal;
+                closestNode = current;
+            }
+
+            if (distanceToGoal <= sampleSizeMM) {
                 return reconstructPath(current);
             }
 
@@ -107,8 +110,13 @@ public class AStarPathfinder {
             );
 
             for (Node neighbor : neighbors) {
-                if (!canMoveTo(neighbor.x, neighbor.y, obstacles)) continue;
-                if (closedSet.contains(neighbor)) continue;
+                if (!canMoveTo(neighbor.x, neighbor.y, obstacles)) {
+                    continue;
+                }
+
+                if (closedSet.contains(neighbor)) {
+                    continue;
+                }
 
                 double tentativeG = current.g + sampleSizeMM;
 
@@ -131,6 +139,6 @@ public class AStarPathfinder {
             }
         }
 
-        return Collections.emptyList();
+        return reconstructPath(closestNode);
     }
 }

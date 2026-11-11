@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.util.data;
 
+import android.annotation.SuppressLint;
+
 public class Rect {
     public Rect(double x, double y, double width, double height) {
         this.topLeft = new TwoDimPos(x, y);
@@ -20,4 +22,25 @@ public class Rect {
     public TwoDimPos topRight;
     public TwoDimPos bottomLeft;
     public TwoDimPos bottomRight;
+
+    @SuppressLint("DefaultLocale")
+    public String asString() {
+        double width = Math.hypot(topRight.x - topLeft.x, topRight.y - topLeft.y);
+        double height = Math.hypot(bottomLeft.x - topLeft.x, bottomLeft.y - topLeft.y);
+
+        return String.format(
+                "Rect {\n" +
+                        "  Width: %.2f, Height: %.2f\n" +
+                        "  Top Left:     (%.2f, %.2f)\n" +
+                        "  Top Right:    (%.2f, %.2f)\n" +
+                        "  Bottom Left:  (%.2f, %.2f)\n" +
+                        "  Bottom Right: (%.2f, %.2f)\n" +
+                        "}",
+                width, height,
+                topLeft.x, topLeft.y,
+                topRight.x, topRight.y,
+                bottomLeft.x, bottomLeft.y,
+                bottomRight.x, bottomRight.y
+        );
+    }
 }

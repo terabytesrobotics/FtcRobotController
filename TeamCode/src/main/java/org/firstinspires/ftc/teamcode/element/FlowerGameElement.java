@@ -9,12 +9,13 @@ public class FlowerGameElement extends BaseStaticGameElement {
     private String id;
 
     // 6 inches with a .5in buffer and converted to MM
-    private double edgeLength = 6.5 * Constants.IN_TO_MM + Constants.ROBOT_Y_MM * Constants.IN_TO_MM;
+    private double edgeXLength = 6.5 * Constants.IN_TO_MM + Constants.ROBOT_X_MM;
+    private double edgeYLength = 6.5 * Constants.IN_TO_MM + Constants.ROBOT_Y_MM;
 
     public FlowerGameElement(double centerXIn, double centerYIn, String id) {
         this.id = id;
-        boundingBox = new Rect(centerXIn * Constants.IN_TO_MM - edgeLength / 2,
-                centerYIn * Constants.IN_TO_MM - edgeLength / 2, edgeLength, edgeLength);
+        boundingBox = new Rect(centerXIn * Constants.IN_TO_MM - edgeXLength / 2,
+                centerYIn * Constants.IN_TO_MM - edgeYLength / 2, edgeXLength, edgeYLength);
     }
 
     @Override
