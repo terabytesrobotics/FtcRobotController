@@ -13,6 +13,7 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 import org.firstinspires.ftc.teamcode.drive.DriveSignal;
 import org.firstinspires.ftc.teamcode.drive.MecanumMixer;
 import org.firstinspires.ftc.teamcode.drive.WheelPowers;
@@ -106,9 +107,9 @@ public class Robot {
         updateDTSeconds = updateTimer.seconds();
         updateTimer.reset();
 
-        for (BaseStaticGameElement element : StaticGameElementMappings.elements) {
-            telemetry.addData(element.getID(), element.getBounds().asString());
-        }
+//        for (BaseStaticGameElement element : StaticGameElementMappings.elements) {
+//            telemetry.addData(element.getID(), element.getBounds().asString());
+//        }
     }
 
     public void updateDashboard() {
@@ -141,39 +142,32 @@ public class Robot {
         pinpoint.setPosition(pose);
     }
 
+    double robotX;
+    double robotY;
+    double robotHeading;
+
     public void updateAprilTags() {
+
         LLResult result = limelight.getLatestResult();
 
-        if (result == null || !result.isValid()) {
-            telemetry.addData("Limelight", "No valid results");
+        if (result == null) {
+            telemetry.addData("Limelight", "Null result");
             return;
         }
+
+        telemetry.addData("Valid", result.isValid());
+        telemetry.addData("Pipeline", result.getPipelineIndex());
 
         List<LLResultTypes.FiducialResult> detections =
                 result.getFiducialResults();
 
-        telemetry.addData("Tags detected", detections.size());
+        telemetry.addData("Detected Tags", detections.size());
+        telemetry.addData("Pose Tags", result.getBotposeTagCount());
+
+        telemetry.addData("Botpose", result.getBotpose());
 
         for (LLResultTypes.FiducialResult detection : detections) {
-            telemetry.addData(
-                    "Tag ID",
-                    detection.getFiducialId()
-            );
-
-            telemetry.addData(
-                    "Horizontal angle (deg)",
-                    detection.getTargetXDegrees()
-            );
-
-            telemetry.addData(
-                    "Vertical angle (deg)",
-                    detection.getTargetYDegrees()
-            );
-
-            telemetry.addData(
-                    "Tag area (%)",
-                    detection.getTargetArea()
-            );
+            telemetry.addData("Tag ID", detection.getFiducialId());
         }
     }
 
