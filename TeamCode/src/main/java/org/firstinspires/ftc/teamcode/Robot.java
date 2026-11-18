@@ -13,21 +13,20 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
-import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 import org.firstinspires.ftc.teamcode.drive.DriveSignal;
 import org.firstinspires.ftc.teamcode.drive.MecanumMixer;
 import org.firstinspires.ftc.teamcode.drive.WheelPowers;
-import org.firstinspires.ftc.teamcode.element.BaseStaticGameElement;
 import org.firstinspires.ftc.teamcode.element.StaticGameElementMappings;
 import org.firstinspires.ftc.teamcode.subsystem.Collector;
 import org.firstinspires.ftc.teamcode.subsystem.Drive;
+import org.firstinspires.ftc.teamcode.subsystem.Turret;
 import org.firstinspires.ftc.teamcode.util.AStarPathfinder;
-import org.firstinspires.ftc.teamcode.util.Constants;
 import org.firstinspires.ftc.teamcode.util.DashboardTelemetryWrapper;
 import org.firstinspires.ftc.teamcode.util.MathHelper;
 import org.firstinspires.ftc.teamcode.util.PIDController;
 import org.firstinspires.ftc.teamcode.util.data.Node;
 import org.firstinspires.ftc.vision.VisionPortal;
+import org.firstinspires.ftc.vision.apriltag.AprilTagGameDatabase;
 import org.firstinspires.ftc.vision.apriltag.AprilTagLibrary;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 
@@ -38,6 +37,7 @@ public class Robot {
     GoBildaPinpointDriver pinpoint;
     public Drive drive;
     public Collector collector;
+    public Turret turret;
     public AprilTagProcessor aprilTagProcessor;
     public AprilTagLibrary aprilTagLib;
     private VisionPortal visionPortal;
@@ -73,6 +73,7 @@ public class Robot {
     public Robot(HardwareMap hardwareMap, Telemetry telemetry) {
         drive = new Drive(hardwareMap);
         collector = new Collector(hardwareMap);
+        turret = new Turret(hardwareMap);
         pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
 
         // configure pinpoint
@@ -147,6 +148,7 @@ public class Robot {
     double robotHeading;
 
     public void updateAprilTags() {
+        AprilTagGameDatabase.getBioBuzzTagLibrary();
 
         LLResult result = limelight.getLatestResult();
 

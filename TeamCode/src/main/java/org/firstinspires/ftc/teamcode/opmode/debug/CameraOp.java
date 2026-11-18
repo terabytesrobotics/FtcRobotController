@@ -1,10 +1,8 @@
-package org.firstinspires.ftc.teamcode.opmode;
+package org.firstinspires.ftc.teamcode.opmode.debug;
 
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
-import com.qualcomm.robotcore.util.Range;
 
 import org.firstinspires.ftc.teamcode.Robot;
-import org.firstinspires.ftc.teamcode.subsystem.TestSubsystem;
 
 @com.qualcomm.robotcore.eventloop.opmode.TeleOp(name = "Camera", group = "Debug")
 public class CameraOp extends OpMode {

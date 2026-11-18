@@ -31,8 +31,7 @@ public class TeleOp extends OpMode {
         double bl = forward - strafe + rotate;
         double br = forward + strafe - rotate;
 
-        double d = Math.max(
-                Math.abs(forward) + Math.abs(strafe) + Math.abs(rotate), 1.0);
+        double d = Math.max(Math.abs(forward) + Math.abs(strafe) + Math.abs(rotate), 1.0);
         double speed = 1;
 
         fl = speed * fl / d;
@@ -41,19 +40,18 @@ public class TeleOp extends OpMode {
         br = speed * br / d;
 
         robot.drive.setDrivePowers(fl, fr, bl, br);
-        telemetry.addData("fl", fl);
-        telemetry.addData("fr", fr);
-        telemetry.addData("bl", bl);
-        telemetry.addData("fr", br);
 
         double power = applyDeadband(gamepad1.right_trigger - gamepad1.left_trigger);
 
-//        robot.collector.setCenterPower(power);
-//        robot.collector.setSidePower(power);
+        robot.collector.setCenterPower(power);
 
-//        robot.collector.setSidePower(1);
+        double tarX = 0.1;
+        double tarY = 0.1;
+        double dX = tarX - robot.getX();
+        double dY = tarY - robot.getY();
+        double r = Math.toDegrees(Math.asin(dX / (Math.sqrt(dX * dX + dY * dY))));
 
-        subsys.setPower(power);
+        robot.turret.rotateTo(r, robot.telemetry);
     }
 
     private double applyDeadband(double value) {

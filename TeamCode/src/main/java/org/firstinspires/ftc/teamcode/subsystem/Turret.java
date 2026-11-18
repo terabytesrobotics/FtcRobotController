@@ -18,13 +18,18 @@ public class Turret {
         rotationServo = hardwareMap.get(Servo.class, rotationName);
     }
 
+    // servo to turret is 1:1.16
     public boolean rotateTo(double deg, Telemetry t) {
-        double pwm = (deg / maxTurretRot + 1) / 2;
-        pwm = Math.max(.05, Math.min(pwm, .95));
+        deg = Math.max(-203, Math.min(deg, 203));
+        double servoDeg = deg / 1.16;
+        double pwm = (servoDeg + maxTurretRot / 2) / maxTurretRot;
+        pwm = Math.max(0.05, Math.min(pwm, 0.95));
         rotationServo.setPosition(pwm);
+
+        t.addData("target turret angle", deg);
+        t.addData("servo angle", servoDeg);
         t.addData("pwm", pwm);
 
-        // TODO: return whether at target
         return false;
     }
 }
