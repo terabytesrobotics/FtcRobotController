@@ -37,7 +37,7 @@ public class Robot {
     GoBildaPinpointDriver pinpoint;
     public Drive drive;
     public Collector collector;
-    public Turret turret;
+    public Turret pollenTurret;
     public AprilTagProcessor aprilTagProcessor;
     public AprilTagLibrary aprilTagLib;
     private VisionPortal visionPortal;
@@ -73,7 +73,7 @@ public class Robot {
     public Robot(HardwareMap hardwareMap, Telemetry telemetry) {
         drive = new Drive(hardwareMap);
         collector = new Collector(hardwareMap);
-        turret = new Turret(hardwareMap);
+        pollenTurret = new Turret(hardwareMap, "pollenRot", "pollenShooter");
         pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
 
         // configure pinpoint

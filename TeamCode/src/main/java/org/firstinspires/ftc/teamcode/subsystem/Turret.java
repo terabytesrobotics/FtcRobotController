@@ -5,17 +5,16 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-import org.firstinspires.ftc.teamcode.util.MathHelper;
 
 public class Turret {
     private final double maxTurretRot = 350;
-    private static final String rotationName = "shooterRot1";
 
     private Servo rotationServo;
+    private DcMotorEx shooterMotor;
 
-    public Turret(HardwareMap hardwareMap) {
+    public Turret(HardwareMap hardwareMap, String rotationName, String shooterName) {
         rotationServo = hardwareMap.get(Servo.class, rotationName);
+        shooterMotor = hardwareMap.get(DcMotorEx.class, shooterName);
     }
 
     // servo to turret is 1:1.16
@@ -30,6 +29,12 @@ public class Turret {
         t.addData("servo angle", servoDeg);
         t.addData("pwm", pwm);
 
-        return false;
+        return true;
+    }
+
+    public boolean setShooterPower(double power) {
+        shooterMotor.setPower(power);
+
+        return true;
     }
 }

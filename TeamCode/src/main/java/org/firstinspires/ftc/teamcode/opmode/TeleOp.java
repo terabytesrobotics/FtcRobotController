@@ -51,7 +51,7 @@ public class TeleOp extends OpMode {
         double dY = tarY - robot.getY();
         double r = Math.toDegrees(Math.asin(dX / (Math.sqrt(dX * dX + dY * dY))));
 
-        robot.turret.rotateTo(r, robot.telemetry);
+        robot.pollenTurret.rotateTo(r, robot.telemetry);
     }
 
     private double applyDeadband(double value) {

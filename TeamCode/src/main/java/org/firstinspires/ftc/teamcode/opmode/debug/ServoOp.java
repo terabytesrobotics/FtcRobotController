@@ -10,12 +10,10 @@ import org.firstinspires.ftc.teamcode.subsystem.Turret;
 @TeleOp(name = "Servo", group = "Debug")
 public class ServoOp extends OpMode {
     Robot robot;
-    Turret turret;
 
     @Override
     public void init() {
         robot = new Robot(hardwareMap, telemetry);
-        turret = new Turret(hardwareMap);
     }
 
     @Override
@@ -36,7 +34,7 @@ public class ServoOp extends OpMode {
         robot.telemetry.addData("dx", dX);
         robot.telemetry.addData("dy", dY);
 
-        turret.rotateTo(r, robot.telemetry);
+        robot.pollenTurret.rotateTo(r, robot.telemetry);
     }
 
     private double applyDeadband(double value) {

@@ -17,7 +17,6 @@ public class Collector {
     public Collector(HardwareMap hardwareMap) {
         centerCollector = hardwareMap.get(DcMotorEx.class, CENTER_COLLECTOR_NAME);
         sideIntake = hardwareMap.get(CRServo.class, SIDE_INTAKE_NAME);
-//        rightIntake = hardwareMap.get(CRServo.class, RIGHT_INTAKE_NAME);
     }
 
     public void setCenterPower(double power) {
