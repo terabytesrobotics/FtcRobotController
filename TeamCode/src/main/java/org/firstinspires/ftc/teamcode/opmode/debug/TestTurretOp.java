@@ -2,7 +2,6 @@ package org.firstinspires.ftc.teamcode.opmode.debug;
 
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.util.Range;
 
 import org.firstinspires.ftc.teamcode.Robot;
 
@@ -62,6 +61,7 @@ public class TestTurretOp extends OpMode {
 
         robot.telemetry.addData("shooter power", targetPower);
         robot.telemetry.addData("rot", targetRot);
+        robot.telemetry.addData("velo", robot.pollenTurret.getShooterRPM());
         
         robot.updateDashboard();
     }

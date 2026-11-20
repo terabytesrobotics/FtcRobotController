@@ -16,20 +16,20 @@ public class Drive {
     DcMotorEx backRight;
 
     public Drive(HardwareMap hardwareMap) {
-        frontLeft = hardwareMap.get(DcMotorEx.class, FRONT_LEFT_NAME);
-        frontRight = hardwareMap.get(DcMotorEx.class, FRONT_RIGHT_NAME);
-        backLeft = hardwareMap.get(DcMotorEx.class, BACK_LEFT_NAME);
-        backRight = hardwareMap.get(DcMotorEx.class, BACK_RIGHT_NAME);
-
-        frontLeft.setDirection(DcMotor.Direction.REVERSE);
-        backLeft.setDirection(DcMotor.Direction.FORWARD);
-        frontRight.setDirection(DcMotor.Direction.FORWARD);
-        backRight.setDirection(DcMotor.Direction.REVERSE);
-
-        configureMotor(frontLeft);
-        configureMotor(frontRight);
-        configureMotor(backLeft);
-        configureMotor(backRight);
+//        frontLeft = hardwareMap.get(DcMotorEx.class, FRONT_LEFT_NAME);
+//        frontRight = hardwareMap.get(DcMotorEx.class, FRONT_RIGHT_NAME);
+//        backLeft = hardwareMap.get(DcMotorEx.class, BACK_LEFT_NAME);
+//        backRight = hardwareMap.get(DcMotorEx.class, BACK_RIGHT_NAME);
+//
+//        frontLeft.setDirection(DcMotor.Direction.REVERSE);
+//        backLeft.setDirection(DcMotor.Direction.FORWARD);
+//        frontRight.setDirection(DcMotor.Direction.FORWARD);
+//        backRight.setDirection(DcMotor.Direction.REVERSE);
+//
+//        configureMotor(frontLeft);
+//        configureMotor(frontRight);
+//        configureMotor(backLeft);
+//        configureMotor(backRight);
     }
 
     private void configureMotor(DcMotorEx motor) {

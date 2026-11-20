@@ -74,26 +74,26 @@ public class Robot {
         drive = new Drive(hardwareMap);
         collector = new Collector(hardwareMap);
         pollenTurret = new Turret(hardwareMap, "pollenRot", "pollenShooter");
-        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+//        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+//
+//        // configure pinpoint
+//        pinpoint.setOffsets(-100.0, -30.0, DistanceUnit.MM);
+//        pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
+//        pinpoint.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.FORWARD,
+//                GoBildaPinpointDriver.EncoderDirection.FORWARD);
+//        try {
+//            pinpoint.resetPosAndIMU();
+//            Thread.sleep(500);
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
+//
+//        // set the starting location
+//        pinpoint.setPosition(new Pose2D(DistanceUnit.MM, 0, 0, AngleUnit.DEGREES, 0));
 
-        // configure pinpoint
-        pinpoint.setOffsets(-100.0, -30.0, DistanceUnit.MM);
-        pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
-        pinpoint.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.FORWARD,
-                GoBildaPinpointDriver.EncoderDirection.FORWARD);
-        try {
-            pinpoint.resetPosAndIMU();
-            Thread.sleep(500);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        // set the starting location
-        pinpoint.setPosition(new Pose2D(DistanceUnit.MM, 0, 0, AngleUnit.DEGREES, 0));
-
-        limelight = hardwareMap.get(Limelight3A.class, "limelight");
-        limelight.setPollRateHz(100);
-        limelight.start();
+//        limelight = hardwareMap.get(Limelight3A.class, "limelight");
+//        limelight.setPollRateHz(100);
+//        limelight.start();
 
         this.hardwareMap = hardwareMap;
         this.telemetry = new DashboardTelemetryWrapper(telemetry, FtcDashboard.getInstance().getTelemetry());
@@ -103,7 +103,7 @@ public class Robot {
     public void update() {
 //        drive.setDrivePowers(0, 0, 0, 0);
 
-        pinpoint.update();
+//        pinpoint.update();
         telemetry.update();
         updateDTSeconds = updateTimer.seconds();
         updateTimer.reset();
@@ -114,9 +114,9 @@ public class Robot {
     }
 
     public void updateDashboard() {
-        telemetry.draw(getX(), getY(), getHeadingRad(), cellSamplingMM);
-        telemetry.drawPath(lastAStarPath);
-        telemetry.updateDashboard();
+//        telemetry.draw(getX(), getY(), getHeadingRad(), cellSamplingMM);
+//        telemetry.drawPath(lastAStarPath);
+//        telemetry.updateDashboard();
     }
 
     public Pose2D getPos() {
