@@ -19,6 +19,7 @@ import org.firstinspires.ftc.teamcode.drive.WheelPowers;
 import org.firstinspires.ftc.teamcode.element.StaticGameElementMappings;
 import org.firstinspires.ftc.teamcode.subsystem.Collector;
 import org.firstinspires.ftc.teamcode.subsystem.Drive;
+import org.firstinspires.ftc.teamcode.subsystem.Sorter;
 import org.firstinspires.ftc.teamcode.subsystem.Turret;
 import org.firstinspires.ftc.teamcode.util.AStarPathfinder;
 import org.firstinspires.ftc.teamcode.util.DashboardTelemetryWrapper;
@@ -38,6 +39,7 @@ public class Robot {
     public Drive drive;
     public Collector collector;
     public Turret pollenTurret;
+    public Sorter sorter;
     public AprilTagProcessor aprilTagProcessor;
     public AprilTagLibrary aprilTagLib;
     private VisionPortal visionPortal;
@@ -74,6 +76,7 @@ public class Robot {
         drive = new Drive(hardwareMap);
         collector = new Collector(hardwareMap);
         pollenTurret = new Turret(hardwareMap, "pollenRot", "pollenShooter");
+        sorter = new Sorter(hardwareMap);
 //        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
 //
 //        // configure pinpoint
